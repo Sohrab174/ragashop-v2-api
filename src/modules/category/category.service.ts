@@ -1,0 +1,709 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { I18nContext } from 'nestjs-i18n';
+import { Repository } from 'typeorm';
+import { getConnection } from 'typeorm/globals';
+import * as path from 'path';
+import * as fs from 'fs';
+import { ErrorService } from '../../error/error.service';
+import {
+  applyFiltersToBuilder,
+  applySortingToBuilder,
+  findCategoryParentsByChildId,
+  paginationResult,
+} from '../../utils';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CategoryEntity, CategoryStatus } from './entities/category.entity';
+import { UpdateCategoryIconDto } from './dto/update-category-icon.dto';
+import { getLastDisplayOrder } from '../../utils/last-display-order';
+import { DeleteCategoryDto } from './dto/delete-category.dto';
+import { CategorySortDto } from './dto/category-sort.dto';
+import { UserEntity } from '../user/entities/user.entity';
+import {
+  applyPathToThumbPath,
+  generateThumbnail,
+  squareSizeImage,
+} from '../../utils/sharp';
+
+@Injectable()
+export class CategoryService {
+  constructor(
+    @InjectRepository(CategoryEntity)
+    private categoryRepository: Repository<CategoryEntity>,
+
+    private error: ErrorService,
+  ) {}
+
+  /**
+   * -------------------------------------------------------
+   * POST /categories/admin
+   */
+  async add(dto: CreateCategoryDto) {
+    const i18n = I18nContext.current();
+
+    if (dto.parentId) {
+      const parentCategory = await this.categoryRepository.findOne({
+        id: dto.parentId,
+      });
+      if (!parentCategory) {
+        this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      }
+    }
+
+    // Creating a new category
+    const { identifiers } = await this.categoryRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        name: dto.name,
+        status: dto.status,
+        parentId: dto.parentId,
+        displayOrder: await getLastDisplayOrder(CategoryEntity.name),
+        createdAt: new Date(),
+      })
+      .execute();
+
+    const newCategoryId = identifiers[0].id;
+
+    return { id: newCategoryId };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /categories/admin
+   */
+  async update(dto: UpdateCategoryDto) {
+    const i18n = I18nContext.current();
+
+    const targetCategory = await this.categoryRepository.findOne({
+      where: { id: dto.id },
+    });
+    if (!targetCategory) {
+      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+    }
+
+    if (dto.parentId === dto.id) {
+      this.error.unprocessableEntity([i18n.t('t.The request is not valid!')]);
+    }
+
+    if (dto.parentId) {
+      const categoryParent = await this.categoryRepository.findOne({
+        id: dto.parentId,
+      });
+      if (!categoryParent) {
+        this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      }
+    }
+
+    // Updating the category
+    targetCategory.parentId = dto.parentId;
+    targetCategory.status = dto.status;
+    targetCategory.name = dto.name;
+
+    await targetCategory.save();
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /categories/icon/admin
+   */
+  async updateIcon(
+    dto: UpdateCategoryIconDto,
+    icon: Express.Multer.File,
+    user: UserEntity,
+  ) {
+    const i18n = I18nContext.current();
+
+    const category = await this.categoryRepository
+      .createQueryBuilder('category')
+      .leftJoinAndSelect(
+        'category.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang: i18n.lang },
+      )
+      .andWhere({ id: dto.id })
+      .getOne();
+
+    if (!category) {
+      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+    }
+
+    const oldIconPath = category.iconPath;
+
+    // Updating the category icon
+    await this.categoryRepository
+      .createQueryBuilder()
+      .update()
+      .set({ iconPath: `/categories/${icon.filename}` })
+      .where({ id: category.id })
+      .execute();
+
+    await generateThumbnail(icon.path, 50, 50);
+    await squareSizeImage(icon.path, 200, 200);
+
+    // Remove the old icon from disk
+    if (oldIconPath) {
+      fs.unlink(path.join(__dirname, '../../..', 'uploads', oldIconPath), (e) =>
+        console.log(e),
+      );
+
+      fs.unlink(
+        path.join(
+          __dirname,
+          '../../..',
+          'uploads',
+          applyPathToThumbPath(oldIconPath),
+        ),
+        (e) => console.log(e),
+      );
+    }
+
+    return category.iconPath;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * DELETE /categories/:id/icon/admin
+   */
+  async deleteIcon(id: number, user: UserEntity) {
+    const i18n = I18nContext.current();
+
+    const category = await this.categoryRepository.findOne({
+      id,
+    });
+
+    if (!category) {
+      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+    }
+
+    fs.unlink(
+      path.join(__dirname, '../../..', 'uploads', category.iconPath),
+      (e) => console.log(e),
+    );
+
+    fs.unlink(
+      path.join(
+        __dirname,
+        '../../..',
+        'uploads',
+        applyPathToThumbPath(category.iconPath),
+      ),
+      (e) => console.log(e),
+    );
+
+    category.iconPath = null;
+    await category.save();
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * DELETE /categories/:id/admin
+   */
+  async delete(id: number, user: UserEntity, dto: DeleteCategoryDto) {
+    const i18n = I18nContext.current();
+
+    const category = await this.categoryRepository.findOne({
+      where: { id },
+      relations: ['locales', 'subCategories'],
+    });
+
+    if (!category) {
+      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+    }
+
+    const tempIconPath = category.iconPath;
+
+    if (category.subCategories?.length > 0 && !dto.force) {
+      this.error.methodNotAllowed(
+        [
+          i18n.t(
+            't.Some sub categories are related to this category, please delete the sub categories of this category first!',
+          ),
+        ],
+        { hasSubCategories: true },
+      );
+    }
+
+    // Rollbacking the category locales if an error occurs
+    const queryRunner = getConnection().createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Removing the locales
+      await this._deleteLocales(category, queryRunner);
+
+      // Removing the sub categories
+      if (category.subCategories?.length > 0) {
+        const allCategories = await this.categoryRepository.find();
+        await this._deleteSubCategories(
+          allCategories,
+          category.id,
+          queryRunner,
+        );
+      }
+
+      // Removing the category
+      await queryRunner.manager.remove(category);
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+
+      this.error.methodNotAllowed([
+        i18n.t(
+          't.Some products are related to this category, please delete the products of this category first!',
+        ),
+      ]);
+    } finally {
+      await queryRunner.release();
+    }
+
+    // Remove the icon of the category from disk
+    if (tempIconPath) {
+      fs.unlink(
+        path.join(__dirname, '../../..', 'uploads', tempIconPath),
+        (e) => console.log(e),
+      );
+
+      fs.unlink(
+        path.join(
+          __dirname,
+          '../../..',
+          'uploads',
+          applyPathToThumbPath(tempIconPath),
+        ),
+        (e) => console.log(e),
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /categories/admin
+   */
+  async getAllForAdmin(
+    page = 1,
+    limit = 20,
+    filters = null,
+    sorts = null,
+    companyId = null,
+    parentId = null,
+  ) {
+    const { lang } = I18nContext.current();
+
+    let builder = this.categoryRepository
+      .createQueryBuilder('category')
+      .innerJoinAndSelect(
+        'category.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang },
+      )
+      .leftJoinAndSelect('category.parent', 'parent')
+      .leftJoinAndSelect('parent.locales', 'parentLocales');
+
+    if (sorts) {
+      builder = applySortingToBuilder(builder, sorts);
+    } else {
+      builder.orderBy('category.displayOrder', 'ASC');
+    }
+
+    builder = applyFiltersToBuilder(builder, filters);
+
+    if (companyId) {
+      builder.andWhere({ companyId });
+    }
+
+    if (parentId === '-1') {
+      builder.andWhere('(category.parentId IS NULL OR category.parentId = "")');
+    } else if (parentId) {
+      builder.andWhere({ parentId });
+    }
+
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      pagination: paginationResult(page, limit, totalItems),
+    };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /categories/:id/admin
+   */
+  async getByIdForAdmin(id: number, companyId = null) {
+    const i18n = I18nContext.current();
+
+    const builder = this.categoryRepository
+      .createQueryBuilder('category')
+      .leftJoinAndSelect('category.parent', 'parent')
+      .innerJoinAndSelect('category.locales', 'locales')
+      .where({ id });
+
+    if (companyId) {
+      builder.andWhere({ companyId });
+    }
+
+    const category = await builder.getOne();
+
+    if (!category) {
+      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+    }
+
+    return category;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /categories
+   */
+  async getAll(
+    companyId,
+    page = 1,
+    limit = 20,
+    sorts = null,
+    parentId = null,
+    getSubIds = false,
+  ) {
+    const { lang } = I18nContext.current();
+
+    let builder = this.categoryRepository
+      .createQueryBuilder('category')
+      .innerJoinAndSelect(
+        'category.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang },
+      )
+      // .innerJoin(
+      //   'category.products',
+      //   'products',
+      //   'products.status = :pStatus',
+      //   { pStatus: ProductStatus.active },
+      // )
+      .andWhere({ companyId })
+      .andWhere({ status: CategoryStatus.active });
+
+    if (parentId) {
+      builder.andWhere(
+        parentId === 'NULL' ? 'category.parentId IS NULL' : { parentId },
+      );
+    }
+
+    if (sorts) {
+      builder = applySortingToBuilder(builder, sorts);
+    } else {
+      builder.orderBy('category.displayOrder', 'ASC');
+    }
+
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    // Getting the sub category ids
+    let groupedCategories = [];
+    if (getSubIds) {
+      const subCategories = await this.categoryRepository
+        .createQueryBuilder('category')
+        .select(['category.id', 'category.parentId'])
+        .where({
+          companyId,
+          status: CategoryStatus.active,
+        })
+        .getMany();
+      groupedCategories = this._applyCategoryToTree(subCategories);
+    }
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        ...(getSubIds && {
+          subIds: this._extractSubIds(
+            groupedCategories.find((g) => g.id === item.id)?.subCategories ||
+              [],
+          ),
+        }),
+      })),
+      pagination: paginationResult(page, limit, totalItems),
+    };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /categories/:id
+   */
+  async getById(categoryId, companyId, getSubIds = false) {
+    const i18n = I18nContext.current();
+
+    const builder = this.categoryRepository
+      .createQueryBuilder('category')
+      .innerJoinAndSelect(
+        'category.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang: i18n.lang },
+      )
+      // .innerJoin(
+      //   'category.products',
+      //   'products',
+      //   'products.status = :pStatus',
+      //   { pStatus: ProductStatus.active },
+      // )
+      .andWhere({ companyId, id: categoryId, status: CategoryStatus.active });
+
+    const category = await builder.getOne();
+
+    if (!category) {
+      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+    }
+
+    // Getting the sub category ids
+    let groupedCategories: any = [];
+    if (getSubIds) {
+      const subCategories = await this.categoryRepository
+        .createQueryBuilder('category')
+        .select(['category.id', 'category.parentId'])
+        .where({
+          companyId,
+          status: CategoryStatus.active,
+        })
+        .getMany();
+
+      groupedCategories = this._applyCategoryToTree(subCategories, +categoryId);
+    }
+
+    return {
+      ...category,
+      ...(getSubIds && {
+        subIds: this._extractSubIds(groupedCategories || []),
+      }),
+    };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /categories/tree
+   * GET /categories/tree?child_id=1
+   */
+  async getAllTree(companyId, childId = null) {
+    const { lang } = I18nContext.current();
+
+    const categories = await this.categoryRepository
+      .createQueryBuilder('category')
+      .innerJoinAndSelect(
+        'category.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang },
+      )
+      // .innerJoin(
+      //   'category.products',
+      //   'products',
+      //   'products.status = :pStatus',
+      //   { pStatus: ProductStatus.active },
+      // )
+      .select([
+        'category.id',
+        'category.parentId',
+        'category.iconPath',
+        'locales.id',
+        'locales.name',
+      ])
+      .where({ companyId, status: CategoryStatus.active })
+      .orderBy('category.displayOrder', 'ASC')
+      .getMany();
+
+    const groupedCategories = this._applyCategoryToTree(categories);
+
+    if (childId) {
+      return findCategoryParentsByChildId(groupedCategories, +childId).map(
+        (cat) => {
+          delete cat.subCategories;
+          return cat;
+        },
+      );
+    }
+
+    return groupedCategories;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getByIdAndCompanyId(categoryId) {
+    return await this.categoryRepository.findOne({ id: categoryId });
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /categories/sort/admin
+   */
+  async sort(dto: CategorySortDto, user: UserEntity, filters = null) {
+    const i18n = I18nContext.current();
+
+    const original = await this.categoryRepository
+      .createQueryBuilder('category')
+      .leftJoin('category.locales', 'locales', 'locales.language = :lang', {
+        lang: i18n.lang,
+      })
+      .select([
+        'category.id',
+        'category.displayOrder',
+        'locales.id',
+        'locales.name',
+      ])
+      .andWhere({ id: dto.id })
+      .getOne();
+
+    if (!original) {
+      return this.error.unprocessableEntity([
+        i18n.t('t.This category was not found'),
+      ]);
+    }
+
+    let builder = this.categoryRepository
+      .createQueryBuilder('category')
+      .innerJoinAndSelect(
+        'category.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang: i18n.lang },
+      )
+      .select(['category.id', 'category.displayOrder']);
+
+    if (dto.action) {
+      builder = applyFiltersToBuilder(builder, filters);
+
+      if (dto.action === 'up') {
+        builder = builder
+          .andWhere('category.displayOrder < :displayOrder', {
+            displayOrder: original.displayOrder,
+          })
+          .orderBy('category.displayOrder', 'DESC');
+      } else {
+        builder = builder
+          .andWhere('category.displayOrder > :displayOrder', {
+            displayOrder: original.displayOrder,
+          })
+          .orderBy('category.displayOrder', 'ASC');
+      }
+    } else {
+      builder.andWhere({ id: dto.alternate });
+    }
+
+    const alternate = await builder.getOne();
+
+    if (!alternate) {
+      return this.error.unprocessableEntity([
+        i18n.t('t.Replacement category not found'),
+      ]);
+    }
+
+    const tempDisplayOrder = original.displayOrder;
+
+    await this.categoryRepository
+      .createQueryBuilder()
+      .update()
+      .set({ displayOrder: alternate.displayOrder })
+      .where({ id: original.id })
+      .execute();
+
+    await this.categoryRepository
+      .createQueryBuilder()
+      .update()
+      .set({ displayOrder: tempDisplayOrder })
+      .where({ id: alternate.id })
+      .execute();
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getByNameAndCompanyId(categoryName) {
+    const category = await this.categoryRepository
+      .createQueryBuilder('category')
+      .where('TRIM(LOWER(category.name)) = :name', {
+        name: `${categoryName}`.toLowerCase().trim(),
+      })
+      .getOne();
+
+    return category?.id || null;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _deleteSubCategories(categories, parentId, queryRunner) {
+    for (const category of categories) {
+      if (category.parentId === parentId) {
+        // Deleting the childs
+        await this._deleteSubCategories(categories, category.id, queryRunner);
+
+        // Deleting the self
+        await this._deleteLocales(category, queryRunner);
+        await queryRunner.manager.remove(category);
+      }
+    }
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _deleteLocales(category, queryRunner) {
+    for (let i = 0; i < category.locales.length; i++) {
+      const locale = category.locales[i];
+
+      // Removing the category locale
+      await queryRunner.manager.remove(locale);
+    }
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private _applyCategoryToTree(categories, parentId: number = null) {
+    const result = [];
+
+    for (const category of categories) {
+      if (category.parentId === parentId) {
+        const subCategories = this._applyCategoryToTree(
+          categories,
+          category.id,
+        );
+        if (subCategories.length > 0) {
+          category.subCategories = subCategories;
+        }
+        result.push(category);
+      }
+    }
+
+    return result;
+  }
+
+  private _extractSubIds(subCategories, result = []) {
+    for (const obj of subCategories) {
+      result.push(obj.id);
+
+      if (obj.subCategories && obj.subCategories.length > 0) {
+        this._extractSubIds(obj.subCategories, result);
+      }
+    }
+
+    return result;
+  }
+}

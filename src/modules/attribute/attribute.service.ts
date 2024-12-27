@@ -1,0 +1,420 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { AttributeEntity } from './entities/attribute.entity';
+import { Repository } from 'typeorm';
+import { getConnection } from 'typeorm/globals';
+import { ErrorService } from '../../error/error.service';
+import { I18nContext } from 'nestjs-i18n';
+import {
+  applyFiltersToBuilder,
+  applySortingToBuilder,
+  paginationResult,
+} from '../../utils';
+import { CreateAttributeDto } from './dto/create-attribute.dto';
+import { UpdateAttributeDto } from './dto/update-attribute.dto';
+import { AttributeValueEntity } from './entities/attribute-value.entity';
+import { CreateAttributeValueDto } from './dto/create-attribute-value.dto';
+import { UpdateAttributeValueDto } from './dto/update-attribute-value.dto';
+
+@Injectable()
+export class AttributeService {
+  constructor(
+    @InjectRepository(AttributeEntity)
+    private attributeRepository: Repository<AttributeEntity>,
+
+    @InjectRepository(AttributeValueEntity)
+    private attributeValueRepository: Repository<AttributeValueEntity>,
+
+    private error: ErrorService,
+  ) {}
+
+  /**
+   * -------------------------------------------------------
+   * GET /attributes/:id/admin
+   */
+  async getByIdForAdmin(id: number, companyId) {
+    const i18n = I18nContext.current();
+
+    const builder = this.attributeRepository
+      .createQueryBuilder('attribute')
+      .innerJoinAndSelect('attribute.locales', 'locales')
+      .leftJoinAndSelect('attribute.values', 'values')
+      .leftJoinAndSelect('values.locales', 'valuesLocales')
+      .where({ id });
+
+    builder.andWhere({ companyId });
+
+    const attribute = await builder.getOne();
+
+    if (!attribute) {
+      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+    }
+
+    return attribute;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /attributes/values/admin
+   */
+  async getAllValuesForAdmin(
+    page = 1,
+    limit = 20,
+    filters = null,
+    sorts = null,
+    companyId,
+  ) {
+    const { lang } = I18nContext.current();
+
+    let builder = this.attributeValueRepository
+      .createQueryBuilder('value')
+      .innerJoinAndSelect(
+        'value.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang },
+      );
+
+    if (sorts) {
+      builder = applySortingToBuilder(builder, sorts);
+    } else {
+      builder.orderBy('value.id', 'ASC');
+    }
+
+    builder = applyFiltersToBuilder(builder, filters);
+
+    builder.andWhere({ companyId });
+
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      pagination: paginationResult(page, limit, totalItems),
+    };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /attributes/admin
+   */
+  async getAllForAdmin(
+    page = 1,
+    limit = 20,
+    filters = null,
+    sorts = null,
+    companyId,
+  ) {
+    const { lang } = I18nContext.current();
+
+    let builder = this.attributeRepository
+      .createQueryBuilder('attribute')
+      .innerJoinAndSelect(
+        'attribute.locales',
+        'locales',
+        'locales.language = :lang',
+        { lang },
+      )
+      .leftJoinAndSelect('attribute.values', 'values')
+      .leftJoinAndSelect(
+        'values.locales',
+        'valuesLocales',
+        'valuesLocales.language = :lang',
+        { lang: lang },
+      );
+
+    if (sorts) {
+      builder = applySortingToBuilder(builder, sorts);
+    } else {
+      builder.orderBy('attribute.id', 'ASC');
+    }
+
+    builder = applyFiltersToBuilder(builder, filters);
+
+    builder.andWhere({ companyId });
+
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      pagination: paginationResult(page, limit, totalItems),
+    };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * POST /attributes/value/admin
+   */
+  async addValue(dto: CreateAttributeValueDto) {
+    const i18n = I18nContext.current();
+
+    const existAttribute = await this.attributeRepository.findOne({
+      id: dto.attributeId,
+    });
+    if (!existAttribute) {
+      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+    }
+
+    // Creating a new attribute value
+    const { identifiers } = await this.attributeValueRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        attributeId: dto.attributeId,
+        extraValue: dto.extraValue,
+      })
+      .execute();
+
+    const newValueId = identifiers[0].id;
+
+    return { id: newValueId };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * POST /attributes/admin
+   */
+  async add(dto: CreateAttributeDto) {
+    // Creating a new attribute
+    const { identifiers } = await this.attributeRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        type: dto.type,
+      })
+      .execute();
+
+    const newAttributeId = identifiers[0].id;
+
+    return { id: newAttributeId };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /attributes/value/admin
+   */
+  async updateValue(dto: UpdateAttributeValueDto) {
+    const i18n = I18nContext.current();
+
+    const attributeValue = await this.attributeValueRepository.findOne({
+      where: { id: dto.id },
+    });
+
+    if (!attributeValue) {
+      this.error.unprocessableEntity([
+        i18n.t('t.The attribute value not found!'),
+      ]);
+    }
+
+    // Updating the attribute value
+    attributeValue.extraValue = dto.extraValue;
+
+    await attributeValue.save();
+
+    // Updating the exist attribute value locales and Inserting a new attribute value locales
+    // for (let i = 0; i < do.locales?.length; i++) {
+    //   const locale = dto.locales[i];
+
+    //   // const oldLocale = attributeValue.locales.find(
+    //   //   (old) => old.language === locale.language,
+    //   // );
+
+    //   // Updating
+    //   // if (oldLocale) {
+    //   //   oldLocale.value = locale.value;
+    //   //   await oldLocale.save();
+    //   // }
+
+    //   // Inserting
+    //   //   else {
+    //   //     await this._insertValueLocales([locale], attributeValue.id);
+    //   //   }
+    // }t
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /attributes/admin
+   */
+  async update(dto: UpdateAttributeDto) {
+    const i18n = I18nContext.current();
+
+    const attribute = await this.attributeRepository.findOne({
+      where: { id: dto.id },
+    });
+
+    if (!attribute) {
+      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+    }
+
+    // Updating the attribute
+    // attribute.type = dto.type;
+    await attribute.save();
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * DELETE /attributes/:id/admin
+   */
+  async delete(id: number, companyId: number) {
+    const i18n = I18nContext.current();
+
+    const attribute = await this.attributeRepository.findOne({
+      where: { id, companyId },
+      relations: ['locales'],
+    });
+
+    if (!attribute) {
+      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+    }
+
+    // Rollbacking the attribute locales if an error occurs
+    const queryRunner = getConnection().createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    // try {
+    //   for (let i = 0; i < attribute.locales.length; i++) {
+    //     const locale = attribute.locales[i];
+    //     // Removing the attribute locale
+    //     await queryRunner.manager.remove(locale);
+    //   }
+    //   // Removing the attribute
+    //   await queryRunner.manager.remove(attribute);
+
+    //   await queryRunner.commitTransaction();
+    // } catch (err) {
+    //   await queryRunner.rollbackTransaction();
+
+    //   this.error.methodNotAllowed([
+    //     i18n.t(
+    //       't.Some values are related to this attribute, please delete the values of this attribute first!',
+    //     ),
+    //   ]);
+    // } finally {
+    //   await queryRunner.release();
+    // }
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * DELETE /attributes/value/:id/admin
+   */
+  async deleteValue(id: number, companyId: number) {
+    const i18n = I18nContext.current();
+
+    const attributeValue = await this.attributeValueRepository.findOne({
+      where: { id, companyId },
+      relations: ['locales'],
+    });
+
+    if (!attributeValue) {
+      this.error.unprocessableEntity([
+        i18n.t('t.The attribute value not found!'),
+      ]);
+    }
+
+    // Rollbacking the attribute locales if an error occurs
+    const queryRunner = getConnection().createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    // try {
+    //   for (let i = 0; i < attributeValue.locales.length; i++) {
+    //     const locale = attributeValue.locales[i];
+    //     // Removing the attribute value locale
+    //     await queryRunner.manager.remove(locale);
+    //   }
+    //   // Removing the attribute value
+    //   await queryRunner.manager.remove(attributeValue);
+
+    //   await queryRunner.commitTransaction();
+    // } catch (err) {
+    //   await queryRunner.rollbackTransaction();
+
+    //   this.error.methodNotAllowed([
+    //     i18n.t(
+    //       't.Some products are related to this attribute value, please delete the products of this attribute value first!',
+    //     ),
+    //   ]);
+    // } finally {
+    //   await queryRunner.release();
+    // }
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getByIdAndCompanyId(attributeValueId) {
+    return await this.attributeValueRepository.findOne({
+      id: attributeValueId,
+    });
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getByNameAndCompanyId(attributeName, attributeValue) {
+    const { lang } = I18nContext.current();
+
+    const attribute = await this.attributeRepository
+      .createQueryBuilder('attribute')
+      .innerJoin(
+        'attribute.locales',
+        'attributeLocale',
+        'TRIM(LOWER(attributeLocale.name)) = :name AND attributeLocale.language = :lang',
+        { name: `${attributeName}`.toLowerCase().trim(), lang },
+      )
+      .getOne();
+
+    if (!attribute) {
+      return null;
+    }
+
+    const attrValue = await this.attributeValueRepository
+      .createQueryBuilder('attributeValue')
+      .andWhere({ attributeId: attribute.id })
+      .innerJoin(
+        'attributeValue.locales',
+        'attributeValueLocale',
+        'TRIM(LOWER(attributeValueLocale.value)) = :value AND attributeValueLocale.language = :lang',
+        { value: `${attributeValue}`.toLowerCase().trim(), lang },
+      )
+      .getOne();
+
+    if (attrValue) {
+      return attrValue.id;
+    }
+
+    //insert to attribute value
+    const { identifiers } = await this.attributeValueRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        attributeId: attribute.id,
+      })
+      .execute();
+
+    const newAttrValueId = identifiers[0].id;
+
+    // await this._insertValueLocales(
+    //   [{ language: lang, value: attributeValue }],
+    //   newAttrValueId,
+    // );
+
+    return newAttrValueId;
+  }
+}
