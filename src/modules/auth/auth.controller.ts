@@ -30,12 +30,9 @@ export class AuthController {
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: AuthLoginDto, @I18n() i18n) {
+  async login(@Body() dto: AuthLoginDto) {
     const response = await this.authService.login(dto);
-    return successfulResult(
-      [i18n.t('t.You have successfully logged in')],
-      response,
-    );
+    return successfulResult(['t.You have successfully logged in'], response);
   }
 
   /**

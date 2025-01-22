@@ -14,7 +14,6 @@ import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ErrorService } from '../../error/error.service';
 import { successfulResult } from '../../utils';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
@@ -30,7 +29,6 @@ import { UpdatePageDto } from './dto/update-page.dto';
 import { Company } from '../../utils/decorators/company.decorator';
 
 @ApiTags('Page')
-@Headers()
 @Controller('pages')
 export class PageController {
   constructor(private pageService: PageService, private error: ErrorService) {}
@@ -53,7 +51,7 @@ export class PageController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['code', ['company_id', 'companyId'], ['title', 'locales.title']])
+    @Filter(['code', ['company_id', 'companyId'], 'title'])
     filters,
     @User('companyId') companyId,
   ) {
@@ -157,7 +155,7 @@ export class PageController {
     @User() user: UserEntity,
     @I18n() i18n,
   ) {
-    await this.pageService.delete(pageId, user);
+    await this.pageService.delete(pageId);
 
     return successfulResult([i18n.t('t.The page is deleted')]);
   }

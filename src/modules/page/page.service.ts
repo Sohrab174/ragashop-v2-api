@@ -33,14 +33,10 @@ export class PageService {
     sorts = null,
     companyId = null,
   ) {
-    const { lang } = I18nContext.current();
-
     let builder = this.pageRepository
       .createQueryBuilder('page')
-      .innerJoin('page.locales', 'locales', 'locales.language = :lang', {
-        lang,
-      })
-      .select(['page.id', 'page.code', 'locales.id', 'locales.title']);
+
+      .select(['page.id', 'page.code', 'page.title']);
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -74,7 +70,6 @@ export class PageService {
 
     const builder = this.pageRepository
       .createQueryBuilder('page')
-      .innerJoinAndSelect('page.locales', 'locales')
       .where({ id });
 
     if (companyId) {
@@ -95,14 +90,9 @@ export class PageService {
    * GET /pages
    */
   async getAll(companyId) {
-    const { lang } = I18nContext.current();
-
     return await this.pageRepository
       .createQueryBuilder('page')
-      .innerJoin('page.locales', 'locales', 'locales.language = :lang', {
-        lang,
-      })
-      .select(['page.id', 'page.code', 'locales.id', 'locales.title'])
+      .select(['page.id', 'page.code', 'page.title'])
       .orderBy('page.id', 'ASC')
       .andWhere({ companyId })
       .getMany();
@@ -117,14 +107,6 @@ export class PageService {
 
     const page = await this.pageRepository
       .createQueryBuilder('page')
-      .innerJoinAndSelect(
-        'page.locales',
-        'locales',
-        'locales.language = :lang',
-        {
-          lang: i18n.lang,
-        },
-      )
       .andWhere({ code, companyId })
       .getOne();
 
@@ -192,7 +174,6 @@ export class PageService {
       where: {
         id: dto.id,
       },
-      relations: ['locales'],
     });
 
     // Updating the page
@@ -207,7 +188,7 @@ export class PageService {
    * -------------------------------------------------------
    * DELETE /pages/:id/admin
    */
-  async delete(id: number, user: UserEntity) {
+  async delete(id: number) {
     const i18n = I18nContext.current();
 
     const page = await this.pageRepository.findOne({
@@ -223,23 +204,18 @@ export class PageService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
-    // try {
-    //   for (let i = 0; i < page.locales.length; i++) {
-    //     const locale = page.locales[i];
-    //     // Removing the page locale
-    //     await queryRunner.manager.remove(locale);
-    //   }
-    //   // Removing the page
-    //   await queryRunner.manager.remove(page);
+    try {
+      // Removing the page
+      await queryRunner.manager.remove(page);
 
-    //   await queryRunner.commitTransaction();
-    // } catch (err) {
-    //   await queryRunner.rollbackTransaction();
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
 
-    //   this.error.methodNotAllowed([i18n.t('t.An error has occurred!')]);
-    // } finally {
-    //   await queryRunner.release();
-    // }
+      this.error.methodNotAllowed([i18n.t('t.An error has occurred!')]);
+    } finally {
+      await queryRunner.release();
+    }
 
     return true;
   }

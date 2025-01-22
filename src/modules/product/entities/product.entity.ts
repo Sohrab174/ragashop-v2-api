@@ -21,10 +21,25 @@ export enum ProductStatus {
   inactive = 'inactive',
 }
 
+export enum ProductGender {
+  male = 'male',
+  female = 'female',
+}
+
 export enum ProductType {
   physical = 'physical',
   file = 'file',
   service = 'service',
+}
+
+export enum ProductCurrency {
+  USD = 'USD',
+  TRY = 'TRY',
+  IRT = 'IRT',
+}
+
+export enum ProductSource {
+  trendyol = 'trendyol',
 }
 
 @Index('fk_product_category1_idx', ['categoryId'], {})
@@ -46,15 +61,19 @@ export class ProductEntity extends BaseEntity {
   @Column('int', { name: 'sourceId', nullable: true })
   sourceId: number | null;
 
+  @Column('varchar', { name: 'sourceUrl', nullable: true, length: 255 })
+  sourceUrl: string | null;
+
   @Column('varchar', { name: 'sourceGroupId', nullable: true, length: 128 })
   sourceGroupId: string | null;
 
   @Column('enum', {
     name: 'source',
-    enum: ['trendyol'],
-    default: () => "'trendyol'",
+    enum: ProductSource,
+    default: null,
+    nullable: true,
   })
-  source: 'trendyol';
+  source: ProductSource;
 
   @Column('varchar', { name: 'name', length: 255 })
   name: string;
@@ -70,10 +89,10 @@ export class ProductEntity extends BaseEntity {
 
   @Column('enum', {
     name: 'currency',
-    enum: ['USD', 'TRY', 'IRT'],
-    default: () => "'TRY'",
+    enum: ProductCurrency,
+    default: () => ProductCurrency.TRY,
   })
-  currency: 'USD' | 'TRY' | 'IRT';
+  currency: ProductCurrency;
 
   @Column('decimal', {
     name: 'price',
@@ -104,8 +123,8 @@ export class ProductEntity extends BaseEntity {
   @Column('int', { name: 'quantity', default: () => "'-1'" })
   quantity: number;
 
-  @Column('enum', { name: 'gender', nullable: true, enum: ['male', 'female'] })
-  gender: 'male' | 'female' | null;
+  @Column('enum', { name: 'gender', nullable: true, enum: ProductGender })
+  gender: ProductGender | null;
 
   @Column('text', { name: 'description', nullable: true })
   description: string | null;

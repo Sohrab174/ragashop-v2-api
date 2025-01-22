@@ -19,7 +19,6 @@ import { I18n } from 'nestjs-i18n';
 import { successfulResult } from '../../utils';
 import { Company } from '../../utils/decorators/company.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
@@ -41,16 +40,31 @@ import { ProductSortDto } from './dto/product-sort.dto';
 import * as dotenv from 'dotenv';
 import { CreateUpdateProductAttrValueDto } from './dto/create-update-product-attr-value.dto';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
+import { CrawlerService } from 'src/thirdParty/crawler/crawler.service';
 dotenv.config();
 
 @ApiTags('Product')
-@Headers()
 @Controller('products')
 export class ProductController {
   constructor(
     private productService: ProductService,
     private error: ErrorService,
+    private crawlerService: CrawlerService,
   ) {}
+
+  /**
+   * -------------------------------------------------------
+   * POST /products/crawler/admin
+   */
+  @Post('/crawler/admin')
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(UserRoles.admin, UserRoles.employee)
+  async crawler() {
+    const results = await this.productService.getProductsByCrawler();
+
+    return successfulResult([], results);
+  }
 
   /**
    * -------------------------------------------------------
@@ -167,22 +181,15 @@ export class ProductController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter([
-      'status',
-      ['company_id', 'companyId'],
-      ['category_id', 'categoryId'],
-      ['name', 'locales.name'],
-    ])
+    @Filter(['status', ['category_id', 'categoryId'], 'name'])
     filters,
     @Query('number') number,
-    @User('companyId') companyId,
   ) {
     const list = await this.productService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
       number,
     );
 
@@ -323,22 +330,17 @@ export class ProductController {
     @Filter([
       ['category_id', 'categoryId'],
       ['color', 'attributeValue.extraValue'],
-      ['name', 'locales.name'],
+      'name',
       'number',
     ])
     filters,
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
-    @Company('id') companyId,
   ) {
-    const list = await this.productService.getAll(
-      companyId,
-      page,
-      limit,
-      filters,
-      sorts,
-      { minPrice, maxPrice },
-    );
+    const list = await this.productService.getAll(page, limit, filters, sorts, {
+      minPrice,
+      maxPrice,
+    });
 
     return successfulResult([], list);
   }
@@ -425,10 +427,7 @@ export class ProductController {
     @User() user: UserEntity,
     @I18n() i18n,
   ) {
-    const data = await this.productService.addUpdateProductAttributeValue(
-      dto,
-      user,
-    );
+    const data = await this.productService.addUpdateProductAttributeValue(dto);
 
     return successfulResult(
       [i18n.t('t.The product attribute value is saved successfully')],
@@ -495,7 +494,7 @@ export class ProductController {
   async sort(
     @Body() dto: ProductSortDto,
     @User() user: UserEntity,
-    @Filter(['status', ['category_id', 'categoryId'], ['name', 'locales.name']])
+    @Filter(['status', ['category_id', 'categoryId'], 'name'])
     filters,
     @I18n() i18n,
   ) {

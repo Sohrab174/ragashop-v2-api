@@ -1,5 +1,4 @@
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Headers } from '../../utils/decorators/header.decorator';
 import {
   Body,
   Controller,
@@ -30,7 +29,6 @@ import { TransactionStatus } from './entities/transaction.entity';
 import { Response } from 'express';
 
 @ApiTags('Transaction')
-@Headers()
 @Controller('transactions')
 export class TransactionController {
   constructor(

@@ -19,8 +19,6 @@ import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
 import { UserRoles } from '../user/entities/user.entity';
 
-import { Headers } from '../../utils/decorators/header.decorator';
-
 import { ErrorService } from '../../error/error.service';
 import { GatewayService } from './gateway.service';
 import {
@@ -40,7 +38,6 @@ import { sort } from '../../utils/sort';
 import { GatewaySortDto } from './dto/gateway-sort.dto';
 
 @ApiTags('Gateway')
-@Headers()
 @Controller('gateways')
 export class GatewayController {
   constructor(

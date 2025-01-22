@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { I18nContext } from 'nestjs-i18n';
-import { getConnection, Repository, IsNull } from 'typeorm';
+import { getConnection, Repository, IsNull, getManager } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -10,6 +10,7 @@ import {
   applySortingToBuilder,
   getDuplicateItems,
   paginationResult,
+  successfulResult,
 } from '../../utils';
 import { CategoryService } from '../category/category.service';
 import { CategoryStatus } from '../category/entities/category.entity';
@@ -36,6 +37,8 @@ import { UserEntity } from '../user/entities/user.entity';
 import * as xlsx from 'xlsx';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
 import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
+import { CrawlerService } from 'src/thirdParty/crawler/crawler.service';
+import { User } from 'src/utils/decorators/user.decorator';
 
 @Injectable()
 export class ProductService {
@@ -49,9 +52,14 @@ export class ProductService {
     @InjectRepository(ProductGalleryEntity)
     private galleryRepository: Repository<ProductGalleryEntity>,
 
+    @InjectRepository(ProductGalleryEntity)
+    private productGalleryRepository: Repository<ProductGalleryEntity>,
+
     private error: ErrorService,
     private categoryService: CategoryService,
     private attributeService: AttributeService,
+
+    private crawlerService: CrawlerService,
   ) {}
 
   /**
@@ -446,26 +454,11 @@ export class ProductService {
     limit = 20,
     filters = null,
     sorts = null,
-    companyId = null,
     number = null,
   ) {
-    const { lang } = I18nContext.current();
-
     let builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoinAndSelect('product.category', 'category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'categoryLocales',
-        'categoryLocales.language = :lang',
-        { lang },
-      )
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect(
         'product.productAttributeValues',
@@ -479,10 +472,6 @@ export class ProductService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     if (number) {
       builder.andWhere(
@@ -511,14 +500,6 @@ export class ProductService {
 
     const builder = this.productRepository
       .createQueryBuilder('product')
-      .innerJoin(
-        'product.locales',
-        'productLocales',
-        'productLocales.language = :lang',
-        {
-          lang,
-        },
-      )
       .innerJoin('product.category', 'category', 'category.status = :status', {
         status: CategoryStatus.active,
       })
@@ -528,26 +509,13 @@ export class ProductService {
         'productAttributeValues.isDeleted = 0',
       )
       .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
-      .leftJoin(
-        'attributeValue.locales',
-        'attributeValueLocales',
-        'attributeValueLocales.language = :lang',
-        { lang },
-      )
       .leftJoin('attributeValue.attribute', 'attribute')
-      .leftJoin(
-        'attribute.locales',
-        'attributeLocales',
-        'attributeLocales.language = :lang',
-        { lang },
-      )
       .select([
         'product.id',
         'product.price',
         'product.quantity',
         'product.discountedPrice',
-        'productLocales.id',
-        'productLocales.name',
+        'product.name',
         'productAttributeValues.id',
         'productAttributeValues.price',
         'productAttributeValues.quantity',
@@ -555,13 +523,10 @@ export class ProductService {
         'productAttributeValues.attributeValueId',
         'attributeValue.id',
         'attributeValue.extraValue',
-        'attributeValue.secondExtraValue',
-        'attributeValueLocales.id',
-        'attributeValueLocales.value',
+        'attributeValue.value',
         'attribute.id',
         'attribute.type',
-        'attributeLocales.id',
-        'attributeLocales.name',
+        'attribute.name',
       ])
       .andWhere('product.status = :status', {
         product: ProductStatus.active,
@@ -626,19 +591,7 @@ export class ProductService {
     const builder = this.productAttributeValueRepository
       .createQueryBuilder('attrValue')
       .innerJoinAndSelect('attrValue.attributeValue', 'attributeValue')
-      .innerJoinAndSelect(
-        'attributeValue.locales',
-        'attributeValueLocales',
-        'attributeValueLocales.language = :lang',
-        { lang: i18n.lang },
-      )
       .innerJoinAndSelect('attributeValue.attribute', 'attribute')
-      .innerJoinAndSelect(
-        'attribute.locales',
-        'attributeLocales',
-        'attributeLocales.language = :lang',
-        { lang: i18n.lang },
-      )
       .where({ productId, companyId, isDeleted: false });
 
     const productAttrValues = await builder.getMany();
@@ -661,16 +614,9 @@ export class ProductService {
 
     const builder = this.productRepository
       .createQueryBuilder('product')
-      .innerJoinAndSelect('product.locales', 'locales')
       .leftJoinAndSelect('product.cover', 'cover')
       // .leftJoinAndSelect('product.galleries', 'galleries')
       .innerJoinAndSelect('product.category', 'category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'categoryLocales',
-        'categoryLocales.language = :lang',
-        { lang: i18n.lang },
-      )
       .where({ id });
 
     if (companyId) {
@@ -695,21 +641,9 @@ export class ProductService {
 
     const builder = this.productRepository
       .createQueryBuilder('product')
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.productGalleries', 'productGalleries')
       .innerJoinAndSelect('product.category', 'category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'categoryLocales',
-        'categoryLocales.language = :lang',
-        { lang: i18n.lang },
-      )
       // Product incredible offers
       .leftJoin(
         'product.incredibleOffers',
@@ -730,19 +664,7 @@ export class ProductService {
         'productAttributeValues.attributeValue',
         'attributeValue',
       )
-      .leftJoinAndSelect(
-        'attributeValue.locales',
-        'attributeValueLocales',
-        'attributeValueLocales.language = :lang',
-        { lang: i18n.lang },
-      )
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-      .leftJoinAndSelect(
-        'attribute.locales',
-        'attributeLocales',
-        'attributeLocales.language = :lang',
-        { lang: i18n.lang },
-      )
       .leftJoin('product.productFiles', 'productFiles')
       .addSelect([
         'productFiles.id',
@@ -811,28 +733,18 @@ export class ProductService {
    * GET /products
    */
   async getAll(
-    companyId,
     page = 1,
     limit = 20,
     filters,
     sorts = null,
     priceRanges: any = {},
   ) {
-    const { lang } = I18nContext.current();
-
-    let builder = this.productRepository
+    let subquery = this.productRepository
       .createQueryBuilder('product')
       .innerJoin('product.category', 'category', 'category.status = :status', {
         status: CategoryStatus.active,
       })
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
       .leftJoinAndSelect('product.cover', 'cover')
-      .andWhere({ companyId })
       .andWhere({ status: ProductStatus.active })
 
       // Product incredible offers
@@ -865,7 +777,6 @@ export class ProductService {
       .addSelect('productAttributeValues.quantity')
       .addSelect('attributeValue.id')
       .addSelect('attributeValue.extraValue')
-      .addSelect('attributeValue.secondExtraValue')
       .addSelect('attribute.id')
 
       // Product incredible offers for attributes
@@ -879,7 +790,7 @@ export class ProductService {
       .addSelect('productAttributeIncredibleOffers.discountedPrice')
       .addSelect('productAttributeIncredibleOffers.toDate');
 
-    builder.addSelect(
+    subquery.addSelect(
       `
           COALESCE(
             MIN(
@@ -899,45 +810,45 @@ export class ProductService {
     //   'mainPrice',
     // );
 
-    if (sorts) {
-      // Sorting by best sellers
-      if (sorts[0].field === 'sales') {
-        builder.leftJoin('product.orderItems', 'orderItems');
-        builder.leftJoin(
-          'orderItems.order',
-          'order',
-          'order.status IN (:...statuses)',
-          {
-            statuses: [
-              OrderStatus.paid,
-              OrderStatus.sent,
-              OrderStatus.delivered,
-            ],
-          },
-        );
-        builder.addSelect('COUNT(order.id)', 'order_count');
-        builder.groupBy('product.id');
-        builder.orderBy('order_count', sorts[0].dir);
-      }
-      // Sorting by price
-      else if (sorts[0].field === 'price') {
-        builder.orderBy('mainPrice', sorts[0].dir);
-      }
-      // Sorting by request of front
-      else {
-        builder = applySortingToBuilder(builder, sorts);
-      }
-    }
+    // if (sorts) {
+    //   // Sorting by best sellers
+    //   if (sorts[0].field === 'sales') {
+    //     builder.leftJoin('product.orderItems', 'orderItems');
+    //     builder.leftJoin(
+    //       'orderItems.order',
+    //       'order',
+    //       'order.status IN (:...statuses)',
+    //       {
+    //         statuses: [
+    //           OrderStatus.paid,
+    //           OrderStatus.sent,
+    //           OrderStatus.delivered,
+    //         ],
+    //       },
+    //     );
+    //     builder.addSelect('COUNT(order.id)', 'order_count');
+    //     builder.groupBy('product.id');
+    //     builder.orderBy('order_count', sorts[0].dir);
+    //   }
+    //   // Sorting by price
+    //   else if (sorts[0].field === 'price') {
+    //     builder.orderBy('mainPrice', sorts[0].dir);
+    //   }
+    //   // Sorting by request of front
+    //   else {
+    //     builder = applySortingToBuilder(builder, sorts);
+    //   }
+    // }
     // Sorting by display order field
-    else {
-      builder.orderBy('product.displayOrder', 'ASC');
-    }
+    // else {
+    //   builder.orderBy('product.displayOrder', 'ASC');
+    // }
 
-    builder = applyFiltersToBuilder(builder, filters);
+    subquery = applyFiltersToBuilder(subquery, filters);
 
     // Filtering by price ranges
     if (priceRanges?.minPrice && priceRanges?.maxPrice) {
-      builder.andWhere(
+      subquery.andWhere(
         `COALESCE(
             NULLIF(productAttributeValues.discountedPrice, 0),
             NULLIF(productAttributeValues.price, 0),
@@ -949,14 +860,40 @@ export class ProductService {
       );
     }
 
-    const [items, totalItems] = await builder
-      .take(limit)
-      .skip((page - 1) * limit)
-      .getManyAndCount();
+    const manager = getManager();
+
+    const builder = manager
+      .createQueryBuilder()
+      .from(`(${subquery.getQuery()})`, 'subquery') // استفاده از Subquery
+      .select('*')
+      .addSelect(
+        'ROW_NUMBER() OVER (PARTITION BY subquery.sourceGroupId ORDER BY subquery.displayOrder ASC)',
+        'row_number',
+      ) // مرتب‌سازی درون گروه
+      .setParameters(subquery.getParameters()) // انتقال پارامترهای subquery
+      .where('row_number = 1'); // انتخاب فقط اولین کالا از هر گروه
+
+    // مرتب‌سازی نهایی (اختیاری)
+    if (sorts) {
+      if (sorts[0].field === 'price') {
+        builder.orderBy('subquery.mainPrice', sorts[0].dir);
+      } else if (sorts[0].field === 'sales') {
+        builder.orderBy('subquery.sales', sorts[0].dir);
+      }
+    } else {
+      builder.orderBy('subquery.product_displayOrder', 'ASC');
+    }
+
+    // const [items, totalItems] = await builder
+    //   .take(limit)
+    //   .skip((page - 1) * limit)
+    //   .getManyAndCount();
+    const items = await builder.getRawMany();
 
     return {
       items: items.map(this.mappingProduct),
-      pagination: paginationResult(page, limit, totalItems),
+      // pagination: paginationResult(page, limit, totalItems),
+      pagination: paginationResult(page, limit, 100),
     };
   }
 
@@ -993,13 +930,6 @@ export class ProductService {
 
     const productList = await this.productRepository
       .createQueryBuilder('product')
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
-
       .innerJoin('product.category', 'category', 'category.status = :status', {
         status: CategoryStatus.active,
       })
@@ -1025,7 +955,6 @@ export class ProductService {
       .addSelect('productAttributeValues.discountedPrice')
       .addSelect('attributeValue.id')
       .addSelect('attributeValue.extraValue')
-      .addSelect('attributeValue.secondExtraValue')
       .addSelect('attribute.id')
       .andWhere({ companyId })
       .andWhere({ status: ProductStatus.active })
@@ -1070,20 +999,11 @@ export class ProductService {
    * -------------------------------------------------------
    * POST & PUT /products/attribute/admin
    */
-  async addUpdateProductAttributeValue(
-    dto: CreateUpdateProductAttrValueDto,
-    user: UserEntity,
-  ) {
+  async addUpdateProductAttributeValue(dto: CreateUpdateProductAttrValueDto) {
     const i18n = I18nContext.current();
 
     const product = await this.productRepository
       .createQueryBuilder('product')
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
       .andWhere({ id: dto.productId })
       .getOne();
 
@@ -1293,12 +1213,6 @@ export class ProductService {
       product = await this.productRepository
         .createQueryBuilder('product')
         .leftJoinAndSelect('product.productGalleries', 'productGalleries')
-        .innerJoinAndSelect(
-          'product.locales',
-          'locales',
-          'locales.language = :lang',
-          { lang: i18n.lang },
-        )
         .andWhere({ id: dto.productId })
         .getOne();
 
@@ -1360,12 +1274,7 @@ export class ProductService {
 
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: [
-        'locales',
-        'productGalleries',
-        'productFiles',
-        'productAttributeValues',
-      ],
+      relations: ['productGalleries', 'productFiles', 'productAttributeValues'],
     });
 
     if (!product) {
@@ -1553,12 +1462,6 @@ export class ProductService {
 
     const original = await this.productRepository
       .createQueryBuilder('product')
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
       .andWhere({ ...conditions })
       .getOne();
 
@@ -1571,12 +1474,6 @@ export class ProductService {
     let builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoinAndSelect('product.category', 'category')
-      .innerJoinAndSelect(
-        'product.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
       .select(['product.id', 'product.number', 'product.displayOrder']);
 
     if (dto.action) {
@@ -1765,7 +1662,6 @@ export class ProductService {
         .map((attr) => ({
           id: attr.id,
           color: attr.attributeValue?.extraValue || null,
-          secondColor: attr.attributeValue?.secondExtraValue || null,
           price: item.showPrice ? attr.price : 0,
           discountedPrice: item.showPrice
             ? attr.incredibleOffers?.[0]?.discountedPrice ||
@@ -1877,5 +1773,102 @@ export class ProductService {
         this.error.unprocessableEntity(['This product number is already used']);
       }
     }
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getProductsByCrawler() {
+    // دریافت محصولات از کراولر
+    const crawledProducts = await this.crawlerService.getProducts();
+
+    // نتیجه نهایی برای بازگشت
+    const results = [];
+
+    // بررسی وجود محصول در دیتابیس براساس sourceId
+    const existingProducts = await this.productRepository.find({
+      where: { source: 'trendyol' },
+      relations: ['productGalleries'],
+    });
+
+    // پردازش هر محصول کراول‌شده
+    for (const product of crawledProducts) {
+      const existingProduct = existingProducts.find(
+        (p) => p.sourceId == product.sourceId,
+      );
+
+      if (existingProduct) {
+        // اگر محصول وجود داشت، به‌روزرسانی
+        existingProduct.name = product.sourceName;
+        existingProduct.sourceName = product.sourceName;
+        existingProduct.sourceUrl = product.sourceUrl;
+        existingProduct.price = product.price;
+        existingProduct.discountedPrice = product.discountedPrice;
+        existingProduct.currency = product.currency;
+
+        // ذخیره تغییرات
+        await existingProduct.save();
+
+        if (product.coverPath) {
+          if (
+            !existingProduct.productGalleries.find(
+              (pg) => pg.pathFile === product.coverPath,
+            )
+          ) {
+            const source: any = existingProduct.source;
+            await this.productGalleryRepository
+              .createQueryBuilder()
+              .insert()
+              .values({
+                productId: existingProduct.id,
+                type: ProductGalleryType.photo,
+                source,
+                pathFile: product.coverPath,
+              })
+              .execute();
+          }
+        }
+
+        // افزودن به نتایج
+        results.push({ action: 'updated', product: existingProduct });
+      } else {
+        // اگر محصول وجود نداشت، ایجاد رکورد جدید
+        const { identifiers } = await this.productRepository
+          .createQueryBuilder()
+          .insert()
+          .values({
+            categoryId: 1,
+            source: product.source,
+            sourceId: product.sourceId,
+            sourceName: product.sourceName,
+            name: product.name,
+            sourceUrl: product.sourceUrl,
+            sourceGroupId: product.sourceGroupId,
+            price: product.price,
+            discountedPrice: product.discountedPrice,
+            currency: product.currency,
+          })
+          .execute();
+
+        if (product.coverPath) {
+          await this.productGalleryRepository
+            .createQueryBuilder()
+            .insert()
+            .values({
+              productId: identifiers[0].id,
+              type: ProductGalleryType.photo,
+              source: product.source,
+              pathFile: product.coverPath,
+            })
+            .execute();
+        }
+
+        // افزودن به نتایج
+        results.push({ action: 'created', product: null });
+      }
+    }
+
+    // بازگشت نتایج به کلاینت
+    return successfulResult([], results);
   }
 }

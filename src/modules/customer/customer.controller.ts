@@ -15,7 +15,6 @@ import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { I18n } from 'nestjs-i18n';
 import { successfulResult } from '../../utils';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
@@ -44,7 +43,6 @@ import { CustomerLoginMobileDto } from './dto/customer-login-mobile.dto';
 import { CustomerLoginVerifyDto } from './dto/customer-login-verify.dto';
 
 @ApiTags('Customer')
-@Headers()
 @Controller('customers')
 export class CustomerController {
   constructor(

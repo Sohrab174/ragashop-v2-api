@@ -15,7 +15,6 @@ import {
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { successfulResult } from '../../utils';
 import { Company } from '../../utils/decorators/company.decorator';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -37,7 +36,6 @@ import { CreateOrderByAdminDto } from './dto/create-order-by-admin.dto';
 import { UpdateOrderByAdminDto } from './dto/update-order-by-admin.dto';
 
 @ApiTags('Order')
-@Headers()
 @Controller('orders')
 export class OrderController {
   constructor(private orderService: OrderService) {}

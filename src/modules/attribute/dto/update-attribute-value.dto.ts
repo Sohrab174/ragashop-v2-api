@@ -1,18 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional } from 'class-validator';
-import { Languages } from '../../../global.interfaces';
-import { Type } from 'class-transformer';
-
-class AttributeValueLocale {
-  @ApiProperty()
-  @IsNotEmpty()
-  value: string;
-
-  @ApiProperty({ required: true, enum: Languages })
-  @IsNotEmpty()
-  @IsIn(Object.values(Languages))
-  language: Languages;
-}
+import { IsNotEmpty, IsOptional } from 'class-validator';
 
 export class UpdateAttributeValueDto {
   @ApiProperty({ required: true })
@@ -26,9 +13,4 @@ export class UpdateAttributeValueDto {
   @ApiProperty({ required: false })
   @IsOptional()
   secondExtraValue: string;
-
-  @ApiProperty({ required: false, type: [AttributeValueLocale] })
-  @IsOptional()
-  @Type(() => AttributeValueLocale)
-  locales: AttributeValueLocale[];
 }

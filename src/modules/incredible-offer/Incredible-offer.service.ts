@@ -277,7 +277,7 @@ export class IncredibleOfferService {
    * -------------------------------------------------------
    * DELETE /incredible-offers/admin
    */
-  async delete(dto: DeleteIncredibleOfferDto, user: UserEntity) {
+  async delete(dto: DeleteIncredibleOfferDto) {
     const { affected } = await this.incredibleOfferRepository
       .createQueryBuilder()
       .delete()
@@ -291,34 +291,17 @@ export class IncredibleOfferService {
    * -------------------------------------------------------
    */
   private _builder(companyId) {
-    const { lang } = I18nContext.current();
-
     const builder = this.incredibleOfferRepository
       .createQueryBuilder('offer')
       .innerJoin('offer.product', 'product')
-      .leftJoin(
-        'product.locales',
-        'productLocales',
-        'productLocales.language = :lang',
-        { lang },
-      )
+
       .leftJoin('product.cover', 'productCover')
       .innerJoin('offer.company', 'company')
       .leftJoin('offer.productAttributeValue', 'productAttributeValue')
       .leftJoin('productAttributeValue.attributeValue', 'attributeValue')
-      .leftJoin(
-        'attributeValue.locales',
-        'attributeValueLocales',
-        'attributeValueLocales.language = :lang',
-        { lang },
-      )
+
       .leftJoin('attributeValue.attribute', 'attribute')
-      .leftJoin(
-        'attribute.locales',
-        'attributeLocales',
-        'attributeLocales.language = :lang',
-        { lang },
-      )
+
       .select([
         'offer.id',
         'offer.productId',
@@ -334,11 +317,7 @@ export class IncredibleOfferService {
         'product.price',
         'product.discountedPrice',
         'product.quantity',
-        'productLocales.id',
-        'productLocales.name',
-        'productLocales.description',
-        'productLocales.shortDescription',
-        'productLocales.language',
+
         'productCover.id',
         'productCover.type',
         'productCover.pathFile',
@@ -350,14 +329,9 @@ export class IncredibleOfferService {
         'attributeValue.id',
         'attributeValue.extraValue',
         'attributeValue.secondExtraValue',
-        'attributeValueLocales.id',
-        'attributeValueLocales.value',
-        'attributeValueLocales.language',
+
         'attribute.id',
         'attribute.type',
-        'attributeLocales.id',
-        'attributeLocales.name',
-        'attributeLocales.language',
       ]);
 
     if (companyId) {

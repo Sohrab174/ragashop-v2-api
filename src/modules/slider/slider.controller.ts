@@ -18,7 +18,6 @@ import { Languages } from '../../global.interfaces';
 import { successfulResult } from '../../utils';
 import { Company } from '../../utils/decorators/company.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
@@ -40,7 +39,6 @@ import { UpdateSliderDto } from './dto/update-slider.dto';
 dotenv.config();
 
 @ApiTags('Slider')
-@Headers()
 @Controller('sliders')
 export class SliderController {
   constructor(

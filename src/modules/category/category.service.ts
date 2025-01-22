@@ -110,21 +110,12 @@ export class CategoryService {
    * -------------------------------------------------------
    * PUT /categories/icon/admin
    */
-  async updateIcon(
-    dto: UpdateCategoryIconDto,
-    icon: Express.Multer.File,
-    user: UserEntity,
-  ) {
+  async updateIcon(dto: UpdateCategoryIconDto, icon: Express.Multer.File) {
     const i18n = I18nContext.current();
 
     const category = await this.categoryRepository
       .createQueryBuilder('category')
-      .leftJoinAndSelect(
-        'category.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
+
       .andWhere({ id: dto.id })
       .getOne();
 
@@ -209,7 +200,7 @@ export class CategoryService {
 
     const category = await this.categoryRepository.findOne({
       where: { id },
-      relations: ['locales', 'subCategories'],
+      relations: ['subCategories'],
     });
 
     if (!category) {
@@ -236,7 +227,7 @@ export class CategoryService {
 
     try {
       // Removing the locales
-      await this._deleteLocales(category, queryRunner);
+      // await this._deleteLocales(category, queryRunner);
 
       // Removing the sub categories
       if (category.subCategories?.length > 0) {
@@ -297,18 +288,10 @@ export class CategoryService {
     companyId = null,
     parentId = null,
   ) {
-    const { lang } = I18nContext.current();
-
     let builder = this.categoryRepository
       .createQueryBuilder('category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
-      .leftJoinAndSelect('category.parent', 'parent')
-      .leftJoinAndSelect('parent.locales', 'parentLocales');
+
+      .leftJoinAndSelect('category.parent', 'parent');
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -349,7 +332,6 @@ export class CategoryService {
     const builder = this.categoryRepository
       .createQueryBuilder('category')
       .leftJoinAndSelect('category.parent', 'parent')
-      .innerJoinAndSelect('category.locales', 'locales')
       .where({ id });
 
     if (companyId) {
@@ -377,16 +359,9 @@ export class CategoryService {
     parentId = null,
     getSubIds = false,
   ) {
-    const { lang } = I18nContext.current();
-
     let builder = this.categoryRepository
       .createQueryBuilder('category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
+
       // .innerJoin(
       //   'category.products',
       //   'products',
@@ -450,12 +425,7 @@ export class CategoryService {
 
     const builder = this.categoryRepository
       .createQueryBuilder('category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
+
       // .innerJoin(
       //   'category.products',
       //   'products',
@@ -499,29 +469,16 @@ export class CategoryService {
    * GET /categories/tree?child_id=1
    */
   async getAllTree(companyId, childId = null) {
-    const { lang } = I18nContext.current();
-
     const categories = await this.categoryRepository
       .createQueryBuilder('category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
+
       // .innerJoin(
       //   'category.products',
       //   'products',
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .select([
-        'category.id',
-        'category.parentId',
-        'category.iconPath',
-        'locales.id',
-        'locales.name',
-      ])
+      .select(['category.id', 'category.parentId', 'category.iconPath'])
       .where({ companyId, status: CategoryStatus.active })
       .orderBy('category.displayOrder', 'ASC')
       .getMany();
@@ -556,15 +513,8 @@ export class CategoryService {
 
     const original = await this.categoryRepository
       .createQueryBuilder('category')
-      .leftJoin('category.locales', 'locales', 'locales.language = :lang', {
-        lang: i18n.lang,
-      })
-      .select([
-        'category.id',
-        'category.displayOrder',
-        'locales.id',
-        'locales.name',
-      ])
+
+      .select(['category.id', 'category.displayOrder'])
       .andWhere({ id: dto.id })
       .getOne();
 
@@ -576,12 +526,7 @@ export class CategoryService {
 
     let builder = this.categoryRepository
       .createQueryBuilder('category')
-      .innerJoinAndSelect(
-        'category.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang: i18n.lang },
-      )
+
       .select(['category.id', 'category.displayOrder']);
 
     if (dto.action) {
@@ -655,21 +600,9 @@ export class CategoryService {
         await this._deleteSubCategories(categories, category.id, queryRunner);
 
         // Deleting the self
-        await this._deleteLocales(category, queryRunner);
+        // await this._deleteLocales(category, queryRunner);
         await queryRunner.manager.remove(category);
       }
-    }
-  }
-
-  /**
-   * -------------------------------------------------------
-   */
-  private async _deleteLocales(category, queryRunner) {
-    for (let i = 0; i < category.locales.length; i++) {
-      const locale = category.locales[i];
-
-      // Removing the category locale
-      await queryRunner.manager.remove(locale);
     }
   }
 

@@ -21,7 +21,6 @@ import { RolesGuard } from '../auth/role/role.guard';
 import { UserEntity, UserRoles } from '../user/entities/user.entity';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
@@ -39,7 +38,6 @@ import { ErrorService } from '../../error/error.service';
 import { DeleteCategoryDto } from './dto/delete-category.dto';
 
 @ApiTags('Category')
-@Headers()
 @Controller('categories')
 export class CategoryController {
   constructor(
@@ -66,7 +64,7 @@ export class CategoryController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status', ['company_id', 'companyId'], ['name', 'locales.name']])
+    @Filter(['status', ['company_id', 'companyId'], ['name']])
     filters,
     @Query('parent_id') parentId,
     @User('companyId') companyId,
@@ -198,7 +196,7 @@ export class CategoryController {
   async sort(
     @Body() dto: CategorySortDto,
     @User() user: UserEntity,
-    @Filter(['status', ['name', 'locales.name']])
+    @Filter(['status', ['name']])
     filters,
     @I18n() i18n,
   ) {
@@ -237,7 +235,7 @@ export class CategoryController {
     @User() user: UserEntity,
     @I18n() i18n,
   ) {
-    const iconPath = await this.categoryService.updateIcon(dto, icon, user);
+    const iconPath = await this.categoryService.updateIcon(dto, icon);
 
     return successfulResult(
       [i18n.t('t.The category icon is updated successfully')],

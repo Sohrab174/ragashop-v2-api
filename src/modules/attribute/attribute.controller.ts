@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ErrorService } from '../../error/error.service';
-import { Headers } from '../../utils/decorators/header.decorator';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AttributeService } from './attribute.service';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
@@ -32,7 +31,6 @@ import { CreateAttributeValueDto } from './dto/create-attribute-value.dto';
 import { UpdateAttributeValueDto } from './dto/update-attribute-value.dto';
 
 @ApiTags('Attribute')
-@Headers()
 @Controller('attributes')
 export class AttributeController {
   constructor(
@@ -57,10 +55,7 @@ export class AttributeController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter([
-      ['attribute_id', 'attributeId'],
-      ['value', 'locales.value'],
-    ])
+    @Filter([['attribute_id', 'attributeId'], ['value']])
     filters,
     @User('companyId') companyId,
   ) {
@@ -92,7 +87,7 @@ export class AttributeController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['type', ['name', 'locales.name']])
+    @Filter(['type', ['name']])
     filters,
     @User('companyId') companyId,
   ) {

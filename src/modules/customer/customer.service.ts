@@ -760,9 +760,7 @@ export class CustomerService {
 
     const mapping = list.map((item) => ({
       count: +item.cnt,
-      label: moment(item.date)
-        .locale(lang === 'fa' ? 'fa' : 'en')
-        .format('D (ddd)'),
+      label: moment(item.date).locale('fa').format('D (ddd)'),
       date: item.date,
     }));
 
@@ -772,14 +770,10 @@ export class CustomerService {
 
     const obj = {};
     mapping.forEach((item) => {
-      const m = moment(item.date)
-        .locale(lang === 'fa' ? 'fa' : 'en')
-        .format('M');
+      const m = moment(item.date).locale('fa').format('M');
 
       obj[+m] = {
-        label: moment(item.date)
-          .locale(lang === 'fa' ? 'fa' : 'en')
-          .format('MMMM'),
+        label: moment(item.date).locale('fa').format('MMMM'),
         month: +m,
         count: (obj[+m]?.count || 0) + item.count,
       };

@@ -37,9 +37,7 @@ export class AttributeService {
 
     const builder = this.attributeRepository
       .createQueryBuilder('attribute')
-      .innerJoinAndSelect('attribute.locales', 'locales')
       .leftJoinAndSelect('attribute.values', 'values')
-      .leftJoinAndSelect('values.locales', 'valuesLocales')
       .where({ id });
 
     builder.andWhere({ companyId });
@@ -64,16 +62,7 @@ export class AttributeService {
     sorts = null,
     companyId,
   ) {
-    const { lang } = I18nContext.current();
-
-    let builder = this.attributeValueRepository
-      .createQueryBuilder('value')
-      .innerJoinAndSelect(
-        'value.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      );
+    let builder = this.attributeValueRepository.createQueryBuilder('value');
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -107,23 +96,10 @@ export class AttributeService {
     sorts = null,
     companyId,
   ) {
-    const { lang } = I18nContext.current();
-
     let builder = this.attributeRepository
       .createQueryBuilder('attribute')
-      .innerJoinAndSelect(
-        'attribute.locales',
-        'locales',
-        'locales.language = :lang',
-        { lang },
-      )
-      .leftJoinAndSelect('attribute.values', 'values')
-      .leftJoinAndSelect(
-        'values.locales',
-        'valuesLocales',
-        'valuesLocales.language = :lang',
-        { lang: lang },
-      );
+
+      .leftJoinAndSelect('attribute.values', 'values');
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -270,7 +246,6 @@ export class AttributeService {
 
     const attribute = await this.attributeRepository.findOne({
       where: { id, companyId },
-      relations: ['locales'],
     });
 
     if (!attribute) {
@@ -282,27 +257,22 @@ export class AttributeService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
-    // try {
-    //   for (let i = 0; i < attribute.locales.length; i++) {
-    //     const locale = attribute.locales[i];
-    //     // Removing the attribute locale
-    //     await queryRunner.manager.remove(locale);
-    //   }
-    //   // Removing the attribute
-    //   await queryRunner.manager.remove(attribute);
+    try {
+      // Removing the attribute
+      await queryRunner.manager.remove(attribute);
 
-    //   await queryRunner.commitTransaction();
-    // } catch (err) {
-    //   await queryRunner.rollbackTransaction();
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
 
-    //   this.error.methodNotAllowed([
-    //     i18n.t(
-    //       't.Some values are related to this attribute, please delete the values of this attribute first!',
-    //     ),
-    //   ]);
-    // } finally {
-    //   await queryRunner.release();
-    // }
+      this.error.methodNotAllowed([
+        i18n.t(
+          't.Some values are related to this attribute, please delete the values of this attribute first!',
+        ),
+      ]);
+    } finally {
+      await queryRunner.release();
+    }
 
     return true;
   }
@@ -316,7 +286,6 @@ export class AttributeService {
 
     const attributeValue = await this.attributeValueRepository.findOne({
       where: { id, companyId },
-      relations: ['locales'],
     });
 
     if (!attributeValue) {
@@ -330,27 +299,22 @@ export class AttributeService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
-    // try {
-    //   for (let i = 0; i < attributeValue.locales.length; i++) {
-    //     const locale = attributeValue.locales[i];
-    //     // Removing the attribute value locale
-    //     await queryRunner.manager.remove(locale);
-    //   }
-    //   // Removing the attribute value
-    //   await queryRunner.manager.remove(attributeValue);
+    try {
+      // Removing the attribute value
+      await queryRunner.manager.remove(attributeValue);
 
-    //   await queryRunner.commitTransaction();
-    // } catch (err) {
-    //   await queryRunner.rollbackTransaction();
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
 
-    //   this.error.methodNotAllowed([
-    //     i18n.t(
-    //       't.Some products are related to this attribute value, please delete the products of this attribute value first!',
-    //     ),
-    //   ]);
-    // } finally {
-    //   await queryRunner.release();
-    // }
+      this.error.methodNotAllowed([
+        i18n.t(
+          't.Some products are related to this attribute value, please delete the products of this attribute value first!',
+        ),
+      ]);
+    } finally {
+      await queryRunner.release();
+    }
 
     return true;
   }
@@ -368,16 +332,9 @@ export class AttributeService {
    * -------------------------------------------------------
    */
   async getByNameAndCompanyId(attributeName, attributeValue) {
-    const { lang } = I18nContext.current();
-
     const attribute = await this.attributeRepository
       .createQueryBuilder('attribute')
-      .innerJoin(
-        'attribute.locales',
-        'attributeLocale',
-        'TRIM(LOWER(attributeLocale.name)) = :name AND attributeLocale.language = :lang',
-        { name: `${attributeName}`.toLowerCase().trim(), lang },
-      )
+
       .getOne();
 
     if (!attribute) {
@@ -387,12 +344,7 @@ export class AttributeService {
     const attrValue = await this.attributeValueRepository
       .createQueryBuilder('attributeValue')
       .andWhere({ attributeId: attribute.id })
-      .innerJoin(
-        'attributeValue.locales',
-        'attributeValueLocale',
-        'TRIM(LOWER(attributeValueLocale.value)) = :value AND attributeValueLocale.language = :lang',
-        { value: `${attributeValue}`.toLowerCase().trim(), lang },
-      )
+
       .getOne();
 
     if (attrValue) {

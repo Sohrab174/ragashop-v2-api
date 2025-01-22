@@ -415,36 +415,12 @@ export class OrderService {
         'attributeValue',
       )
 
-      .leftJoinAndSelect(
-        'attributeValue.locales',
-        'attributeValueLocales',
-        'attributeValueLocales.language = :lang',
-        { lang: i18n.lang },
-      )
-
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-      .leftJoinAndSelect(
-        'attribute.locales',
-        'attributeLocales',
-        'attributeLocales.language = :lang',
-        { lang: i18n.lang },
-      )
 
       .leftJoinAndSelect('orderItems.product', 'product')
-      .leftJoinAndSelect(
-        'product.locales',
-        'productLocales',
-        'productLocales.language = :lang',
-        { lang: i18n.lang },
-      )
+
       .leftJoinAndSelect('product.cover', 'cover')
       .innerJoin('order.company', 'company')
-      .leftJoin(
-        'company.locales',
-        'companyLocales',
-        'companyLocales.language = :lang',
-        { lang: i18n.lang },
-      )
 
       .leftJoin('order.customer', 'customer')
 
@@ -454,8 +430,6 @@ export class OrderService {
       .addSelect('company.email')
       .addSelect('company.address')
       .addSelect('company.location')
-      .addSelect('companyLocales.id')
-      .addSelect('companyLocales.name')
 
       .addSelect('customer.id')
       .addSelect('customer.firstName')
@@ -498,30 +472,12 @@ export class OrderService {
         'attributeValue',
       )
 
-      .leftJoinAndSelect(
-        'attributeValue.locales',
-        'attributeValueLocales',
-        'attributeValueLocales.language = :lang',
-        { lang: i18n.lang },
-      )
-
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-      .leftJoinAndSelect(
-        'attribute.locales',
-        'attributeLocales',
-        'attributeLocales.language = :lang',
-        { lang: i18n.lang },
-      )
 
       .leftJoin('orderItems.product', 'product')
       .leftJoin('product.service', 'service')
       .leftJoinAndSelect('product.productFiles', 'productFiles')
-      .leftJoinAndSelect(
-        'product.locales',
-        'productLocales',
-        'productLocales.language = :lang',
-        { lang: i18n.lang },
-      )
+
       .leftJoinAndSelect('product.cover', 'cover')
 
       .addSelect('product.id')
@@ -644,7 +600,6 @@ export class OrderService {
       relations: [
         'customer',
         'company',
-        'company.locales',
         'orderItems',
         'orderItems.product',
         'orderItems.product.service',
@@ -747,9 +702,7 @@ export class OrderService {
 
     const mapping = list.map((item) => ({
       sum: +item.sumFinalAmount || +item.sumCalFinalAmount,
-      label: moment(item.date)
-        .locale(lang === 'fa' ? 'fa' : 'en')
-        .format('D (ddd)'),
+      label: moment(item.date).locale('fa').format('D (ddd)'),
       date: item.date,
     }));
 
@@ -759,14 +712,10 @@ export class OrderService {
 
     const obj = {};
     mapping.forEach((item) => {
-      const m = moment(item.date)
-        .locale(lang === 'fa' ? 'fa' : 'en')
-        .format('M');
+      const m = moment(item.date).locale('fa').format('M');
 
       obj[+m] = {
-        label: moment(item.date)
-          .locale(lang === 'fa' ? 'fa' : 'en')
-          .format('MMMM'),
+        label: moment(item.date).locale('fa').format('MMMM'),
         month: +m,
         sum: (obj[+m]?.sum || 0) + item.sum,
       };
@@ -825,12 +774,7 @@ export class OrderService {
 
     const builder = this._statisticBestSalesBuilder(companyId, from, to);
 
-    builder
-      .innerJoin('product.locales', 'locales', 'locales.language = :lang', {
-        lang,
-      })
-      .groupBy('product.id')
-      .addSelect('product.id AS id');
+    builder.groupBy('product.id').addSelect('product.id AS id');
 
     return await builder.getRawMany();
   }
@@ -839,15 +783,10 @@ export class OrderService {
    * -------------------------------------------------------
    */
   async statisticBestSalesByCategory(companyId, from = null, to = null) {
-    const { lang } = I18nContext.current();
-
     const builder = this._statisticBestSalesBuilder(companyId, from, to);
 
     builder
       .innerJoin('product.category', 'category')
-      .innerJoin('category.locales', 'locales', 'locales.language = :lang', {
-        lang,
-      })
       .groupBy('category.id')
       .addSelect('category.id AS id');
 

@@ -3,10 +3,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigurationModule } from './config/configuration.module';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { I18nModule } from 'nestjs-i18n';
-import { HeaderResolver } from 'nestjs-i18n/dist/resolvers/header.resolver';
 import './utils/typeorm.polyfill';
-import * as path from 'path';
 
 import { TypeOrmConfigService } from './database/typeorm-config.service';
 import { AuthModule } from './modules/auth/auth.module';
@@ -38,14 +35,6 @@ import { DiscountCouponModule } from './modules/discount-coupon/discount-coupon.
       useClass: TypeOrmConfigService,
     }),
     ConfigurationModule.register(),
-    I18nModule.forRoot({
-      fallbackLanguage: 'en',
-      loaderOptions: {
-        path: path.join(__dirname, '/i18n/'),
-        watch: true,
-      },
-      resolvers: [new HeaderResolver(['x-custom-lang'])],
-    }),
     MailerModule.forRootAsync({
       useClass: MailConfigService,
     }),

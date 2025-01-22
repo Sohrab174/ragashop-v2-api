@@ -15,7 +15,6 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ErrorService } from 'src/error/error.service';
-import { Headers } from 'src/utils/decorators/header.decorator';
 import { IncredibleOfferService } from './Incredible-offer.service';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
@@ -37,7 +36,6 @@ import { Company } from '../../utils/decorators/company.decorator';
 import { IncredibleOfferImportExcelDto } from './dto/incredible-offer-import-excel.dto';
 
 @ApiTags('Incredible Offer')
-@Headers()
 @Controller('incredible-offers')
 export class IncredibleOffersController {
   constructor(
@@ -220,7 +218,7 @@ export class IncredibleOffersController {
     @User() user: UserEntity,
     @I18n() i18n,
   ) {
-    const data = await this.incredibleOfferService.delete(dto, user);
+    const data = await this.incredibleOfferService.delete(dto);
     return successfulResult(
       [i18n.t('t.The offers are deleted successfully')],
       data,

@@ -32,26 +32,24 @@ export class AuthService {
    * --------------------------------------------------------
    */
   async login(dto: AuthLoginDto) {
-    const i18n = I18nContext.current();
-
     const user = await this.userService.getActiveByEmailOrMobile(
       dto.emailOrMobile,
     );
 
     if (!user) {
       this.error.unprocessableEntity([
-        i18n.t('t.The username or password is incorrect'),
+        't.The username or password is incorrect',
       ]);
     }
 
     if (!(await user.isCorrectSaltPassword(dto.password))) {
       this.error.unprocessableEntity([
-        i18n.t('t.The username or password is incorrect'),
+        't.The username or password is incorrect',
       ]);
     }
 
     if (user.status === UserStatus.inactive) {
-      this.error.unprocessableEntity([i18n.t('t.Your account is inactive')]);
+      this.error.unprocessableEntity(['t.Your account is inactive']);
     }
 
     return await this.prepareUserResponse(user, dto.rememberMe);
