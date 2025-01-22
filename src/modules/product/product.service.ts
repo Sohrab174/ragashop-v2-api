@@ -739,7 +739,7 @@ export class ProductService {
     sorts = null,
     priceRanges: any = {},
   ) {
-    let subquery = this.productRepository
+    let builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoin('product.category', 'category', 'category.status = :status', {
         status: CategoryStatus.active,
@@ -790,110 +790,88 @@ export class ProductService {
       .addSelect('productAttributeIncredibleOffers.discountedPrice')
       .addSelect('productAttributeIncredibleOffers.toDate');
 
-    subquery.addSelect(
+    builder.addSelect(
       `
-          COALESCE(
-            MIN(
-              COALESCE(
-                NULLIF(productAttributeValues.discountedPrice, 0),
-                NULLIF(productAttributeValues.price, 0)
-              )
-            ) OVER (PARTITION BY product.id),
-            NULLIF(product.discountedPrice, 0),
-            NULLIF(product.price, 0),
-            0
-          ) AS mainPrice
-        `,
+        COALESCE(
+          MIN(
+            COALESCE(
+              NULLIF(productAttributeValues.discountedPrice, 0),
+              NULLIF(productAttributeValues.price, 0)
+            )
+          ) OVER (PARTITION BY product.id),
+          NULLIF(product.discountedPrice, 0),
+          NULLIF(product.price, 0),
+          0
+        ) AS mainPrice
+      `,
     );
-    // builder.addSelect(
-    //   'COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)',
-    //   'mainPrice',
-    // );
 
-    // if (sorts) {
-    //   // Sorting by best sellers
-    //   if (sorts[0].field === 'sales') {
-    //     builder.leftJoin('product.orderItems', 'orderItems');
-    //     builder.leftJoin(
-    //       'orderItems.order',
-    //       'order',
-    //       'order.status IN (:...statuses)',
-    //       {
-    //         statuses: [
-    //           OrderStatus.paid,
-    //           OrderStatus.sent,
-    //           OrderStatus.delivered,
-    //         ],
-    //       },
-    //     );
-    //     builder.addSelect('COUNT(order.id)', 'order_count');
-    //     builder.groupBy('product.id');
-    //     builder.orderBy('order_count', sorts[0].dir);
-    //   }
-    //   // Sorting by price
-    //   else if (sorts[0].field === 'price') {
-    //     builder.orderBy('mainPrice', sorts[0].dir);
-    //   }
-    //   // Sorting by request of front
-    //   else {
-    //     builder = applySortingToBuilder(builder, sorts);
-    //   }
-    // }
-    // Sorting by display order field
-    // else {
-    //   builder.orderBy('product.displayOrder', 'ASC');
-    // }
+    if (sorts) {
+      if (sorts[0].field === 'sales') {
+        builder.leftJoin('product.orderItems', 'orderItems');
+        builder.leftJoin(
+          'orderItems.order',
+          'order',
+          'order.status IN (:...statuses)',
+          {
+            statuses: [
+              OrderStatus.paid,
+              OrderStatus.sent,
+              OrderStatus.delivered,
+            ],
+          },
+        );
+        builder.addSelect('COUNT(order.id)', 'order_count');
+        builder.groupBy('product.id');
+        builder.orderBy('order_count', sorts[0].dir);
+      } else if (sorts[0].field === 'price') {
+        builder.orderBy('mainPrice', sorts[0].dir);
+      } else {
+        builder = applySortingToBuilder(builder, sorts);
+      }
+    } else {
+      builder.orderBy('product.displayOrder', 'ASC');
+    }
 
-    subquery = applyFiltersToBuilder(subquery, filters);
+    builder = applyFiltersToBuilder(builder, filters);
 
-    // Filtering by price ranges
     if (priceRanges?.minPrice && priceRanges?.maxPrice) {
-      subquery.andWhere(
+      builder.andWhere(
         `COALESCE(
-            NULLIF(productAttributeValues.discountedPrice, 0),
-            NULLIF(productAttributeValues.price, 0),
-            NULLIF(product.discountedPrice, 0),
-            NULLIF(product.price, 0),
-            0
-          ) BETWEEN :minPrice AND :maxPrice`,
+          NULLIF(productAttributeValues.discountedPrice, 0),
+          NULLIF(productAttributeValues.price, 0),
+          NULLIF(product.discountedPrice, 0),
+          NULLIF(product.price, 0),
+          0
+        ) BETWEEN :minPrice AND :maxPrice`,
         priceRanges,
       );
     }
 
-    const manager = getManager();
-
-    const builder = manager
-      .createQueryBuilder()
-      .from(`(${subquery.getQuery()})`, 'subquery') // استفاده از Subquery
-      .select('*')
+    // Group by sourceGroupId and get the first product of each group using a subquery
+    const subQuery = this.productRepository
+      .createQueryBuilder('subProduct')
+      .select('subProduct.id', 'id')
       .addSelect(
-        'ROW_NUMBER() OVER (PARTITION BY subquery.sourceGroupId ORDER BY subquery.displayOrder ASC)',
-        'row_number',
-      ) // مرتب‌سازی درون گروه
-      .setParameters(subquery.getParameters()) // انتقال پارامترهای subquery
-      .where('row_number = 1'); // انتخاب فقط اولین کالا از هر گروه
+        'ROW_NUMBER() OVER (PARTITION BY subProduct.sourceGroupId ORDER BY subProduct.id)',
+        'row_num',
+      )
+      .andWhere({ status: ProductStatus.active });
 
-    // مرتب‌سازی نهایی (اختیاری)
-    if (sorts) {
-      if (sorts[0].field === 'price') {
-        builder.orderBy('subquery.mainPrice', sorts[0].dir);
-      } else if (sorts[0].field === 'sales') {
-        builder.orderBy('subquery.sales', sorts[0].dir);
-      }
-    } else {
-      builder.orderBy('subquery.product_displayOrder', 'ASC');
-    }
+    builder.innerJoin(
+      `(${subQuery.getQuery()})`,
+      'groupedProducts',
+      'groupedProducts.id = product.id AND groupedProducts.row_num = 1',
+    );
 
-    // const [items, totalItems] = await builder
-    //   .take(limit)
-    //   .skip((page - 1) * limit)
-    //   .getManyAndCount();
-    const items = await builder.getRawMany();
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
 
     return {
       items: items.map(this.mappingProduct),
-      // pagination: paginationResult(page, limit, totalItems),
-      pagination: paginationResult(page, limit, 100),
+      pagination: paginationResult(page, limit, totalItems),
     };
   }
 
