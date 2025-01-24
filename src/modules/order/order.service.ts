@@ -95,7 +95,7 @@ export class OrderService {
       );
 
       if (!fromDb) {
-        this.error.unprocessableEntity(['t.The product not found!']);
+        this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
       }
 
       const productAttributeValue = fromDb.productAttributeValues.find(

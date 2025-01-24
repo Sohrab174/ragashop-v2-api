@@ -334,7 +334,7 @@ export class ProductController {
     );
 
     return successfulResult(
-      ['t.The product photo is uploaded successfully'],
+      ['تصویر محصول مورد نظر با موفقیت آپلود شد'],
       filePath,
     );
   }
@@ -372,7 +372,7 @@ export class ProductController {
     );
 
     return successfulResult(
-      ['t.The product video is uploaded successfully'],
+      ['فایل ویدیو محصول مورد نظر با موفقیت آپلود شد'],
       filePath,
     );
   }
@@ -432,10 +432,7 @@ export class ProductController {
   async add(@Body() dto: CreateProductDto, @User() user: UserEntity) {
     const newProduct = await this.productService.add(dto, user);
 
-    return successfulResult(
-      ['t.The product is created successfully'],
-      newProduct,
-    );
+    return successfulResult(['محصول جدید با موفقیت ایجاد شد'], newProduct);
   }
 
   /**
@@ -471,7 +468,7 @@ export class ProductController {
   async update(@Body() dto: UpdateProductDto, @User() user: UserEntity) {
     await this.productService.update(dto, user);
 
-    return successfulResult(['t.The product is updated successfully']);
+    return successfulResult(['محصول مورد نظر با موفقیت آپدیت شد']);
   }
 
   /**
@@ -502,6 +499,6 @@ export class ProductController {
   async delete(@Param('id') productId: number, @User() user: UserEntity) {
     await this.productService.delete(productId, user);
 
-    return successfulResult(['t.The product is deleted']);
+    return successfulResult(['محصول مورد نظر حذف شد']);
   }
 }

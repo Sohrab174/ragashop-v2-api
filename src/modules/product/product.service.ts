@@ -161,7 +161,7 @@ export class ProductService {
               number,
               name: productName,
               success: true,
-              message: ['t.The product is updated successfully'],
+              message: ['محصول مورد نظر با موفقیت آپدیت شد'],
             });
           }
           // Product does not found, so should be added
@@ -189,7 +189,7 @@ export class ProductService {
               number,
               name: productName,
               success: true,
-              message: ['t.The product is created successfully'],
+              message: ['محصول جدید با موفقیت ایجاد شد'],
             });
           }
 
@@ -577,7 +577,7 @@ export class ProductService {
     const product = await builder.getOne();
 
     if (!product) {
-      this.error.unprocessableEntity(['t.The product not found!']);
+      this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
     return product;
@@ -636,7 +636,7 @@ export class ProductService {
     } = await builder.getOne();
 
     if (!product) {
-      this.error.unprocessableEntity(['t.The product not found!']);
+      this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
     product.discountedPrice =
@@ -1031,7 +1031,7 @@ export class ProductService {
     );
 
     if (!existCategory) {
-      this.error.unprocessableEntity(['t.The category is not valid!']);
+      this.error.unprocessableEntity(['دسته بندی انتخابی معتبر نمی باشد']);
     }
 
     // Checking duplicate product number
@@ -1071,14 +1071,14 @@ export class ProductService {
     });
 
     if (!product) {
-      this.error.unprocessableEntity(['t.The product not found!']);
+      this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
     const existCategory = await this.categoryService.getRecordById(
       dto.categoryId,
     );
     if (!existCategory) {
-      this.error.unprocessableEntity(['t.The category is not valid!']);
+      this.error.unprocessableEntity(['دسته بندی انتخابی معتبر نمی باشد']);
     }
 
     // Checking duplicate product number
@@ -1120,7 +1120,7 @@ export class ProductService {
         .getOne();
 
       if (!product) {
-        this.error.unprocessableEntity(['t.The product not found!']);
+        this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
       }
 
       // Removing the prev cover before adding the new cover
@@ -1179,7 +1179,7 @@ export class ProductService {
     });
 
     if (!product) {
-      this.error.unprocessableEntity(['t.The product not found!']);
+      this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
     // Rollbacking the product locales if an error occurs
@@ -1215,7 +1215,7 @@ export class ProductService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        't.Some orders are related to this product, please delete the orders of this product first!',
+        'برخی از سفارشات مربوط به این محصول هستند، لطفا ابتدا سفارشات این محصول را حذف کنید',
       ]);
     } finally {
       await queryRunner.release();
