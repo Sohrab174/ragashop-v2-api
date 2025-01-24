@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nContext } from 'nestjs-i18n';
 import { Repository } from 'typeorm/repository/Repository';
 
 import { ErrorService } from '../../error/error.service';

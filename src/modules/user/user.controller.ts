@@ -10,7 +10,6 @@ import {
   Put,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { I18n } from 'nestjs-i18n';
 import { successfulResult } from '../../utils';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
@@ -39,12 +38,9 @@ export class UserController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god)
   @HttpCode(HttpStatus.CREATED)
-  async createForGod(@Body() dto: CreateUserDto, @I18n() i18n) {
+  async createForGod(@Body() dto: CreateUserDto) {
     const newUser = await this.userService.add(dto);
-    return successfulResult(
-      [i18n.t('t.New user successfully created')],
-      newUser,
-    );
+    return successfulResult(['t.New user successfully created'], newUser);
   }
 
   /**
@@ -56,12 +52,9 @@ export class UserController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin)
   @HttpCode(HttpStatus.CREATED)
-  async createForAdmin(@Body() dto: CreateUserDto, @I18n() i18n) {
+  async createForAdmin(@Body() dto: CreateUserDto) {
     const newUser = await this.userService.add(dto);
-    return successfulResult(
-      [i18n.t('t.New user successfully created')],
-      newUser,
-    );
+    return successfulResult(['t.New user successfully created'], newUser);
   }
 
   /**
@@ -72,10 +65,10 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god)
-  async updateUserForGod(@Body() dto: UpdateUserDto, @I18n() i18n) {
+  async updateUserForGod(@Body() dto: UpdateUserDto) {
     await this.userService.updateUser(dto.id, dto);
     return successfulResult([
-      i18n.t('t.The user profile has been successfully edited'),
+      't.The user profile has been successfully edited',
     ]);
   }
 
@@ -87,10 +80,10 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin)
-  async updateUserForAdmin(@Body() dto: UpdateUserDto, @I18n() i18n) {
+  async updateUserForAdmin(@Body() dto: UpdateUserDto) {
     await this.userService.updateUser(dto.id, dto);
     return successfulResult([
-      i18n.t('t.The user profile has been successfully edited'),
+      't.The user profile has been successfully edited',
     ]);
   }
 
@@ -150,8 +143,8 @@ export class UserController {
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(UserRoles.admin)
   // @HttpCode(HttpStatus.OK)
-  // async deleteUser(@Param('id') id: number , @I18n() i18n) {
+  // async deleteUser(@Param('id') id: number ,) {
   //   await this.userService.deleteUser(id);
-  //   return successfulResult([i18n.t('t.The user has been successfully deleted')]);
+  //   return successfulResult([('t.The user has been successfully deleted')]);
   // }
 }

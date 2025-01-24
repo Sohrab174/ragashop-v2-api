@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as moment from 'jalali-moment';
-import { I18nContext } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import { MailService } from '../../mail/mail.service';
@@ -95,8 +94,6 @@ export class UserService {
    * -------------------------------------------------------
    */
   async getById(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.userRepository
       .createQueryBuilder('user')
       .select([
@@ -112,7 +109,7 @@ export class UserService {
 
     const user = await builder.getOne();
     if (!user) {
-      this.error.unprocessableEntity([i18n.t('t.The user was not found')]);
+      this.error.unprocessableEntity(['t.The user was not found']);
     }
 
     return {
@@ -168,14 +165,10 @@ export class UserService {
    * -------------------------------------------------------
    */
   async changePassword(id: number, oldPassword: string, newPassword: string) {
-    const i18n = I18nContext.current();
-
     const user = await this.userRepository.findOne(id);
 
     if (oldPassword && !(await user.isCorrectSaltPassword(oldPassword))) {
-      this.error.unprocessableEntity([
-        i18n.t('t.The current password is incorrect'),
-      ]);
+      this.error.unprocessableEntity(['t.The current password is incorrect']);
     }
 
     user.password = newPassword;
@@ -188,13 +181,11 @@ export class UserService {
    * -------------------------------------------------------
    */
   async resetPasswordByToken(token: string, newPassword: string) {
-    const i18n = I18nContext.current();
-
     const user = await this.findByValidHashCode(token);
 
     if (!user) {
       throw this.error.unprocessableEntity([
-        i18n.t('t.There is an invalid or expired link to reset your password!'),
+        't.There is an invalid or expired link to reset your password!',
       ]);
     }
 
@@ -251,8 +242,6 @@ export class UserService {
    * -------------------------------------------------------
    */
   async findActiveUserByMobileOrEmail(emailOrMobile) {
-    const i18n = I18nContext.current();
-
     const user = await this.userRepository
       .createQueryBuilder('user')
       .andWhere('(user.email = :eom OR user.mobile = :eom)', {
@@ -262,7 +251,7 @@ export class UserService {
       .getOne();
 
     if (!user) {
-      this.error.unprocessableEntity([i18n.t('t.The user was not found!')]);
+      this.error.unprocessableEntity(['t.The user was not found!']);
     }
 
     return user;

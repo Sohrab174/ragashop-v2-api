@@ -16,7 +16,6 @@ import {
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { CustomerEntity } from '../customer/entities/customer.entity';
 import { OrderStatus } from '../order/entities/order.entity';
-import { I18nContext } from 'nestjs-i18n';
 import { ZarinpalService } from '../../gateway/zarinpal/zarinpal.service';
 import { ZibalService } from '../../gateway/zibal/zibal.service';
 import { PaypingService } from '../../gateway/payping/payping.service';
@@ -133,18 +132,16 @@ export class TransactionService {
    * POST /transactions
    */
   async add(dto: CreateTransactionDto, customer: CustomerEntity, ip: string) {
-    const i18n = I18nContext.current();
-
     const order = await this.orderService.getRecordById(dto.orderId);
     if (!order) {
-      this.error.unprocessableEntity([i18n.t('t.The order not found!')]);
+      this.error.unprocessableEntity(['t.The order not found!']);
     }
 
     const gateway = await this.gatewayService.getById(dto.gatewayId);
 
     // if (order.status === OrderStatus.pending) {
     //   this.error.unprocessableEntity([
-    //     i18n.t('t.This order has not yet been confirmed!'),
+    //     ('t.This order has not yet been confirmed!'),
     //   ]);
     // }
 
@@ -153,9 +150,7 @@ export class TransactionService {
       order.status === OrderStatus.sent ||
       order.status === OrderStatus.delivered
     ) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This order has been paid already!'),
-      ]);
+      this.error.unprocessableEntity(['t.This order has been paid already!']);
     }
 
     // insert into transaction
@@ -202,15 +197,13 @@ export class TransactionService {
   }
 
   private async getTransactionById(id) {
-    const i18n = I18nContext.current();
-
     const transaction = await this.getTransactionBuilder()
       .leftJoinAndSelect('transaction.customer', 'customer')
       .andWhere({ id })
       .getOne();
 
     if (!transaction) {
-      this.error.unprocessableEntity([i18n.t('t.The request is not valid!')]);
+      this.error.unprocessableEntity(['t.The request is not valid!']);
     }
 
     return transaction;
@@ -232,8 +225,6 @@ export class TransactionService {
    * --------------------------------------------------------
    */
   private async connectToGateway(transaction: TransactionEntity, retry = 0) {
-    const i18n = I18nContext.current();
-
     try {
       // Making a bank callback URL
       let callbackUrl = `${this.config.app.apiBaseUrl}/transactions/${transaction.gateway.name}/verify`;
@@ -353,9 +344,7 @@ export class TransactionService {
       }
 
       this.error.internalServerError([
-        i18n.t(
-          't.The connection to the bank gateway could not be established, please try again!',
-        ),
+        't.The connection to the bank gateway could not be established, please try again!',
       ]);
     } catch (e) {
       console.log(e);
@@ -367,13 +356,11 @@ export class TransactionService {
 
       this.error.internalServerError([
         e ||
-          i18n.t(
-            't.The connection to the bank gateway could not be established, please try again!',
-          ),
+          't.The connection to the bank gateway could not be established, please try again!',
       ]);
     }
 
-    this.error.unprocessableEntity([i18n.t('t.The request is not valid!')]);
+    this.error.unprocessableEntity(['t.The request is not valid!']);
   }
 
   /**
