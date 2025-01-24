@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { I18nContext } from 'nestjs-i18n';
 import * as moment from 'jalali-moment';
 
 import { ConfigurationService } from '../../config/configuration.service';
@@ -126,17 +125,13 @@ export class AuthService {
    * --------------------------------------------------------
    */
   async forgotPassword(dto: AuthForgotDto) {
-    const i18n = I18nContext.current();
-
     const user = await this.userService.findActiveUserByMobileOrEmail(
       dto.emailOrMobile,
     );
 
     if (moment(user.expireRandomHash).isAfter(moment())) {
       this.error.unprocessableEntity([
-        i18n.t(
-          't.The verification code has already been sent, please try again in a few minutes!',
-        ),
+        't.The verification code has already been sent, please try again in a few minutes!',
       ]);
     }
 
@@ -154,8 +149,6 @@ export class AuthService {
    * --------------------------------------------------------
    */
   async resetPasswordByToken(dto: AuthResetPasswordDto) {
-    const i18n = I18nContext.current();
-
     const user = await this.userService.findActiveUserByMobileOrEmail(
       dto.emailOrMobile,
     );
@@ -165,7 +158,7 @@ export class AuthService {
       !moment(user.expireRandomHash).isAfter(moment())
     ) {
       return this.error.unprocessableEntity([
-        i18n.t('t.The verification code is invalid or expired'),
+        't.The verification code is invalid or expired',
       ]);
     }
 

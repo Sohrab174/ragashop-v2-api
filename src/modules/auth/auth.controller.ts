@@ -16,7 +16,6 @@ import { AuthLoginDto } from './dto/auth-login.dto';
 import { JwtAuthGuard } from './jwt/jwt.guard';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthChangePasswordDto } from './dto/auth-change-password.dto';
-import { I18n } from 'nestjs-i18n';
 import { AuthForgotDto } from './dto/auth-forgot.dto';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
 
@@ -42,9 +41,9 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async me(@User('id') userId: number, @I18n() i18n) {
+  async me(@User('id') userId: number) {
     const userInfo = await this.authService.getById(userId);
-    return successfulResult([i18n.t('t.User information')], userInfo);
+    return successfulResult(['t.User information'], userInfo);
   }
 
   /**
@@ -57,12 +56,9 @@ export class AuthController {
   async changePassword(
     @User('id') userId: number,
     @Body() dto: AuthChangePasswordDto,
-    @I18n() i18n,
   ) {
     await this.authService.changePassword(userId, dto);
-    return successfulResult([
-      i18n.t('t.The password has been successfully updated'),
-    ]);
+    return successfulResult(['t.The password has been successfully updated']);
   }
 
   /**
@@ -72,35 +68,29 @@ export class AuthController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async update(
-    @User('id') userId: number,
-    @Body() dto: AuthUpdateDto,
-    @I18n() i18n,
-  ) {
+  async update(@User('id') userId: number, @Body() dto: AuthUpdateDto) {
     await this.authService.update(userId, dto);
-    return successfulResult([
-      i18n.t('t.Your profile has been successfully updated'),
-    ]);
+    return successfulResult(['t.Your profile has been successfully updated']);
   }
 
   /**
    * --------------------------------------------------------
    */
   @Post('password/forgot')
-  async forgotPassword(@Body() dto: AuthForgotDto, @I18n() i18n) {
+  async forgotPassword(@Body() dto: AuthForgotDto) {
     await this.authService.forgotPassword(dto);
-    return successfulResult([i18n.t('t.The verification code has been sent')]);
+    return successfulResult(['t.The verification code has been sent']);
   }
 
   /**
    * --------------------------------------------------------
    */
   @Post('password/reset')
-  async resetPassword(@Body() dto: AuthResetPasswordDto, @I18n() i18n) {
+  async resetPassword(@Body() dto: AuthResetPasswordDto) {
     const response = await this.authService.resetPasswordByToken(dto);
 
     return successfulResult(
-      [i18n.t('Your password has been successfully changed')],
+      ['Your password has been successfully changed'],
       response || {},
     );
   }

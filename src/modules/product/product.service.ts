@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nContext } from 'nestjs-i18n';
-import { getConnection, Repository, IsNull, getManager } from 'typeorm';
+import { getConnection, Repository, IsNull } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -70,8 +69,6 @@ export class ProductService {
     dto: ProductImportExcelDto,
     user: UserEntity,
   ) {
-    const i18n = I18nContext.current();
-
     const workbook = xlsx.readFile(file.path);
 
     const sheet_name = workbook.SheetNames[0];
@@ -114,7 +111,7 @@ export class ProductService {
             number,
             name: productName,
             success: false,
-            message: i18n.t('t.The category is not found').replace(/^t\./i, ''),
+            message: 't.The category is not found'.replace(/^t\./i, ''),
           });
           continue;
         }
@@ -164,11 +161,7 @@ export class ProductService {
               number,
               name: productName,
               success: true,
-              message: [
-                i18n
-                  .t('t.The product is updated successfully')
-                  .replace(/^t\./i, ''),
-              ],
+              message: ['t.The product is updated successfully'],
             });
           }
           // Product does not found, so should be added
@@ -196,11 +189,7 @@ export class ProductService {
               number,
               name: productName,
               success: true,
-              message: [
-                i18n
-                  .t('t.The product is created successfully')
-                  .replace(/^t\./i, ''),
-              ],
+              message: ['t.The product is created successfully'],
             });
           }
 
@@ -254,9 +243,7 @@ export class ProductService {
           number,
           name: productName,
           success: false,
-          message: [
-            i18n.t('t.An unexpected error has occurred').replace(/^t\./i, ''),
-          ],
+          message: ['t.An unexpected error has occurred'.replace(/^t\./i, '')],
         });
       }
     }
@@ -294,8 +281,6 @@ export class ProductService {
     fields: any = {},
     results,
   ) {
-    const i18n = I18nContext.current();
-
     const attributeValueId = await this.attributeService.getRecordByName(
       attributeName,
       attributeValue,
@@ -308,7 +293,7 @@ export class ProductService {
         attributeName,
         attributeValue,
         success: false,
-        message: i18n.t('t.The attribute is not found').replace(/^t\./i, ''),
+        message: 't.The attribute is not found'.replace(/^t\./i, ''),
       });
       return;
     }
@@ -333,9 +318,7 @@ export class ProductService {
         attributeName,
         attributeValue,
         success: true,
-        message: i18n
-          .t('t.The attribute is updated successfully')
-          .replace(/^t\./i, ''),
+        message: 't.The attribute is updated successfully',
       });
       return;
     }
@@ -357,9 +340,7 @@ export class ProductService {
       attributeName,
       attributeValue,
       success: true,
-      message: [
-        i18n.t('t.The attribute is created successfully').replace(/^t\./i, ''),
-      ],
+      message: ['t.The attribute is created successfully'.replace(/^t\./i, '')],
     });
   }
 
@@ -564,8 +545,6 @@ export class ProductService {
    * GET /products/:id/attribute-value/admin
    */
   async getAttributesByProductId(productId: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.productAttributeValueRepository
       .createQueryBuilder('attrValue')
       .innerJoinAndSelect('attrValue.attributeValue', 'attributeValue')
@@ -576,7 +555,7 @@ export class ProductService {
 
     if (!productAttrValues) {
       this.error.unprocessableEntity([
-        i18n.t('t.The value of the product attribute not found!'),
+        't.The value of the product attribute not found!',
       ]);
     }
 
@@ -588,8 +567,6 @@ export class ProductService {
    * GET /products/:id/admin
    */
   async getByIdForAdmin(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.cover', 'cover')
@@ -600,7 +577,7 @@ export class ProductService {
     const product = await builder.getOne();
 
     if (!product) {
-      this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
+      this.error.unprocessableEntity(['t.The product not found!']);
     }
 
     return product;
@@ -611,8 +588,6 @@ export class ProductService {
    * GET /products/:id
    */
   async getById(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.cover', 'cover')
@@ -668,7 +643,7 @@ export class ProductService {
     } = await builder.getOne();
 
     if (!product) {
-      this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
+      this.error.unprocessableEntity(['t.The product not found!']);
     }
 
     product.discountedPrice =
@@ -947,8 +922,6 @@ export class ProductService {
    * POST & PUT /products/attribute/admin
    */
   async addUpdateProductAttributeValue(dto: CreateUpdateProductAttrValueDto) {
-    const i18n = I18nContext.current();
-
     const product = await this.productRepository
       .createQueryBuilder('product')
       .andWhere({ id: dto.productId })
@@ -959,7 +932,7 @@ export class ProductService {
     );
 
     if (!product || !attributeValue) {
-      this.error.unprocessableEntity([i18n.t('t.The request is not valid!')]);
+      this.error.unprocessableEntity(['t.The request is not valid!']);
     }
 
     // Updating the product attribute value
@@ -1006,9 +979,7 @@ export class ProductService {
       ))
     ) {
       this.error.unprocessableEntity([
-        i18n.t(
-          't.It is not possible to define more than one multiple attribute',
-        ),
+        't.It is not possible to define more than one multiple attribute',
       ]);
     }
 
@@ -1039,8 +1010,6 @@ export class ProductService {
    * DELETE /products/attribute/:id/admin
    */
   async deleteProductAttributeValue(id: number, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const productAttrValue = await this.productAttributeValueRepository.findOne(
       {
         where: { id },
@@ -1049,7 +1018,7 @@ export class ProductService {
 
     if (!productAttrValue) {
       this.error.unprocessableEntity([
-        i18n.t('t.The value of the product attribute not found!'),
+        't.The value of the product attribute not found!',
       ]);
     }
 
@@ -1064,14 +1033,12 @@ export class ProductService {
    * POST /products/admin
    */
   async add(dto: CreateProductDto, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const existCategory = await this.categoryService.getRecordById(
       dto.categoryId,
     );
 
     if (!existCategory) {
-      this.error.unprocessableEntity([i18n.t('t.The category is not valid!')]);
+      this.error.unprocessableEntity(['t.The category is not valid!']);
     }
 
     // Checking duplicate product number
@@ -1106,21 +1073,19 @@ export class ProductService {
    * PUT /products/admin
    */
   async update(dto: UpdateProductDto, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const product = await this.productRepository.findOne({
       where: { id: dto.id },
     });
 
     if (!product) {
-      this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
+      this.error.unprocessableEntity(['t.The product not found!']);
     }
 
     const existCategory = await this.categoryService.getRecordById(
       dto.categoryId,
     );
     if (!existCategory) {
-      this.error.unprocessableEntity([i18n.t('t.The category is not valid!')]);
+      this.error.unprocessableEntity(['t.The category is not valid!']);
     }
 
     // Checking duplicate product number
@@ -1153,8 +1118,6 @@ export class ProductService {
     type: ProductGalleryType,
     user: UserEntity,
   ) {
-    const i18n = I18nContext.current();
-
     let product = null;
     if (dto.productId) {
       product = await this.productRepository
@@ -1164,7 +1127,7 @@ export class ProductService {
         .getOne();
 
       if (!product) {
-        this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
+        this.error.unprocessableEntity(['t.The product not found!']);
       }
 
       // Removing the prev cover before adding the new cover
@@ -1217,15 +1180,13 @@ export class ProductService {
    * DELETE /products/:id/admin
    */
   async delete(id: number, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const product = await this.productRepository.findOne({
       where: { id },
       relations: ['productGalleries', 'productFiles', 'productAttributeValues'],
     });
 
     if (!product) {
-      this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
+      this.error.unprocessableEntity(['t.The product not found!']);
     }
 
     // Rollbacking the product locales if an error occurs
@@ -1261,9 +1222,7 @@ export class ProductService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        i18n.t(
-          't.Some orders are related to this product, please delete the orders of this product first!',
-        ),
+        't.Some orders are related to this product, please delete the orders of this product first!',
       ]);
     } finally {
       await queryRunner.release();
@@ -1289,8 +1248,6 @@ export class ProductService {
    * DELETE /products/gallery/:id/admin
    */
   async deleteGallery(galleryId: number, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const gallery = await this.galleryRepository
       .createQueryBuilder('gallery')
       .leftJoinAndSelect('gallery.product', 'product')
@@ -1298,9 +1255,7 @@ export class ProductService {
       .getOne();
 
     if (!gallery) {
-      this.error.unprocessableEntity([
-        i18n.t('t.The product gallery not found!'),
-      ]);
+      this.error.unprocessableEntity(['t.The product gallery not found!']);
     }
 
     if (gallery.product && gallery.product.coverId === +galleryId) {
@@ -1395,8 +1350,6 @@ export class ProductService {
    * PUT /products/sort/admin
    */
   async sort(dto: ProductSortDto, user: UserEntity, filters = null) {
-    const i18n = I18nContext.current();
-
     const conditions: any = {};
     if (dto.action) {
       conditions.id = dto.id;
@@ -1410,9 +1363,7 @@ export class ProductService {
       .getOne();
 
     if (!original) {
-      return this.error.unprocessableEntity([
-        i18n.t('t.This product not found'),
-      ]);
+      return this.error.unprocessableEntity(['t.This product not found']);
     }
 
     let builder = this.productRepository
@@ -1444,7 +1395,7 @@ export class ProductService {
 
     if (!alternate) {
       return this.error.unprocessableEntity([
-        i18n.t('t.Replacement product not found'),
+        't.Replacement product not found',
       ]);
     }
 

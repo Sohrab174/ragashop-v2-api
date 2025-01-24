@@ -15,7 +15,6 @@ import {
 } from '@nestjs/common/decorators';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { I18n } from 'nestjs-i18n';
 import { successfulResult } from '../../utils';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
@@ -82,14 +81,13 @@ export class ProductController {
     @Body() dto: ProductImportExcelDto,
     @UploadedFile() file,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     const results = await this.productService.importExcel(file, dto, user);
 
     const successCount = results.filter((result) => result.success).length;
     if (successCount === 0) {
       this.error.unprocessableEntity(
-        [i18n.t('t.There was an error importing the products list')],
+        ['t.There was an error importing the products list'],
         results,
       );
     }
@@ -99,7 +97,7 @@ export class ProductController {
       message = 'The list of products has been successfully imported';
     }
 
-    return successfulResult([i18n.t(`t.${message}`)], results);
+    return successfulResult([`t.${message}`], results);
   }
 
   /**
@@ -326,7 +324,6 @@ export class ProductController {
   async addGalleryPhoto(
     @Body() dto: CreateProductGalleryDto,
     @UploadedFile() file,
-    @I18n() i18n,
     @User() user: UserEntity,
   ) {
     const filePath = await this.productService.addGallery(
@@ -337,7 +334,7 @@ export class ProductController {
     );
 
     return successfulResult(
-      [i18n.t('t.The product photo is uploaded successfully')],
+      ['t.The product photo is uploaded successfully'],
       filePath,
     );
   }
@@ -365,7 +362,6 @@ export class ProductController {
   async addGalleryVideo(
     @Body() dto: CreateProductGalleryDto,
     @UploadedFile() file,
-    @I18n() i18n,
     @User() user: UserEntity,
   ) {
     const filePath = await this.productService.addGallery(
@@ -376,7 +372,7 @@ export class ProductController {
     );
 
     return successfulResult(
-      [i18n.t('t.The product video is uploaded successfully')],
+      ['t.The product video is uploaded successfully'],
       filePath,
     );
   }
@@ -393,12 +389,11 @@ export class ProductController {
   async addUpdateProductAttributeValue(
     @Body() dto: CreateUpdateProductAttrValueDto,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     const data = await this.productService.addUpdateProductAttributeValue(dto);
 
     return successfulResult(
-      [i18n.t('t.The product attribute value is saved successfully')],
+      ['t.The product attribute value is saved successfully'],
       data,
     );
   }
@@ -414,7 +409,6 @@ export class ProductController {
   async deleteProductAttributeValue(
     @Param('id') productAttrValueId: number,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     await this.productService.deleteProductAttributeValue(
       productAttrValueId,
@@ -422,7 +416,7 @@ export class ProductController {
     );
 
     return successfulResult([
-      i18n.t('t.The value of the product attribute is removed'),
+      't.The value of the product attribute is removed',
     ]);
   }
 
@@ -435,15 +429,11 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(
-    @Body() dto: CreateProductDto,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async add(@Body() dto: CreateProductDto, @User() user: UserEntity) {
     const newProduct = await this.productService.add(dto, user);
 
     return successfulResult(
-      [i18n.t('t.The product is created successfully')],
+      ['t.The product is created successfully'],
       newProduct,
     );
   }
@@ -464,11 +454,10 @@ export class ProductController {
     @User() user: UserEntity,
     @Filter(['status', ['category_id', 'categoryId'], 'name'])
     filters,
-    @I18n() i18n,
   ) {
     await this.productService.sort(dto, user, filters);
 
-    return successfulResult([i18n.t('t.The product was sorted successfully')]);
+    return successfulResult(['t.The product was sorted successfully']);
   }
 
   /**
@@ -479,14 +468,10 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(
-    @Body() dto: UpdateProductDto,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async update(@Body() dto: UpdateProductDto, @User() user: UserEntity) {
     await this.productService.update(dto, user);
 
-    return successfulResult([i18n.t('t.The product is updated successfully')]);
+    return successfulResult(['t.The product is updated successfully']);
   }
 
   /**
@@ -500,11 +485,10 @@ export class ProductController {
   async deleteGallery(
     @Param('id') galleryId: number,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     await this.productService.deleteGallery(galleryId, user);
 
-    return successfulResult([i18n.t('t.The product gallery is deleted')]);
+    return successfulResult(['t.The product gallery is deleted']);
   }
 
   /**
@@ -515,13 +499,9 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(
-    @Param('id') productId: number,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async delete(@Param('id') productId: number, @User() user: UserEntity) {
     await this.productService.delete(productId, user);
 
-    return successfulResult([i18n.t('t.The product is deleted')]);
+    return successfulResult(['t.The product is deleted']);
   }
 }

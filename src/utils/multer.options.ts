@@ -4,7 +4,6 @@ import { v4 as uuid } from 'uuid';
 import * as path from 'path';
 
 import * as dotenv from 'dotenv';
-import { I18nContext } from 'nestjs-i18n';
 import { convertMimeToExt } from './extension';
 dotenv.config();
 
@@ -18,8 +17,6 @@ export const multerOptions = (
       customeFileSize || process.env.MAX_PHOTO_FILE_SIZE || 1024 * 1024 * 1,
   },
   fileFilter: (req, file, callback) => {
-    const i18n = I18nContext.current();
-
     if (customMimeTypes.indexOf(convertMimeToExt(file.mimetype)) !== -1) {
       // Allow storage of file
       callback(null, true);
@@ -27,14 +24,10 @@ export const multerOptions = (
       // Reject file
       callback(
         new HttpException(
-          i18n.t('t.It is not possible to upload a file with {ext} format!', {
-            args: {
-              ext: path
-                .extname(file.originalname)
-                .replace('.', '')
-                .toUpperCase(),
-            },
-          }),
+          `t.It is not possible to upload a file with ${path
+            .extname(file.originalname)
+            .replace('.', '')
+            .toUpperCase()} format!`,
           HttpStatus.UNPROCESSABLE_ENTITY,
         ),
         false,

@@ -102,7 +102,6 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'first_name', required: false })
   @ApiQuery({ name: 'last_name', required: false })
   @ApiQuery({ name: 'email', required: false })

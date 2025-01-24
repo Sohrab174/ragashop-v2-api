@@ -9,8 +9,4 @@ export class CreateAttributeValueDto {
   @ApiProperty({ required: false })
   @IsOptional()
   extraValue: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  secondExtraValue: string;
 }

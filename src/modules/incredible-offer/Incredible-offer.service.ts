@@ -318,7 +318,6 @@ export class IncredibleOfferService {
         'productAttributeValue.number',
         'attributeValue.id',
         'attributeValue.extraValue',
-        'attributeValue.secondExtraValue',
 
         'attribute.id',
         'attribute.type',
