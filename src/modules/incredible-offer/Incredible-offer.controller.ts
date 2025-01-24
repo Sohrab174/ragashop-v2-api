@@ -14,15 +14,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { ErrorService } from 'src/error/error.service';
 import { IncredibleOfferService } from './Incredible-offer.service';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { UserEntity, UserRoles } from '../user/entities/user.entity';
-import { User } from 'src/utils/decorators/user.decorator';
 import { I18n } from 'nestjs-i18n';
-import { successfulResult } from 'src/utils';
 import { CreateIncredibleOfferDto } from './dto/create-incredible-offer.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from '../../utils/multer.options';
@@ -34,6 +31,9 @@ import { Filter } from '../../utils/decorators/filter.decorator';
 import { DeleteIncredibleOfferDto } from './dto/delete-incredible-offer.dto';
 import { Company } from '../../utils/decorators/company.decorator';
 import { IncredibleOfferImportExcelDto } from './dto/incredible-offer-import-excel.dto';
+import { ErrorService } from '../../error/error.service';
+import { User } from '../../utils/decorators/user.decorator';
+import { successfulResult } from '../../utils';
 
 @ApiTags('Incredible Offer')
 @Controller('incredible-offers')

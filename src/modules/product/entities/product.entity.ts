@@ -13,8 +13,8 @@ import { CategoryEntity } from '../../category/entities/category.entity';
 import { ProductGalleryEntity } from './product-gallery.entity';
 import { ProductAttributeValueEntity } from './product-attribute-value.entity';
 import { IncredibleOfferEntity } from '../../incredible-offer/entities/Incredible-offer.entity';
-import { BrandEntity } from 'src/modules/brand/entities/brand.entity';
-import { OrderItemEntity } from 'src/modules/order/entities/order-item.entity';
+import { BrandEntity } from '../../brand/entities/brand.entity';
+import { OrderItemEntity } from '../../order/entities/order-item.entity';
 
 export enum ProductStatus {
   active = 'active',

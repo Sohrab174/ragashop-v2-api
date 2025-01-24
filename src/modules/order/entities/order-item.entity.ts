@@ -9,8 +9,8 @@ import {
 } from 'typeorm';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
 import { OrderEntity } from './order.entity';
-import { ProductEntity } from 'src/modules/product/entities/product.entity';
-import { ProductAttributeValueEntity } from 'src/modules/product/entities/product-attribute-value.entity';
+import { ProductEntity } from '../../product/entities/product.entity';
+import { ProductAttributeValueEntity } from '../../product/entities/product-attribute-value.entity';
 
 @Index('fk_order_item_order1_idx', ['orderId'], {})
 @Index(

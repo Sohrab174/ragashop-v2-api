@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ErrorService } from 'src/error/error.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IncredibleOfferEntity } from './entities/Incredible-offer.entity';
 import { Repository } from 'typeorm';
@@ -18,6 +17,7 @@ import {
 import { DeleteIncredibleOfferDto } from './dto/delete-incredible-offer.dto';
 import { AttributeTypes } from '../attribute/entities/attribute.entity';
 import { IncredibleOfferImportExcelDto } from './dto/incredible-offer-import-excel.dto';
+import { ErrorService } from '../../error/error.service';
 
 @Injectable()
 export class IncredibleOfferService {

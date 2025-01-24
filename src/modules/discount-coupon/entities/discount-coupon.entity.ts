@@ -19,16 +19,12 @@ export enum DiscountCouponSections {
   birthday = 'birthday',
 }
 
-@Index('fk_discount_coupon_company1_idx', ['companyId'], {})
 @Index('fk_discount_coupon_user1_idx', ['createdByUserId'], {})
 @Index('fk_discount_coupon_customer1_idx', ['customerId'], {})
 @Entity('discount_coupon')
 export class DiscountCouponEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
-
-  @Column('int', { name: 'companyId' })
-  companyId: number;
 
   @Column('int', { name: 'createdByUserId', nullable: true })
   createdByUserId: number | null;

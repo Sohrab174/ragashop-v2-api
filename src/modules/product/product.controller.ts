@@ -40,7 +40,7 @@ import { ProductSortDto } from './dto/product-sort.dto';
 import * as dotenv from 'dotenv';
 import { CreateUpdateProductAttrValueDto } from './dto/create-update-product-attr-value.dto';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
-import { CrawlerService } from 'src/thirdParty/crawler/crawler.service';
+import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
 dotenv.config();
 
 @ApiTags('Product')

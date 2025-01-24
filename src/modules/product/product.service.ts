@@ -37,8 +37,8 @@ import { UserEntity } from '../user/entities/user.entity';
 import * as xlsx from 'xlsx';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
 import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
-import { CrawlerService } from 'src/thirdParty/crawler/crawler.service';
 import { User } from 'src/utils/decorators/user.decorator';
+import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
 
 @Injectable()
 export class ProductService {

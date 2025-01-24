@@ -1,6 +1,3 @@
-import { ProductAttributeValueEntity } from 'src/modules/product/entities/product-attribute-value.entity';
-import { ProductEntity } from 'src/modules/product/entities/product.entity';
-import { DecimalTransformer } from 'src/utils/transformers/DecimalTransformer';
 import {
   BaseEntity,
   Column,
@@ -10,6 +7,9 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
+import { ProductEntity } from '../../product/entities/product.entity';
+import { ProductAttributeValueEntity } from '../../product/entities/product-attribute-value.entity';
 
 @Index('fk_incredible_offer_product1_idx', ['productId'], {})
 @Index(

@@ -7,7 +7,7 @@ import { ProductController } from './product.controller';
 import { ProductService } from './product.service';
 import { AttributeModule } from '../attribute/attribute.module';
 import { ProductAttributeValueEntity } from './entities/product-attribute-value.entity';
-import { CrawlerModule } from 'src/thirdParty/crawler/crawler.module';
+import { CrawlerModule } from '../../thirdParty/crawler/crawler.module';
 
 @Module({
   imports: [

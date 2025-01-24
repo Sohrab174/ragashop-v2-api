@@ -12,8 +12,8 @@ import { ProductEntity } from './product.entity';
 import { AttributeValueEntity } from '../../attribute/entities/attribute-value.entity';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
-import { IncredibleOfferEntity } from 'src/modules/incredible-offer/entities/Incredible-offer.entity';
-import { OrderItemEntity } from 'src/modules/order/entities/order-item.entity';
+import { IncredibleOfferEntity } from '../../incredible-offer/entities/Incredible-offer.entity';
+import { OrderItemEntity } from '../../order/entities/order-item.entity';
 
 @Index(
   'fk_product_attribute_value_attribute_value1_idx',

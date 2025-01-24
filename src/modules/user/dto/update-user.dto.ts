@@ -7,8 +7,8 @@ import {
   IsOptional,
   Validate,
 } from 'class-validator';
-import { IsNotExist } from 'src/utils/validators/is-not-exists.validator';
 import { UserStatus } from '../entities/user.entity';
+import { IsNotExist } from '../../../utils/validators/is-not-exists.validator';
 
 enum UserAllowRoles {
   admin = 'admin',
@@ -19,10 +19,6 @@ export class UpdateUserDto {
   @ApiProperty()
   @IsNotEmpty()
   id: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  companyId: number;
 
   @ApiProperty({ required: false, example: '' })
   @IsOptional()
