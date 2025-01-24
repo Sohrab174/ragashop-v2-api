@@ -16,7 +16,6 @@ import * as dotenv from 'dotenv';
 import { ErrorService } from '../../error/error.service';
 import { Languages } from '../../global.interfaces';
 import { successfulResult } from '../../utils';
-import { Company } from '../../utils/decorators/company.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
@@ -186,24 +185,12 @@ export class SliderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'language', required: false, enum: Languages })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
   @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
   @ApiQuery({ name: 'page', required: false, description: 'Default: 1' })
-  async getAllSliders(
-    @Page() page,
-    @Limit() limit,
-    @Sort() sorts,
-    @Filter(['language', ['company_id', 'companyId']])
-    filters,
-  ) {
-    const list = await this.sliderService.getAllSliders(
-      page,
-      limit,
-      filters,
-      sorts,
-    );
+  async getAllSliders(@Page() page, @Limit() limit, @Sort() sorts) {
+    const list = await this.sliderService.getAllSliders(page, limit, sorts);
 
     return successfulResult([], list);
   }
@@ -215,7 +202,6 @@ export class SliderController {
   @Get()
   @UseGuards()
   @ApiQuery({ name: 'position', required: false, enum: SliderPositions })
-  @ApiQuery({ name: 'language', required: false, enum: Languages })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
   @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
   @ApiQuery({ name: 'page', required: false, description: 'Default: 1' })
@@ -223,17 +209,10 @@ export class SliderController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['language', 'position'])
+    @Filter(['position'])
     filters,
-    @Company('id') companyId,
   ) {
-    const list = await this.sliderService.getAll(
-      companyId,
-      page,
-      limit,
-      filters,
-      sorts,
-    );
+    const list = await this.sliderService.getAll(page, limit, filters, sorts);
 
     return successfulResult([], list);
   }

@@ -26,7 +26,6 @@ import { PageService } from './page.service';
 import { I18n } from 'nestjs-i18n';
 import { CreatePageDto } from './dto/create-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
-import { Company } from '../../utils/decorators/company.decorator';
 
 @ApiTags('Page')
 @Controller('pages')
@@ -41,7 +40,6 @@ export class PageController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'title', required: false })
   @ApiQuery({ name: 'code', required: false })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -51,16 +49,14 @@ export class PageController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['code', ['company_id', 'companyId'], 'title'])
+    @Filter(['code', 'title'])
     filters,
-    @User('companyId') companyId,
   ) {
     const list = await this.pageService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -74,11 +70,8 @@ export class PageController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getByIdForAdmin(
-    @Param('id') pageId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.pageService.getByIdForAdmin(pageId, companyId);
+  async getByIdForAdmin(@Param('id') pageId: number) {
+    const data = await this.pageService.getByIdForAdmin(pageId);
     return successfulResult([], data);
   }
 
@@ -87,8 +80,8 @@ export class PageController {
    * GET /pages
    */
   @Get()
-  async getAll(@Company('id') companyId) {
-    const list = await this.pageService.getAll(companyId);
+  async getAll() {
+    const list = await this.pageService.getAll();
     return successfulResult([], list);
   }
 
@@ -97,8 +90,8 @@ export class PageController {
    * GET /pages/:code
    */
   @Get(':code')
-  async getById(@Param('code') code: string, @Company('id') companyId) {
-    const data = await this.pageService.getById(code, companyId);
+  async getById(@Param('code') code: string) {
+    const data = await this.pageService.getById(code);
     return successfulResult([], data);
   }
 

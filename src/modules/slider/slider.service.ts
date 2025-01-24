@@ -152,14 +152,10 @@ export class SliderService {
    * -------------------------------------------------------
    * GET /sliders/:id/admin
    */
-  async getSliderById(sliderId: number, companyId = null) {
+  async getSliderById(sliderId: number) {
     const builder = this.sliderRepository
       .createQueryBuilder('slider')
       .andWhere({ id: sliderId });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const slider = await builder.getOne();
 
@@ -174,7 +170,7 @@ export class SliderService {
    * -------------------------------------------------------
    * GET /sliders/admin
    */
-  async getAllSliders(page = 1, limit = 20, filters = null, sorts = null) {
+  async getAllSliders(page = 1, limit = 20, sorts = null) {
     let builder = this.sliderRepository.createQueryBuilder('slider');
 
     if (sorts) {
@@ -182,8 +178,6 @@ export class SliderService {
     } else {
       builder.orderBy('slider.displayOrder', 'ASC');
     }
-
-    builder = applyFiltersToBuilder(builder, filters);
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -200,13 +194,8 @@ export class SliderService {
    * -------------------------------------------------------
    * GET /sliders
    */
-  async getAll(companyId, page = 1, limit = 20, filters, sorts = null) {
-    const { lang } = I18nContext.current();
-
-    let builder = this.sliderRepository
-      .createQueryBuilder('slider')
-      .andWhere({ companyId })
-      .andWhere('(language = :lang OR language IS NULL)', { lang });
+  async getAll(page = 1, limit = 20, filters, sorts = null) {
+    let builder = this.sliderRepository.createQueryBuilder('slider');
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);

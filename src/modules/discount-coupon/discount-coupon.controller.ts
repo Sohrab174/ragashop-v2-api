@@ -41,8 +41,8 @@ export class DiscountCouponController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getById(@Param('id') id: number, @User('companyId') companyId) {
-    const data = await this.discountCouponService.getById(id, companyId);
+  async getById(@Param('id') id: number) {
+    const data = await this.discountCouponService.getById(id);
     return successfulResult([], data);
   }
 
@@ -67,14 +67,12 @@ export class DiscountCouponController {
     @Filter(['title', 'code', ['start_at', 'startAt'], ['end_at', 'endAt']])
     filters,
     @Sort() sorts,
-    @User('companyId') companyId,
   ) {
     const list = await this.discountCouponService.list(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
     return successfulResult([], list);
   }
@@ -130,11 +128,8 @@ export class DiscountCouponController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async updateById(
-    @Body() dto: UpdateDiscountCouponDto,
-    @User('companyId') companyId: number,
-  ) {
-    await this.discountCouponService.updateById(dto, companyId);
+  async updateById(@Body() dto: UpdateDiscountCouponDto) {
+    await this.discountCouponService.updateById(dto);
     return successfulResult(['کد تخفیف مربوطه، با موفقیت ویرایش شد']);
   }
 
@@ -146,11 +141,8 @@ export class DiscountCouponController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async deleteById(
-    @Param('id') id: number,
-    @User('companyId') companyId: number,
-  ) {
-    await this.discountCouponService.deleteById(id, companyId);
+  async deleteById(@Param('id') id: number) {
+    await this.discountCouponService.deleteById(id);
     return successfulResult(['کد تخفیف موردنظر، باموفقیت حذف شد']);
   }
 }

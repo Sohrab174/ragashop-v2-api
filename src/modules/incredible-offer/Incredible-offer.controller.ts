@@ -29,7 +29,6 @@ import { Limit } from '../../utils/decorators/limit.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { DeleteIncredibleOfferDto } from './dto/delete-incredible-offer.dto';
-import { Company } from '../../utils/decorators/company.decorator';
 import { IncredibleOfferImportExcelDto } from './dto/incredible-offer-import-excel.dto';
 import { ErrorService } from '../../error/error.service';
 import { User } from '../../utils/decorators/user.decorator';
@@ -129,8 +128,8 @@ export class IncredibleOffersController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getById(@Param('id') offerId: number, @User() user: UserEntity) {
-    const data = await this.incredibleOfferService.getById(offerId, user);
+  async getById(@Param('id') offerId: number) {
+    const data = await this.incredibleOfferService.getById(offerId);
     return successfulResult([], data);
   }
 
@@ -142,7 +141,6 @@ export class IncredibleOffersController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'product_id', required: false })
   @ApiQuery({
     name: 'from_date',
@@ -162,20 +160,17 @@ export class IncredibleOffersController {
     @Limit() limit,
     @Sort() sorts,
     @Filter([
-      ['company_id', 'companyId'],
       ['product_id', 'productId'],
       ['from_date', 'fromDate', 'DATE'],
       ['to_date', 'toDate', 'DATE'],
     ])
     filters,
-    @User() user: UserEntity,
   ) {
     const list = await this.incredibleOfferService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      user,
     );
 
     return successfulResult([], list);
@@ -190,14 +185,8 @@ export class IncredibleOffersController {
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
   @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
   @ApiQuery({ name: 'page', required: false, description: 'Default: 1' })
-  async getAll(
-    @Page() page,
-    @Limit() limit,
-    @Company('id') companyId,
-    @Query('show_random') showRandom,
-  ) {
+  async getAll(@Page() page, @Limit() limit, @Query('show_random') showRandom) {
     const list = await this.incredibleOfferService.getAll(
-      companyId,
       page,
       limit,
       showRandom === '1',

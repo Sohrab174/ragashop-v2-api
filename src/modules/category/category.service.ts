@@ -285,7 +285,6 @@ export class CategoryService {
     limit = 20,
     filters = null,
     sorts = null,
-    companyId = null,
     parentId = null,
   ) {
     let builder = this.categoryRepository
@@ -300,10 +299,6 @@ export class CategoryService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     if (parentId === '-1') {
       builder.andWhere('(category.parentId IS NULL OR category.parentId = "")');
@@ -326,17 +321,13 @@ export class CategoryService {
    * -------------------------------------------------------
    * GET /categories/:id/admin
    */
-  async getByIdForAdmin(id: number, companyId = null) {
+  async getByIdForAdmin(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.categoryRepository
       .createQueryBuilder('category')
       .leftJoinAndSelect('category.parent', 'parent')
       .where({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const category = await builder.getOne();
 
@@ -352,12 +343,12 @@ export class CategoryService {
    * GET /categories
    */
   async getAll(
-    companyId,
     page = 1,
     limit = 20,
     sorts = null,
     parentId = null,
     getSubIds = false,
+    isSelection = false,
   ) {
     let builder = this.categoryRepository
       .createQueryBuilder('category')
@@ -368,13 +359,16 @@ export class CategoryService {
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .andWhere({ companyId })
       .andWhere({ status: CategoryStatus.active });
 
     if (parentId) {
       builder.andWhere(
         parentId === 'NULL' ? 'category.parentId IS NULL' : { parentId },
       );
+    }
+
+    if (isSelection) {
+      builder.andWhere({ isSelection: true });
     }
 
     if (sorts) {
@@ -395,7 +389,6 @@ export class CategoryService {
         .createQueryBuilder('category')
         .select(['category.id', 'category.parentId'])
         .where({
-          companyId,
           status: CategoryStatus.active,
         })
         .getMany();
@@ -420,7 +413,7 @@ export class CategoryService {
    * -------------------------------------------------------
    * GET /categories/:id
    */
-  async getById(categoryId, companyId, getSubIds = false) {
+  async getById(categoryId, getSubIds = false) {
     const i18n = I18nContext.current();
 
     const builder = this.categoryRepository
@@ -432,7 +425,7 @@ export class CategoryService {
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .andWhere({ companyId, id: categoryId, status: CategoryStatus.active });
+      .andWhere({ id: categoryId, status: CategoryStatus.active });
 
     const category = await builder.getOne();
 
@@ -447,7 +440,6 @@ export class CategoryService {
         .createQueryBuilder('category')
         .select(['category.id', 'category.parentId'])
         .where({
-          companyId,
           status: CategoryStatus.active,
         })
         .getMany();
@@ -468,7 +460,7 @@ export class CategoryService {
    * GET /categories/tree
    * GET /categories/tree?child_id=1
    */
-  async getAllTree(companyId, childId = null) {
+  async getAllTree(childId = null) {
     const categories = await this.categoryRepository
       .createQueryBuilder('category')
 
@@ -479,7 +471,7 @@ export class CategoryService {
       //   { pStatus: ProductStatus.active },
       // )
       .select(['category.id', 'category.parentId', 'category.iconPath'])
-      .where({ companyId, status: CategoryStatus.active })
+      .where({ status: CategoryStatus.active })
       .orderBy('category.displayOrder', 'ASC')
       .getMany();
 
@@ -500,7 +492,7 @@ export class CategoryService {
   /**
    * -------------------------------------------------------
    */
-  async getByIdAndCompanyId(categoryId) {
+  async getRecordById(categoryId) {
     return await this.categoryRepository.findOne({ id: categoryId });
   }
 
@@ -579,7 +571,7 @@ export class CategoryService {
   /**
    * -------------------------------------------------------
    */
-  async getByNameAndCompanyId(categoryName) {
+  async getRecordByName(categoryName) {
     const category = await this.categoryRepository
       .createQueryBuilder('category')
       .where('TRIM(LOWER(category.name)) = :name', {

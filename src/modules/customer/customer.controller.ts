@@ -30,7 +30,6 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomerStatus } from './entities/customer.entity';
 import { Customer } from '../../utils/decorators/customer.decorator';
 import { CustomerLoginDto } from './dto/customer-login.dto';
-import { Company } from '../../utils/decorators/company.decorator';
 import { CustomerSignupDto } from './dto/customer-signup.dto';
 import { ConfigurationService } from '../../config/configuration.service';
 import { CustomerUpdateMeDto } from './dto/customer-update-me.dto';
@@ -54,12 +53,8 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login/mobile')
-  async loginByMobile(
-    @Body() dto: CustomerLoginMobileDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    const data = await this.customerService.loginByMobile(dto, companyId);
+  async loginByMobile(@Body() dto: CustomerLoginMobileDto, @I18n() i18n) {
+    const data = await this.customerService.loginByMobile(dto);
     return successfulResult(
       [i18n.t('t.The verification code has been sent')],
       data,
@@ -70,11 +65,7 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login/verify')
-  async verifyLogin(
-    @Body() dto: CustomerLoginVerifyDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
+  async verifyLogin(@Body() dto: CustomerLoginVerifyDto, @I18n() i18n) {
     const response = await this.customerService.verifyLogin(dto);
     if (response) {
       return successfulResult(
@@ -88,12 +79,8 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login')
-  async login(
-    @Body() dto: CustomerLoginDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    const response = await this.customerService.login(dto, companyId);
+  async login(@Body() dto: CustomerLoginDto, @I18n() i18n) {
+    const response = await this.customerService.login(dto);
     return successfulResult(
       [i18n.t('t.You have successfully logged in')],
       response,
@@ -106,11 +93,8 @@ export class CustomerController {
   @Get('me')
   @ApiBearerAuth()
   @UseGuards(CustomerJwtAuthGuard)
-  async me(@Customer('id') customerId: number, @Company('id') companyId) {
-    const info = await this.customerService.getActiveById(
-      customerId,
-      companyId,
-    );
+  async me(@Customer('id') customerId: number) {
+    const info = await this.customerService.getActiveById(customerId);
     return successfulResult([], info);
   }
 
@@ -122,11 +106,10 @@ export class CustomerController {
   @UseGuards(CustomerJwtAuthGuard)
   async updateMe(
     @Customer('id') customerId: number,
-    @Company('id') companyId,
     @Body() dto: CustomerUpdateMeDto,
     @I18n() i18n,
   ) {
-    await this.customerService.updateMe(customerId, companyId, dto);
+    await this.customerService.updateMe(customerId, dto);
     return successfulResult([
       i18n.t('t.Your profile has been successfully updated'),
     ]);
@@ -154,12 +137,8 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('password/forgot')
-  async forgotPassword(
-    @Body() dto: CustomerForgotDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    await this.customerService.forgotPassword(dto, companyId);
+  async forgotPassword(@Body() dto: CustomerForgotDto, @I18n() i18n) {
+    await this.customerService.forgotPassword(dto);
     return successfulResult([i18n.t('t.The verification code has been sent')]);
   }
 
@@ -167,15 +146,8 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('password/reset')
-  async resetPassword(
-    @Body() dto: CustomerResetPasswordDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    const response = await this.customerService.resetPasswordByToken(
-      dto,
-      companyId,
-    );
+  async resetPassword(@Body() dto: CustomerResetPasswordDto, @I18n() i18n) {
+    const response = await this.customerService.resetPasswordByToken(dto);
 
     return successfulResult(
       [i18n.t('Your password has been successfully changed')],
@@ -188,12 +160,8 @@ export class CustomerController {
    * POST /customers/signup
    */
   @Post('signup')
-  async signup(
-    @Body() dto: CustomerSignupDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    const response = await this.customerService.signup(dto, companyId);
+  async signup(@Body() dto: CustomerSignupDto, @I18n() i18n) {
+    const response = await this.customerService.signup(dto);
     return successfulResult(
       [i18n.t('t.The verification code has been sent')],
       response,
@@ -205,15 +173,8 @@ export class CustomerController {
    * POST /customers/signup/verify
    */
   @Post('signup/verify')
-  async verifySignupByCode(
-    @Body() dto: CustomerVerifySignupDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    const response = await this.customerService.verifySignupByCode(
-      dto,
-      companyId,
-    );
+  async verifySignupByCode(@Body() dto: CustomerVerifySignupDto, @I18n() i18n) {
+    const response = await this.customerService.verifySignupByCode(dto);
 
     return successfulResult(
       [i18n.t('t.Your account has been verified')],
@@ -226,12 +187,8 @@ export class CustomerController {
    * POST /customers/resend-otp-code
    */
   @Post('resend-otp-code')
-  async sendOtpCode(
-    @Body() dto: CustomerResendOtpDto,
-    @Company('id') companyId,
-    @I18n() i18n,
-  ) {
-    await this.customerService.sendOtpCode(dto, companyId);
+  async sendOtpCode(@Body() dto: CustomerResendOtpDto, @I18n() i18n) {
+    await this.customerService.sendOtpCode(dto);
 
     return successfulResult([
       i18n.t('t.The verification code has been sent again'),
@@ -246,7 +203,6 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'first_name', required: false })
   @ApiQuery({ name: 'last_name', required: false })
   @ApiQuery({ name: 'mobile', required: false })
@@ -263,19 +219,16 @@ export class CustomerController {
       'status',
       'mobile',
       'email',
-      ['company_id', 'companyId'],
       ['first_name', 'firstName'],
       ['last_name', 'lastName'],
     ])
     filters,
-    @User('companyId') companyId,
   ) {
     const list = await this.customerService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -289,14 +242,8 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getByIdForAdmin(
-    @Param('id') customerId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.customerService.getByIdForAdmin(
-      customerId,
-      companyId,
-    );
+  async getByIdForAdmin(@Param('id') customerId: number) {
+    const data = await this.customerService.getByIdForAdmin(customerId);
     return successfulResult([], data);
   }
 
@@ -326,12 +273,8 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(
-    @Body() dto: UpdateCustomerDto,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
-    await this.customerService.update(dto, companyId);
+  async update(@Body() dto: UpdateCustomerDto, @I18n() i18n) {
+    await this.customerService.update(dto);
 
     return successfulResult([i18n.t('t.The customer is updated successfully')]);
   }
@@ -346,11 +289,10 @@ export class CustomerController {
   @Roles(UserRoles.admin, UserRoles.employee)
   async delete(
     @Param('id') customerId: number,
-    @User('companyId') companyId,
     @Query('force') force,
     @I18n() i18n,
   ) {
-    await this.customerService.delete(customerId, force, companyId);
+    await this.customerService.delete(customerId, force);
 
     return successfulResult([i18n.t('t.The customer is deleted')]);
   }
@@ -368,17 +310,11 @@ export class CustomerController {
   @ApiQuery({ name: 'to', required: true })
   @ApiQuery({ name: 'type', required: true, enum: ['daily', 'monthly'] })
   async statisticChart(
-    @User('companyId') companyId,
     @Query('from') from,
     @Query('to') to,
     @Query('type') type,
   ) {
-    const data = await this.customerService.statisticChart(
-      companyId,
-      from,
-      to,
-      type,
-    );
+    const data = await this.customerService.statisticChart(from, to, type);
     return successfulResult([], data);
   }
 
@@ -391,8 +327,8 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async statisticCount(@User('companyId') companyId) {
-    const data = await this.customerService.statisticCount(companyId);
+  async statisticCount() {
+    const data = await this.customerService.statisticCount();
     return successfulResult([], data);
   }
 }

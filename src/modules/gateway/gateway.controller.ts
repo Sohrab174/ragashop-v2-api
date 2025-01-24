@@ -33,7 +33,6 @@ import { Filter } from '../../utils/decorators/filter.decorator';
 import { I18n } from 'nestjs-i18n';
 import { CreateGatewayDto } from './dto/create-gateway.dto';
 import { UpdateGatewayDto } from './dto/update-gateway.dto';
-import { Company } from '../../utils/decorators/company.decorator';
 import { sort } from '../../utils/sort';
 import { GatewaySortDto } from './dto/gateway-sort.dto';
 
@@ -65,8 +64,8 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getById(@Param('id') gatewayId: number, @User('companyId') companyId) {
-    const data = await this.gatewayService.getById(gatewayId, companyId);
+  async getById(@Param('id') gatewayId: number) {
+    const data = await this.gatewayService.getById(gatewayId);
     return successfulResult([], data);
   }
 
@@ -78,7 +77,6 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: GatewayStatus })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -88,16 +86,14 @@ export class GatewayController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status', ['company_id', 'companyId'], 'name'])
+    @Filter(['status', 'name'])
     filters,
-    @User('companyId') companyId,
   ) {
     const list = await this.gatewayService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -108,8 +104,8 @@ export class GatewayController {
    * GET /gateways
    */
   @Get()
-  async getAll(@Company('id') companyId) {
-    const list = await this.gatewayService.getAll(companyId);
+  async getAll() {
+    const list = await this.gatewayService.getAll();
     return successfulResult([], list);
   }
 
@@ -159,12 +155,8 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(
-    @Body() dto: UpdateGatewayDto,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
-    await this.gatewayService.update(dto, companyId);
+  async update(@Body() dto: UpdateGatewayDto, @I18n() i18n) {
+    await this.gatewayService.update(dto);
 
     return successfulResult([i18n.t('t.The gateway is updated successfully')]);
   }
@@ -177,12 +169,8 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(
-    @Param('id') gatewayId: number,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
-    await this.gatewayService.delete(gatewayId, companyId);
+  async delete(@Param('id') gatewayId: number, @I18n() i18n) {
+    await this.gatewayService.delete(gatewayId);
 
     return successfulResult([i18n.t('t.The gateway is deleted')]);
   }

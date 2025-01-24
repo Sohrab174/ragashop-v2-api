@@ -19,7 +19,6 @@ export class MailService {
       hash: string;
       firstName: string;
       lastName: string;
-      companyName?: string;
     }>,
   ) {
     const i18n = I18nContext.current();
@@ -38,7 +37,7 @@ export class MailService {
         full_name:
           `${mailData.data.firstName} ${mailData.data.lastName}`.trim(),
         url,
-        app_name: mailData.data.companyName || this.config.app.name,
+        app_name: this.config.app.name,
         title,
       },
     });
@@ -52,13 +51,12 @@ export class MailService {
       code: string;
       firstName: string;
       lastName: string;
-      companyName?: string;
     }>,
   ) {
     const i18n = I18nContext.current();
 
     const title = `${i18n.t('t.Forgot password').replace(/^t\./i, '')} - ${
-      mailData.data.companyName || this.config.app.name
+      this.config.app.name
     }`;
 
     await this.mailerService.sendMail({
@@ -70,7 +68,7 @@ export class MailService {
         full_name:
           `${mailData.data.firstName} ${mailData.data.lastName}`.trim(),
         code: mailData.data.code,
-        app_name: mailData.data.companyName || this.config.app.name,
+        app_name: this.config.app.name,
         title,
       },
     });
@@ -79,13 +77,11 @@ export class MailService {
   /**
    * ************************************
    */
-  async sendCustomerConfirmation(
-    mailData: MailData<{ code: string; companyName?: string }>,
-  ) {
+  async sendCustomerConfirmation(mailData: MailData<{ code: string }>) {
     const i18n = I18nContext.current();
 
     const title = `${i18n.t('t.Welcome to').replace(/^t\./i, '')} ${
-      mailData.data.companyName || this.config.app.name
+      this.config.app.name
     }
     - ${i18n.t('t.Confirm Email')}`;
 
@@ -97,7 +93,7 @@ export class MailService {
       context: {
         email: mailData.to,
         code: mailData.data.code,
-        app_name: mailData.data.companyName || this.config.app.name,
+        app_name: this.config.app.name,
         title,
       },
     });
@@ -109,12 +105,9 @@ export class MailService {
   async sendAlertCountSms(
     mailData: MailData<{
       smsUsedCount: number;
-      companyName?: string;
     }>,
   ) {
-    const title = `Alert SMS count - ${
-      mailData.data.companyName || this.config.app.name
-    }`;
+    const title = `Alert SMS count - ${this.config.app.name}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
@@ -123,7 +116,7 @@ export class MailService {
       template: `alert-sms-count`,
       context: {
         smsUsedCount: mailData.data.smsUsedCount,
-        app_name: mailData.data.companyName || this.config.app.name,
+        app_name: this.config.app.name,
         title,
       },
     });
@@ -137,8 +130,6 @@ export class MailService {
       amount: number;
       number: string;
       currency: string;
-      companyName?: string;
-      companyLang?: string;
     }>,
   ) {
     const i18n = I18nContext.current();
@@ -151,14 +142,12 @@ export class MailService {
       to: mailData.to,
       subject: title,
       text: `${i18n.t('t.New order').replace(/^t\./i, '')}`,
-      template: `notif-new-order-admin-${
-        mailData.data.companyLang || i18n.lang
-      }`,
+      template: `notif-new-order-admin-${i18n.lang}`,
       context: {
         amount: mailData.data.amount,
         number: mailData.data.number,
         currency: mailData.data.currency,
-        app_name: mailData.data.companyName || this.config.app.name,
+        app_name: this.config.app.name,
         title,
       },
     });
@@ -170,8 +159,6 @@ export class MailService {
   async sendNotifTicketToAdmin(
     mailData: MailData<{
       subject: string;
-      companyName?: string;
-      companyLang?: string;
     }>,
   ) {
     const i18n = I18nContext.current();
@@ -184,10 +171,10 @@ export class MailService {
       to: mailData.to,
       subject: title,
       text: `${i18n.t('t.Reply to your ticket').replace(/^t\./i, '')}`,
-      template: `notif-ticket-admin-${mailData.data.companyLang || i18n.lang}`,
+      template: `notif-ticket-admin-${i18n.lang}`,
       context: {
         ticket_subject: mailData.data.subject,
-        app_name: mailData.data.companyName || this.config.app.name,
+        app_name: this.config.app.name,
         title,
       },
     });

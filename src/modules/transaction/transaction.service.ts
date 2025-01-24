@@ -102,13 +102,7 @@ export class TransactionService {
    * -------------------------------------------------------
    * GET /transactions/admin
    */
-  async getAllForAdmin(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.transactionRepository
       .createQueryBuilder('transaction')
       .leftJoin('transaction.gateway', 'gateway')
@@ -122,10 +116,6 @@ export class TransactionService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -206,7 +196,6 @@ export class TransactionService {
         'gateway.isDeleted = 0 AND gateway.status = :status',
         { status: GatewayStatus.active },
       )
-      .innerJoinAndSelect('transaction.company', 'company')
       .andWhere({ status: TransactionStatus.pending });
 
     return builder;

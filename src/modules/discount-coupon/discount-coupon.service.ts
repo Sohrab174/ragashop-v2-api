@@ -49,9 +49,7 @@ export class DiscountCouponService {
     }
 
     if (dto.customerId) {
-      const customer = await this.customerService.getRecordByIdAndCompanyId(
-        dto.customerId,
-      );
+      const customer = await this.customerService.getRecordById(dto.customerId);
       if (!customer) {
         this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد!']);
       }
@@ -76,13 +74,7 @@ export class DiscountCouponService {
    * --------------------------------------------------------
    * GET /discount-coupons/admin
    */
-  async list(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async list(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.discountCouponRepository.createQueryBuilder('coupon');
 
     builder.leftJoin('coupon.customer', 'customer');
@@ -101,10 +93,6 @@ export class DiscountCouponService {
 
     builder = applyFiltersToBuilder(builder, filters);
 
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
-
     const [items, totalItems] = await builder
       .take(limit)
       .skip((page - 1) * limit)
@@ -120,7 +108,7 @@ export class DiscountCouponService {
    * --------------------------------------------------------
    * GET /discount-coupons/1/admin
    */
-  async getById(id: number, companyId = null) {
+  async getById(id: number) {
     const builder = this.discountCouponRepository.createQueryBuilder('coupon');
 
     builder.leftJoin('coupon.customer', 'customer');
@@ -132,10 +120,6 @@ export class DiscountCouponService {
     ]);
 
     builder.andWhere({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     return await builder.getOne();
   }
@@ -151,11 +135,10 @@ export class DiscountCouponService {
    * --------------------------------------------------------
    * PUT /discount-coupons/admin
    */
-  async updateById(dto: UpdateDiscountCouponDto, companyId: number) {
+  async updateById(dto: UpdateDiscountCouponDto) {
     if (dto.code) {
       const countCouponByCode = await this.discountCouponRepository.count({
         code: dto.code,
-        companyId,
         id: Not(dto.id),
       });
       if (countCouponByCode > 0) {
@@ -164,10 +147,7 @@ export class DiscountCouponService {
     }
 
     if (dto.customerId) {
-      const customer = await this.customerService.getRecordByIdAndCompanyId(
-        dto.customerId,
-        companyId,
-      );
+      const customer = await this.customerService.getRecordById(dto.customerId);
       if (!customer) {
         this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد!']);
       }
@@ -186,12 +166,12 @@ export class DiscountCouponService {
    * -------------------------------------------------------
    * DELETE /discount-coupons/1/admin
    */
-  async deleteById(id: number, companyId: number) {
+  async deleteById(id: number) {
     try {
       const builder = this.discountCouponRepository
         .createQueryBuilder()
         .delete()
-        .where({ id, companyId });
+        .where({ id });
 
       await builder.execute();
     } catch (e) {
@@ -204,14 +184,9 @@ export class DiscountCouponService {
   /**
    * -------------------------------------------------------
    */
-  async findValidByCode(
-    code: string,
-    companyId: number,
-    customerId: number = null,
-  ) {
+  async findValidByCode(code: string, customerId: number = null) {
     const coupon = await this.discountCouponRepository.findOne({
       code,
-      companyId,
       isActive: true,
     });
 

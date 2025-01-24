@@ -78,9 +78,7 @@ export class IncredibleOfferService {
       const [number, discountedPrice]: any = Object.values(row);
 
       try {
-        const result = await this.productService.getByNumberAndCompanyId(
-          number,
-        );
+        const result = await this.productService.getByNumber(number);
 
         if (!result) {
           results.push({
@@ -173,8 +171,8 @@ export class IncredibleOfferService {
    * -------------------------------------------------------
    * GET /incredible-offers/:id/admin
    */
-  async getById(offerId: number, user) {
-    const builder = this._builder(user.companyId);
+  async getById(offerId: number) {
+    const builder = this._builder();
     builder.andWhere({ id: offerId });
 
     return await builder.getOne();
@@ -184,14 +182,8 @@ export class IncredibleOfferService {
    * -------------------------------------------------------
    * GET /incredible-offers/admin
    */
-  async getAllForAdmin(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    user,
-  ) {
-    let builder = this._builder(user.companyId);
+  async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
+    let builder = this._builder();
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -216,8 +208,8 @@ export class IncredibleOfferService {
    * -------------------------------------------------------
    * GET /incredible-offers
    */
-  async getAll(companyId, page = 1, limit = 20, showRandom = false) {
-    const builder = this._builder(companyId);
+  async getAll(page = 1, limit = 20, showRandom = false) {
+    const builder = this._builder();
 
     const now = new Date();
     builder.andWhere('offer.fromDate <= :now', { now });
@@ -290,13 +282,12 @@ export class IncredibleOfferService {
   /**
    * -------------------------------------------------------
    */
-  private _builder(companyId) {
+  private _builder() {
     const builder = this.incredibleOfferRepository
       .createQueryBuilder('offer')
       .innerJoin('offer.product', 'product')
 
       .leftJoin('product.cover', 'productCover')
-      .innerJoin('offer.company', 'company')
       .leftJoin('offer.productAttributeValue', 'productAttributeValue')
       .leftJoin('productAttributeValue.attributeValue', 'attributeValue')
 
@@ -306,7 +297,6 @@ export class IncredibleOfferService {
         'offer.id',
         'offer.productId',
         'offer.productAttributeValueId',
-        'offer.companyId',
         'offer.discountedPrice',
         'offer.fromDate',
         'offer.toDate',
@@ -333,10 +323,6 @@ export class IncredibleOfferService {
         'attribute.id',
         'attribute.type',
       ]);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     return builder;
   }

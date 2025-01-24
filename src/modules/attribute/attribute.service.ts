@@ -32,15 +32,13 @@ export class AttributeService {
    * -------------------------------------------------------
    * GET /attributes/:id/admin
    */
-  async getByIdForAdmin(id: number, companyId) {
+  async getByIdForAdmin(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.attributeRepository
       .createQueryBuilder('attribute')
       .leftJoinAndSelect('attribute.values', 'values')
       .where({ id });
-
-    builder.andWhere({ companyId });
 
     const attribute = await builder.getOne();
 
@@ -60,7 +58,6 @@ export class AttributeService {
     limit = 20,
     filters = null,
     sorts = null,
-    companyId,
   ) {
     let builder = this.attributeValueRepository.createQueryBuilder('value');
 
@@ -71,8 +68,6 @@ export class AttributeService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    builder.andWhere({ companyId });
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -89,13 +84,7 @@ export class AttributeService {
    * -------------------------------------------------------
    * GET /attributes/admin
    */
-  async getAllForAdmin(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId,
-  ) {
+  async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.attributeRepository
       .createQueryBuilder('attribute')
 
@@ -108,8 +97,6 @@ export class AttributeService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    builder.andWhere({ companyId });
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -241,11 +228,11 @@ export class AttributeService {
    * -------------------------------------------------------
    * DELETE /attributes/:id/admin
    */
-  async delete(id: number, companyId: number) {
+  async delete(id: number) {
     const i18n = I18nContext.current();
 
     const attribute = await this.attributeRepository.findOne({
-      where: { id, companyId },
+      where: { id },
     });
 
     if (!attribute) {
@@ -281,11 +268,11 @@ export class AttributeService {
    * -------------------------------------------------------
    * DELETE /attributes/value/:id/admin
    */
-  async deleteValue(id: number, companyId: number) {
+  async deleteValue(id: number) {
     const i18n = I18nContext.current();
 
     const attributeValue = await this.attributeValueRepository.findOne({
-      where: { id, companyId },
+      where: { id },
     });
 
     if (!attributeValue) {
@@ -322,7 +309,7 @@ export class AttributeService {
   /**
    * -------------------------------------------------------
    */
-  async getByIdAndCompanyId(attributeValueId) {
+  async getRecordById(attributeValueId) {
     return await this.attributeValueRepository.findOne({
       id: attributeValueId,
     });
@@ -331,7 +318,7 @@ export class AttributeService {
   /**
    * -------------------------------------------------------
    */
-  async getByNameAndCompanyId(attributeName, attributeValue) {
+  async getRecordByName(attributeName, attributeValue) {
     const attribute = await this.attributeRepository
       .createQueryBuilder('attribute')
 

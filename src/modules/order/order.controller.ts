@@ -14,7 +14,6 @@ import {
 } from '@nestjs/common/decorators';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { successfulResult } from '../../utils';
-import { Company } from '../../utils/decorators/company.decorator';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -49,16 +48,11 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(CustomerJwtAuthGuard)
   async create(
-    @Company() company,
     @Customer('id') customerId,
     @Body() dto: CreateOrderDto,
     @I18n() i18n,
   ) {
-    const newOrder = await this.orderService.addUpdate(
-      dto,
-      company,
-      customerId,
-    );
+    const newOrder = await this.orderService.addUpdate(dto, customerId);
     return successfulResult(
       [i18n.t('t.The new order has been successfully created')],
       newOrder,
@@ -74,12 +68,8 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async createByAdmin(
-    @User('company') company,
-    @Body() dto: CreateOrderByAdminDto,
-    @I18n() i18n,
-  ) {
-    const newOrder = await this.orderService.addUpdate(dto, company);
+  async createByAdmin(@Body() dto: CreateOrderByAdminDto, @I18n() i18n) {
+    const newOrder = await this.orderService.addUpdate(dto);
     return successfulResult(
       [i18n.t('t.The new order has been successfully created')],
       newOrder,
@@ -109,7 +99,6 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'number', required: false })
   @ApiQuery({ name: 'customer', required: false })
   @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
@@ -121,14 +110,8 @@ export class OrderController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter([
-      ['company_id', 'companyId'],
-      'number',
-      'status',
-      ['date', 'order.createdAt', 'DATE'],
-    ])
+    @Filter(['number', 'status', ['date', 'order.createdAt', 'DATE']])
     filters,
-    @User('companyId') companyId,
     @Query('customer') customer: string,
   ) {
     const list = await this.orderService.getAllForAdmin(
@@ -137,7 +120,6 @@ export class OrderController {
       filters,
       customer,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -186,13 +168,11 @@ export class OrderController {
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
   async statisticCount(
-    @User('companyId') companyId,
     @Query('from') from,
     @Query('to') to,
     @Query('only_pending') onlyPending,
   ) {
     const data = await this.orderService.statisticCount(
-      companyId,
       onlyPending === '1',
       from,
       to,
@@ -211,16 +191,8 @@ export class OrderController {
   @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
-  async statisticBestSalesByProduct(
-    @User('companyId') companyId,
-    @Query('from') from,
-    @Query('to') to,
-  ) {
-    const data = await this.orderService.statisticBestSalesByProduct(
-      companyId,
-      from,
-      to,
-    );
+  async statisticBestSalesByProduct(@Query('from') from, @Query('to') to) {
+    const data = await this.orderService.statisticBestSalesByProduct(from, to);
     return successfulResult([], data);
   }
 
@@ -235,16 +207,8 @@ export class OrderController {
   @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
-  async statisticBestSalesByCategory(
-    @User('companyId') companyId,
-    @Query('from') from,
-    @Query('to') to,
-  ) {
-    const data = await this.orderService.statisticBestSalesByCategory(
-      companyId,
-      from,
-      to,
-    );
+  async statisticBestSalesByCategory(@Query('from') from, @Query('to') to) {
+    const data = await this.orderService.statisticBestSalesByCategory(from, to);
     return successfulResult([], data);
   }
 
@@ -266,14 +230,12 @@ export class OrderController {
     enum: ['online', 'in_restaurant'],
   })
   async statisticChart(
-    @User('companyId') companyId,
     @Query('from') from,
     @Query('to') to,
     @Query('type') type,
     @Query('section') section,
   ) {
     const data = await this.orderService.statisticChart(
-      companyId,
       from,
       to,
       type,
@@ -290,11 +252,8 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getByIdForAdmin(
-    @Param('id') orderId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.orderService.getByIdForAdmin(orderId, companyId);
+  async getByIdForAdmin(@Param('id') orderId: number) {
+    const data = await this.orderService.getByIdForAdmin(orderId);
     return successfulResult([], data);
   }
 
@@ -326,12 +285,8 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(
-    @User('companyId') companyId,
-    @Body() dto: UpdateOrderStatusDto,
-    @I18n() i18n,
-  ) {
-    await this.orderService.updateStatus(companyId, dto);
+  async update(@Body() dto: UpdateOrderStatusDto, @I18n() i18n) {
+    await this.orderService.updateStatus(dto);
 
     return successfulResult([i18n.t('t.The order is updated successfully')]);
   }

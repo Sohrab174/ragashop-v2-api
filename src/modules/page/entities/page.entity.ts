@@ -1,20 +1,10 @@
-import {
-  BaseEntity,
-  Column,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
-@Index('fk_page_company1_idx', ['companyId'], {})
 @Entity('page')
 export class PageEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
-
-  @Column('int', { name: 'companyId' })
-  companyId: number;
 
   @Column('varchar', { name: 'code', length: 128 })
   code: string;

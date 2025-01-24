@@ -56,14 +56,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin)
   @HttpCode(HttpStatus.CREATED)
-  async createForAdmin(
-    @Body() dto: CreateUserDto,
-    @I18n() i18n,
-    @User('companyId') companyId: number,
-  ) {
-    // force
-    dto.companyId = companyId;
-
+  async createForAdmin(@Body() dto: CreateUserDto, @I18n() i18n) {
     const newUser = await this.userService.add(dto);
     return successfulResult(
       [i18n.t('t.New user successfully created')],
@@ -94,14 +87,7 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin)
-  async updateUserForAdmin(
-    @Body() dto: UpdateUserDto,
-    @I18n() i18n,
-    @User('companyId') companyId: number,
-  ) {
-    // force
-    dto.companyId = companyId;
-
+  async updateUserForAdmin(@Body() dto: UpdateUserDto, @I18n() i18n) {
     await this.userService.updateUser(dto.id, dto);
     return successfulResult([
       i18n.t('t.The user profile has been successfully edited'),
@@ -133,20 +119,12 @@ export class UserController {
       'status',
       'mobile',
       'email',
-      ['company_id', 'companyId'],
       ['first_name', 'firstName'],
       ['last_name', 'lastName'],
     ])
     filters,
-    @User('companyId') companyId: number,
   ) {
-    const list = await this.userService.getAll(
-      page,
-      limit,
-      filters,
-      sorts,
-      companyId,
-    );
+    const list = await this.userService.getAll(page, limit, filters, sorts);
 
     return successfulResult([], list);
   }
@@ -159,11 +137,8 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin)
-  async getById(
-    @Param('id') userId: number,
-    @User('companyId') companyId: number,
-  ) {
-    const userInfo = await this.userService.getById(userId, companyId);
+  async getById(@Param('id') userId: number) {
+    const userInfo = await this.userService.getById(userId);
     return successfulResult([], userInfo);
   }
 

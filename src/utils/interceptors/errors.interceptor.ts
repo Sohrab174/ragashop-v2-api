@@ -22,7 +22,7 @@ export class ErrorsInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       catchError((error) => {
-        const { method, url, user, body, headers, company } = context
+        const { method, url, user, body, headers } = context
           .switchToHttp()
           .getRequest();
 
@@ -55,7 +55,6 @@ export class ErrorsInterceptor implements NestInterceptor {
                   user?.lastName || ''
                 }\n`
               : '';
-            const companyText = company ? `فروشگاه: #${company.id}\n` : '';
             let bodyText = body ? JSON.stringify(body) : '';
             bodyText =
               bodyText !== '{}'
@@ -68,7 +67,7 @@ export class ErrorsInterceptor implements NestInterceptor {
             const sqlText = error?.sql ? `\n\`\`\`${error.sql}\`\`\`` : '';
 
             this.telegramApiService.sendErrorNotif(
-              `${errorMessage}\n\n${urlText}${bodyText}${userText}${companyText}${browser}${origin}${sqlText}`,
+              `${errorMessage}\n\n${urlText}${bodyText}${userText}${browser}${origin}${sqlText}`,
             );
           } catch (e) {
             console.error(e);

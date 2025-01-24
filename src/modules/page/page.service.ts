@@ -26,13 +26,7 @@ export class PageService {
    * -------------------------------------------------------
    * GET /pages/admin
    */
-  async getAllForAdmin(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.pageRepository
       .createQueryBuilder('page')
 
@@ -45,10 +39,6 @@ export class PageService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -65,16 +55,12 @@ export class PageService {
    * -------------------------------------------------------
    * GET /pages/:id/admin
    */
-  async getByIdForAdmin(id: number, companyId = null) {
+  async getByIdForAdmin(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.pageRepository
       .createQueryBuilder('page')
       .where({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const page = await builder.getOne();
 
@@ -89,12 +75,11 @@ export class PageService {
    * -------------------------------------------------------
    * GET /pages
    */
-  async getAll(companyId) {
+  async getAll() {
     return await this.pageRepository
       .createQueryBuilder('page')
       .select(['page.id', 'page.code', 'page.title'])
       .orderBy('page.id', 'ASC')
-      .andWhere({ companyId })
       .getMany();
   }
 
@@ -102,12 +87,12 @@ export class PageService {
    * -------------------------------------------------------
    * GET /pages/:code
    */
-  async getById(code: string, companyId) {
+  async getById(code: string) {
     const i18n = I18nContext.current();
 
     const page = await this.pageRepository
       .createQueryBuilder('page')
-      .andWhere({ code, companyId })
+      .andWhere({ code })
       .getOne();
 
     if (!page) {

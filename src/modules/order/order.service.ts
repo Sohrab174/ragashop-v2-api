@@ -281,7 +281,6 @@ export class OrderService {
     filters = null,
     customer = null,
     sorts = null,
-    companyId = null,
   ) {
     let builder = this.orderRepository
       .createQueryBuilder('order')
@@ -302,9 +301,6 @@ export class OrderService {
 
     builder = applyFiltersToBuilder(builder, filters);
 
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
     if (customer) {
       builder.andWhere(
         `CONCAT(customer.firstName, ' ', customer.lastName) LIKE :customer`,
@@ -399,7 +395,7 @@ export class OrderService {
    * -------------------------------------------------------
    * GET /orders/:id/admin
    */
-  async getByIdForAdmin(id: number, companyId = null) {
+  async getByIdForAdmin(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.orderRepository
@@ -420,16 +416,8 @@ export class OrderService {
       .leftJoinAndSelect('orderItems.product', 'product')
 
       .leftJoinAndSelect('product.cover', 'cover')
-      .innerJoin('order.company', 'company')
 
       .leftJoin('order.customer', 'customer')
-
-      .addSelect('company.id')
-      .addSelect('company.code')
-      .addSelect('company.phone')
-      .addSelect('company.email')
-      .addSelect('company.address')
-      .addSelect('company.location')
 
       .addSelect('customer.id')
       .addSelect('customer.firstName')
@@ -438,10 +426,6 @@ export class OrderService {
       .addSelect('customer.email')
 
       .where({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const order = await builder.getOne();
 
@@ -502,11 +486,11 @@ export class OrderService {
    * -------------------------------------------------------
    * PUT /orders/status/admin
    */
-  async updateStatus(companyId: number, dto: UpdateOrderStatusDto) {
+  async updateStatus(dto: UpdateOrderStatusDto) {
     const i18n = I18nContext.current();
 
     const order = await this.orderRepository.findOne({
-      where: { id: dto.id, companyId },
+      where: { id: dto.id },
     });
 
     if (!order) {
@@ -599,7 +583,6 @@ export class OrderService {
       where: { id: orderId },
       relations: [
         'customer',
-        'company',
         'orderItems',
         'orderItems.product',
         'orderItems.product.service',
@@ -669,9 +652,7 @@ export class OrderService {
    * show chart of orders
    * GET /orders/statistic/chart/admin
    */
-  async statisticChart(companyId, from, to, type = 'daily', section) {
-    const { lang } = I18nContext.current();
-
+  async statisticChart(from, to, type = 'daily', section) {
     const builder = this.orderRepository
       .createQueryBuilder()
       .groupBy('DAY(createdAt), MONTH(createdAt)')
@@ -688,7 +669,6 @@ export class OrderService {
         from,
         to,
       })
-      .andWhere({ companyId })
 
       .orderBy('createdAt', 'ASC');
 
@@ -729,10 +709,9 @@ export class OrderService {
    * Show count of orders
    * GET /orders/statistic/count/admin
    */
-  async statisticCount(companyId, onlyPending = false, from = null, to = null) {
+  async statisticCount(onlyPending = false, from = null, to = null) {
     const builder = this.orderRepository
       .createQueryBuilder('order')
-      .andWhere({ companyId })
       .select([
         `SUM(IF(order.status = '${OrderStatus.pending}', 1, 0)) AS pending`,
         ...(!onlyPending
@@ -769,10 +748,8 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    */
-  async statisticBestSalesByProduct(companyId, from = null, to = null) {
-    const { lang } = I18nContext.current();
-
-    const builder = this._statisticBestSalesBuilder(companyId, from, to);
+  async statisticBestSalesByProduct(from = null, to = null) {
+    const builder = this._statisticBestSalesBuilder(from, to);
 
     builder.groupBy('product.id').addSelect('product.id AS id');
 
@@ -782,8 +759,8 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    */
-  async statisticBestSalesByCategory(companyId, from = null, to = null) {
-    const builder = this._statisticBestSalesBuilder(companyId, from, to);
+  async statisticBestSalesByCategory(from = null, to = null) {
+    const builder = this._statisticBestSalesBuilder(from, to);
 
     builder
       .innerJoin('product.category', 'category')
@@ -796,13 +773,12 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    */
-  private _statisticBestSalesBuilder(companyId, from = null, to = null) {
+  private _statisticBestSalesBuilder(from = null, to = null) {
     const builder = this.orderRepository
       .createQueryBuilder('order')
       .innerJoin('order.orderItems', 'orderItems')
       .innerJoin('orderItems.product', 'product')
-      .select(['SUM(orderItems.quantity) AS count', 'locales.name AS name'])
-      .andWhere({ companyId })
+      .select(['SUM(orderItems.quantity) AS count', 'product.name AS name'])
       .andWhere('order.status IN (:...statuses)', {
         statuses: [OrderStatus.paid, OrderStatus.sent, OrderStatus.delivered],
       })

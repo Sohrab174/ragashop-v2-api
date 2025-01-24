@@ -28,17 +28,13 @@ export class GatewayService {
    * -------------------------------------------------------
    * GET /gateways/:id/admin
    */
-  async getById(id: number, companyId = null) {
+  async getById(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.gatewayRepository
       .createQueryBuilder('gateway')
 
       .where({ id, isDeleted: false });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const gateway = await builder.getOne();
 
@@ -53,13 +49,7 @@ export class GatewayService {
    * -------------------------------------------------------
    * GET /gateways/admin
    */
-  async getAllForAdmin(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.gatewayRepository.createQueryBuilder('gateway');
 
     if (sorts) {
@@ -69,10 +59,6 @@ export class GatewayService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -89,10 +75,10 @@ export class GatewayService {
    * -------------------------------------------------------
    * GET /gateways
    */
-  async getAll(companyId) {
+  async getAll() {
     const items = await this.gatewayRepository
       .createQueryBuilder('gateway')
-      .andWhere({ companyId, status: GatewayStatus.active, isDeleted: false })
+      .andWhere({ status: GatewayStatus.active, isDeleted: false })
       .select(['gateway.id', 'gateway.name', 'gateway.displayOrder'])
       .orderBy('gateway.displayOrder', 'ASC')
       .getMany();
@@ -128,11 +114,11 @@ export class GatewayService {
    * -------------------------------------------------------
    * PUT /gateways/admin
    */
-  async update(dto: UpdateGatewayDto, companyId: number) {
+  async update(dto: UpdateGatewayDto) {
     const i18n = I18nContext.current();
 
     const gateway = await this.gatewayRepository.findOne({
-      where: { companyId, id: dto.id },
+      where: { id: dto.id },
     });
 
     if (!gateway) {
@@ -143,7 +129,7 @@ export class GatewayService {
       .createQueryBuilder()
       .update()
       .set(dto)
-      .where({ companyId, id: dto.id })
+      .where({ id: dto.id })
       .execute();
 
     return true;
@@ -153,11 +139,11 @@ export class GatewayService {
    * -------------------------------------------------------
    * DELETE /gateways/:id/admin
    */
-  async delete(id: number, companyId: number) {
+  async delete(id: number) {
     const i18n = I18nContext.current();
 
     const gateway = await this.gatewayRepository.findOne({
-      where: { id, companyId },
+      where: { id },
     });
 
     if (!gateway) {

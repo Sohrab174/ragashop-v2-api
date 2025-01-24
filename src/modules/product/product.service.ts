@@ -37,7 +37,6 @@ import { UserEntity } from '../user/entities/user.entity';
 import * as xlsx from 'xlsx';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
 import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
-import { User } from 'src/utils/decorators/user.decorator';
 import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
 
 @Injectable()
@@ -105,7 +104,7 @@ export class ProductService {
       ]: any = Object.values(row);
 
       try {
-        const categoryId = await this.categoryService.getByNameAndCompanyId(
+        const categoryId = await this.categoryService.getRecordByName(
           categoryName,
         );
 
@@ -297,7 +296,7 @@ export class ProductService {
   ) {
     const i18n = I18nContext.current();
 
-    const attributeValueId = await this.attributeService.getByNameAndCompanyId(
+    const attributeValueId = await this.attributeService.getRecordByName(
       attributeName,
       attributeValue,
     );
@@ -405,13 +404,7 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/galleries/admin
    */
-  async getAllGalleries(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async getAllGalleries(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.galleryRepository
       .createQueryBuilder('gallery')
       .leftJoinAndSelect('gallery.products', 'products')
@@ -424,15 +417,6 @@ export class ProductService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.innerJoin(
-        'gallery.product',
-        'product',
-        'product.companyId = :companyId',
-        { companyId },
-      );
-    }
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -495,9 +479,7 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/with-attributes/admin
    */
-  async getAllForAdminWithAttributes(companyId = null) {
-    const { lang } = I18nContext.current();
-
+  async getAllForAdminWithAttributes() {
     const builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoin('product.category', 'category', 'category.status = :status', {
@@ -532,10 +514,6 @@ export class ProductService {
         product: ProductStatus.active,
       })
       .orderBy('product.displayOrder', 'ASC');
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const products = await builder.getMany();
 
@@ -585,14 +563,14 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/:id/attribute-value/admin
    */
-  async getAttributesByProductId(productId: number, companyId) {
+  async getAttributesByProductId(productId: number) {
     const i18n = I18nContext.current();
 
     const builder = this.productAttributeValueRepository
       .createQueryBuilder('attrValue')
       .innerJoinAndSelect('attrValue.attributeValue', 'attributeValue')
       .innerJoinAndSelect('attributeValue.attribute', 'attribute')
-      .where({ productId, companyId, isDeleted: false });
+      .where({ productId, isDeleted: false });
 
     const productAttrValues = await builder.getMany();
 
@@ -609,7 +587,7 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/:id/admin
    */
-  async getByIdForAdmin(id: number, companyId = null) {
+  async getByIdForAdmin(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.productRepository
@@ -618,10 +596,6 @@ export class ProductService {
       // .leftJoinAndSelect('product.galleries', 'galleries')
       .innerJoinAndSelect('product.category', 'category')
       .where({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const product = await builder.getOne();
 
@@ -636,7 +610,7 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/:id
    */
-  async getById(id: number, companyId) {
+  async getById(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.productRepository
@@ -686,7 +660,6 @@ export class ProductService {
 
       .where({ id });
 
-    builder.andWhere({ companyId });
     builder.andWhere({ status: ProductStatus.active });
 
     const product: ProductEntity & {
@@ -879,9 +852,7 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/summary
    */
-  async getSummaries(companyId, limitPerCategory = 4) {
-    const { lang } = I18nContext.current();
-
+  async getSummaries(limitPerCategory = 4) {
     const targetProductList = await getConnection()
       .createQueryBuilder()
       .select('product.id')
@@ -892,8 +863,7 @@ export class ProductService {
               'p.id, ROW_NUMBER() OVER (PARTITION BY p.categoryId ORDER BY displayOrder ASC) as row_num',
             )
             .from(ProductEntity, 'p')
-            .where('p.companyId = :companyId AND p.status = :status', {
-              companyId,
+            .where(' p.status = :status', {
               status: ProductStatus.active,
             }),
         'product',
@@ -934,7 +904,6 @@ export class ProductService {
       .addSelect('attributeValue.id')
       .addSelect('attributeValue.extraValue')
       .addSelect('attribute.id')
-      .andWhere({ companyId })
       .andWhere({ status: ProductStatus.active })
 
       .andWhere('product.id IN (:...ids)', {
@@ -985,7 +954,7 @@ export class ProductService {
       .andWhere({ id: dto.productId })
       .getOne();
 
-    const attributeValue = await this.attributeService.getByIdAndCompanyId(
+    const attributeValue = await this.attributeService.getRecordById(
       dto.attributeValueId,
     );
 
@@ -1097,7 +1066,7 @@ export class ProductService {
   async add(dto: CreateProductDto, user: UserEntity) {
     const i18n = I18nContext.current();
 
-    const existCategory = await this.categoryService.getByIdAndCompanyId(
+    const existCategory = await this.categoryService.getRecordById(
       dto.categoryId,
     );
 
@@ -1147,7 +1116,7 @@ export class ProductService {
       this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
     }
 
-    const existCategory = await this.categoryService.getByIdAndCompanyId(
+    const existCategory = await this.categoryService.getRecordById(
       dto.categoryId,
     );
     if (!existCategory) {
@@ -1403,10 +1372,7 @@ export class ProductService {
       .addSelect('productAttributeIncredibleOffers.id')
       .addSelect('productAttributeIncredibleOffers.discountedPrice')
 
-      .where(
-        'product.id IN (:...productIds) AND product.companyId = :companyId',
-        { productIds },
-      )
+      .where('product.id IN (:...productIds) ', { productIds })
       .getMany();
 
     return products.map((product) => ({
@@ -1510,7 +1476,7 @@ export class ProductService {
     productId: number,
     attributeValueId: number,
   ) {
-    const attributeValue = await this.attributeService.getByIdAndCompanyId(
+    const attributeValue = await this.attributeService.getRecordById(
       attributeValueId,
     );
 
@@ -1554,7 +1520,7 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  async getMinMaxPricesForFilter(companyId: number, filters) {
+  async getMinMaxPricesForFilter(filters) {
     let builder = this.productRepository
       .createQueryBuilder('product')
       .select([
@@ -1569,7 +1535,6 @@ export class ProductService {
         'productAttributeValues',
         'productAttributeValues.isDeleted = 0',
       )
-      .andWhere({ companyId })
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);
@@ -1579,7 +1544,7 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  async getColorsFilter(companyId: number, filters) {
+  async getColorsFilter(filters) {
     let builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoin('product.category', 'category', 'category.status = :status', {
@@ -1594,7 +1559,6 @@ export class ProductService {
         { type: AttributeTypes.color },
       )
       .select(['DISTINCT attributeValue.extraValue AS color'])
-      .andWhere({ companyId })
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);
@@ -1667,7 +1631,7 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  async getByNumberAndCompanyId(number) {
+  async getByNumber(number) {
     const productAttribute = await this.productAttributeValueRepository.findOne(
       { number },
     );

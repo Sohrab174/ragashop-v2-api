@@ -22,7 +22,6 @@ import { I18nContext } from 'nestjs-i18n/dist/i18n.context';
 import { ErrorService } from '../../error/error.service';
 import { Languages } from '../../global.interfaces';
 import { successfulResult } from '../../utils';
-import { Company } from '../../utils/decorators/company.decorator';
 import { Roles } from '../auth/role/role.decorator';
 import { UserRoles } from '../user/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
@@ -73,21 +72,6 @@ export class CommonController {
 
     // this.error.methodNotAllowed([i18n.t('t.Message sent')]);
     return successfulResult([i18n.t('t.Message sent')], { lang: i18n.lang });
-  }
-
-  /**
-   * -------------------------------------------------------
-   */
-  @Get('company-language')
-  @ApiHeader({ name: 'x-token', required: true })
-  @ApiHeader({
-    name: 'x-custom-lang',
-    required: true,
-    enum: Languages,
-    schema: { default: Languages.fa },
-  })
-  async getCompanyLanguage(@I18n() i18n: I18nContext, @Company() company) {
-    return { lang: i18n.lang, company };
   }
 
   /**

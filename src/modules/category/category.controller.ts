@@ -26,7 +26,6 @@ import { Limit } from '../../utils/decorators/limit.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { CategoryStatus } from './entities/category.entity';
-import { Company } from '../../utils/decorators/company.decorator';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from '../../utils/multer.options';
@@ -53,7 +52,6 @@ export class CategoryController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: CategoryStatus })
@@ -64,17 +62,15 @@ export class CategoryController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status', ['company_id', 'companyId'], ['name']])
+    @Filter(['status', ['name']])
     filters,
     @Query('parent_id') parentId,
-    @User('companyId') companyId,
   ) {
     const list = await this.categoryService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
       parentId,
     );
 
@@ -89,14 +85,8 @@ export class CategoryController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getByIdForAdmin(
-    @Param('id') categoryId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.categoryService.getByIdForAdmin(
-      categoryId,
-      companyId,
-    );
+  async getByIdForAdmin(@Param('id') categoryId: number) {
+    const data = await this.categoryService.getByIdForAdmin(categoryId);
     return successfulResult([], data);
   }
 
@@ -106,8 +96,8 @@ export class CategoryController {
    */
   @Get('/tree')
   @ApiQuery({ name: 'child_id', required: false })
-  async getAllTree(@Company('id') companyId, @Query('child_id') childId) {
-    const list = await this.categoryService.getAllTree(companyId, childId);
+  async getAllTree(@Query('child_id') childId) {
+    const list = await this.categoryService.getAllTree(childId);
 
     return successfulResult([], list);
   }
@@ -126,21 +116,22 @@ export class CategoryController {
     description: 'number | NULL',
   })
   @ApiQuery({ name: 'get_sub_ids', required: false, description: '1 | 0' })
+  @ApiQuery({ name: 'is_selection', required: false, description: '1 | 0' })
   async getAll(
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Company('id') companyId,
     @Query('parent_id') parentId,
     @Query('get_sub_ids') getSubIds,
+    @Query('is_selection') isSelection,
   ) {
     const list = await this.categoryService.getAll(
-      companyId,
       page,
       limit,
       sorts,
       parentId,
       getSubIds === '1',
+      isSelection === '1',
     );
 
     return successfulResult([], list);
@@ -154,12 +145,10 @@ export class CategoryController {
   @ApiQuery({ name: 'get_sub_ids', required: false, description: '1 | 0' })
   async getById(
     @Param('id') categoryId: number,
-    @Company('id') companyId,
     @Query('get_sub_ids') getSubIds,
   ) {
     const data = await this.categoryService.getById(
       categoryId,
-      companyId,
       getSubIds === '1',
     );
     return successfulResult([], data);

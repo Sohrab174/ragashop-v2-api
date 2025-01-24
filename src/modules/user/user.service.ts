@@ -26,13 +26,7 @@ export class UserService {
   /**
    * -------------------------------------------------------
    */
-  async getAll(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async getAll(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.userRepository.createQueryBuilder('user');
 
     builder.select([
@@ -56,10 +50,6 @@ export class UserService {
 
     // Custom condition
     builder.andWhere('user.role != :role', { role: UserRoles.god });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const [items, totalItems] = await builder
       .take(limit) // LIMIT
@@ -104,14 +94,13 @@ export class UserService {
   /**
    * -------------------------------------------------------
    */
-  async getById(id: number, companyId = null) {
+  async getById(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.userRepository
       .createQueryBuilder('user')
       .select([
         'user.id',
-        'user.companyId',
         'user.email',
         'user.firstName',
         'user.lastName',
@@ -120,10 +109,6 @@ export class UserService {
         'user.status',
       ])
       .where({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const user = await builder.getOne();
     if (!user) {
@@ -273,7 +258,6 @@ export class UserService {
       .andWhere('(user.email = :eom OR user.mobile = :eom)', {
         eom: emailOrMobile,
       })
-      .innerJoinAndSelect('user.company', 'company')
       .andWhere({ status: UserStatus.active })
       .getOne();
 

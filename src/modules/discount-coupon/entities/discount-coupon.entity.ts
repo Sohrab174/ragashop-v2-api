@@ -110,13 +110,6 @@ export class DiscountCouponEntity extends BaseEntity {
   /**
    * Relations
    */
-  // @ManyToOne(() => CompanyEntity, (company) => company.discountCoupons, {
-  //   onDelete: 'NO ACTION',
-  //   onUpdate: 'NO ACTION',
-  // })
-  // @JoinColumn([{ name: 'companyId', referencedColumnName: 'id' }])
-  // company: CompanyEntity;
-
   // @ManyToOne(() => CustomerEntity, (customer) => customer.discountCoupons, {
   //   onDelete: 'NO ACTION',
   //   onUpdate: 'NO ACTION',

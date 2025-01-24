@@ -17,7 +17,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { I18n } from 'nestjs-i18n';
 import { successfulResult } from '../../utils';
-import { Company } from '../../utils/decorators/company.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
@@ -136,7 +135,6 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'product_id', required: false })
   @ApiQuery({ name: 'type', required: false, enum: ProductGalleryType })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -146,16 +144,14 @@ export class ProductController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['type', ['company_id', 'companyId'], ['product_id', 'productId']])
+    @Filter(['type', ['product_id', 'productId']])
     filters,
-    @User('companyId') companyId,
   ) {
     const list = await this.productService.getAllGalleries(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -169,7 +165,6 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  @ApiQuery({ name: 'company_id', required: false })
   @ApiQuery({ name: 'category_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'number', required: false })
@@ -204,10 +199,8 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getAllForAdminWithAttributes(@User('companyId') companyId) {
-    const list = await this.productService.getAllForAdminWithAttributes(
-      companyId,
-    );
+  async getAllForAdminWithAttributes() {
+    const list = await this.productService.getAllForAdminWithAttributes();
 
     return successfulResult([], list);
   }
@@ -220,14 +213,8 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getAttributesByProductId(
-    @Param('id') productId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.productService.getAttributesByProductId(
-      productId,
-      companyId,
-    );
+  async getAttributesByProductId(@Param('id') productId: number) {
+    const data = await this.productService.getAttributesByProductId(productId);
     return successfulResult([], data);
   }
 
@@ -239,14 +226,8 @@ export class ProductController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async getByIdForAdmin(
-    @Param('id') productId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.productService.getByIdForAdmin(
-      productId,
-      companyId,
-    );
+  async getByIdForAdmin(@Param('id') productId: number) {
+    const data = await this.productService.getByIdForAdmin(productId);
     return successfulResult([], data);
   }
 
@@ -256,14 +237,8 @@ export class ProductController {
    */
   @Get('summary')
   @ApiQuery({ name: 'limit_per_category', required: true })
-  async getSummaries(
-    @Company('id') companyId,
-    @Query('limit_per_category') limitPerCategory,
-  ) {
-    const list = await this.productService.getSummaries(
-      companyId,
-      limitPerCategory,
-    );
+  async getSummaries(@Query('limit_per_category') limitPerCategory) {
+    const list = await this.productService.getSummaries(limitPerCategory);
 
     return successfulResult([], list);
   }
@@ -276,12 +251,8 @@ export class ProductController {
   @ApiQuery({ name: 'category_id', required: false })
   async getMinMaxPricesForFilter(
     @Filter([['category_id', 'categoryId']]) filters,
-    @Company('id') companyId,
   ) {
-    const data = await this.productService.getMinMaxPricesForFilter(
-      companyId,
-      filters,
-    );
+    const data = await this.productService.getMinMaxPricesForFilter(filters);
     return successfulResult([], data);
   }
 
@@ -291,11 +262,8 @@ export class ProductController {
    */
   @Get('/filter/color')
   @ApiQuery({ name: 'category_id', required: false })
-  async getColorsFilter(
-    @Filter([['category_id', 'categoryId']]) filters,
-    @Company('id') companyId,
-  ) {
-    const list = await this.productService.getColorsFilter(companyId, filters);
+  async getColorsFilter(@Filter([['category_id', 'categoryId']]) filters) {
+    const list = await this.productService.getColorsFilter(filters);
     return successfulResult([], list);
   }
 
@@ -304,8 +272,8 @@ export class ProductController {
    * GET /products/:id
    */
   @Get(':id')
-  async getById(@Param('id') productId: number, @Company('id') companyId) {
-    const data = await this.productService.getById(productId, companyId);
+  async getById(@Param('id') productId: number) {
+    const data = await this.productService.getById(productId);
     return successfulResult([], data);
   }
 

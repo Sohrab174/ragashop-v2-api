@@ -50,7 +50,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async login(dto: CustomerLoginDto, companyId: number) {
+  async login(dto: CustomerLoginDto) {
     const i18n = I18nContext.current();
 
     const customer = await this.customerRepository
@@ -58,7 +58,6 @@ export class CustomerService {
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
-      .andWhere({ companyId })
       .getOne();
 
     if (!customer) {
@@ -83,7 +82,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async loginByMobile(dto: CustomerLoginMobileDto, companyId) {
+  async loginByMobile(dto: CustomerLoginMobileDto) {
     let customer = await this.customerRepository.findOne({
       mobile: dto.mobile,
     });
@@ -165,11 +164,10 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async getActiveById(id: number, companyId: number = null) {
+  async getActiveById(id: number) {
     const customer = await this.customerRepository.findOne({
       id,
       status: CustomerStatus.active,
-      ...(companyId && { companyId }),
     });
 
     if (customer) {
@@ -185,26 +183,21 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async getRecordByIdAndCompanyId(id: number, companyId: number = null) {
+  async getRecordById(id: number) {
     return await this.customerRepository.findOne({
       id,
-      ...(companyId && { companyId }),
     });
   }
 
   /**
    * --------------------------------------------------------
    */
-  async updateMe(
-    customerId: number,
-    companyId: number,
-    dto: CustomerUpdateMeDto,
-  ) {
+  async updateMe(customerId: number, dto: CustomerUpdateMeDto) {
     return await this.customerRepository
       .createQueryBuilder()
       .update()
       .set(dto)
-      .where({ id: customerId, companyId })
+      .where({ id: customerId })
       .execute();
   }
 
@@ -234,7 +227,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async forgotPassword(dto: CustomerForgotDto, companyId: number) {
+  async forgotPassword(dto: CustomerForgotDto) {
     const i18n = I18nContext.current();
 
     const customer = await this.customerRepository
@@ -242,7 +235,6 @@ export class CustomerService {
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
-      .andWhere({ companyId })
       .andWhere({ status: CustomerStatus.active })
       .getOne();
 
@@ -258,10 +250,11 @@ export class CustomerService {
       ]);
     }
 
-    await this.sendOtpCode(
-      { email: customer.email, mobile: customer.mobile, type: 'forgot' },
-      companyId,
-    );
+    await this.sendOtpCode({
+      email: customer.email,
+      mobile: customer.mobile,
+      type: 'forgot',
+    });
 
     return true;
   }
@@ -269,7 +262,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async resetPasswordByToken(dto: CustomerResetPasswordDto, companyId: number) {
+  async resetPasswordByToken(dto: CustomerResetPasswordDto) {
     const i18n = I18nContext.current();
 
     const customer = await this.customerRepository
@@ -277,7 +270,6 @@ export class CustomerService {
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
-      .andWhere({ companyId })
       .andWhere({ status: CustomerStatus.active })
       .getOne();
 
@@ -349,7 +341,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async signup(dto: CustomerSignupDto, companyId: number) {
+  async signup(dto: CustomerSignupDto) {
     const i18n = I18nContext.current();
 
     // Checking unique email in this company
@@ -359,10 +351,11 @@ export class CustomerService {
       });
       if (customer) {
         if (customer.status === CustomerStatus.inactive) {
-          return await this.sendOtpCode(
-            { email: dto.email, mobile: dto.mobile, type: 'signup' },
-            companyId,
-          );
+          return await this.sendOtpCode({
+            email: dto.email,
+            mobile: dto.mobile,
+            type: 'signup',
+          });
         } else {
           this.error.unprocessableEntity([
             i18n.t('t.This email has already been used'),
@@ -378,10 +371,11 @@ export class CustomerService {
       });
       if (customer) {
         if (customer.status === CustomerStatus.inactive) {
-          return await this.sendOtpCode(
-            { email: dto.email, mobile: dto.mobile, type: 'signup' },
-            companyId,
-          );
+          return await this.sendOtpCode({
+            email: dto.email,
+            mobile: dto.mobile,
+            type: 'signup',
+          });
         } else {
           this.error.unprocessableEntity([
             i18n.t('t.This mobile has already been used'),
@@ -416,7 +410,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async sendOtpCode(dto: CustomerResendOtpDto, companyId: number) {
+  async sendOtpCode(dto: CustomerResendOtpDto) {
     const i18n = I18nContext.current();
     const where: any = {};
 
@@ -471,7 +465,7 @@ export class CustomerService {
   /**
    * --------------------------------------------------------
    */
-  async verifySignupByCode(dto: CustomerVerifySignupDto, companyId: number) {
+  async verifySignupByCode(dto: CustomerVerifySignupDto) {
     const i18n = I18nContext.current();
 
     const customer = await this.findByValidHashCode(
@@ -499,13 +493,7 @@ export class CustomerService {
    * -------------------------------------------------------
    * GET /customers/admin
    */
-  async getAllForAdmin(
-    page = 1,
-    limit = 20,
-    filters = null,
-    sorts = null,
-    companyId = null,
-  ) {
+  async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
     let builder = this.customerRepository.createQueryBuilder('customer');
 
     if (sorts) {
@@ -515,10 +503,6 @@ export class CustomerService {
     }
 
     builder = applyFiltersToBuilder(builder, filters);
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const [items, totalItems] = await builder
       .take(limit)
@@ -540,17 +524,13 @@ export class CustomerService {
    * -------------------------------------------------------
    * GET /customers/:id/admin
    */
-  async getByIdForAdmin(id: number, companyId = null) {
+  async getByIdForAdmin(id: number) {
     const i18n = I18nContext.current();
 
     const builder = this.customerRepository
       .createQueryBuilder('customer')
 
       .where({ id });
-
-    if (companyId) {
-      builder.andWhere({ companyId });
-    }
 
     const customer = await builder.getOne();
 
@@ -607,11 +587,11 @@ export class CustomerService {
    * -------------------------------------------------------
    * PUT /customers/admin
    */
-  async update(dto: UpdateCustomerDto, companyId: number) {
+  async update(dto: UpdateCustomerDto) {
     const i18n = I18nContext.current();
 
     const customer = await this.customerRepository.findOne({
-      where: { companyId, id: dto.id },
+      where: { id: dto.id },
     });
 
     if (!customer) {
@@ -664,11 +644,11 @@ export class CustomerService {
    * -------------------------------------------------------
    * DELETE /customers/:id/admin
    */
-  async delete(id: number, force: string, companyId: number) {
+  async delete(id: number, force: string) {
     const i18n = I18nContext.current();
 
     const customer = await this.customerRepository.findOne({
-      where: { id, companyId },
+      where: { id },
     });
 
     if (!customer) {
@@ -678,7 +658,6 @@ export class CustomerService {
     try {
       if (force === '1') {
         await this.orderService.deleteByCustomerId(id);
-        // await this.reserveService.deleteByCustomerId(id,companyId)
       }
 
       await customer.remove();
@@ -738,9 +717,7 @@ export class CustomerService {
    * show chart of customers
    * GET /customers/statistic/chart/admin
    */
-  async statisticChart(companyId, from, to, type = 'daily') {
-    const { lang } = I18nContext.current();
-
+  async statisticChart(from, to, type = 'daily') {
     const list = await this.customerRepository
       .createQueryBuilder()
       .groupBy('DAY(createdAt), MONTH(createdAt)')
@@ -750,7 +727,7 @@ export class CustomerService {
         'MONTH(createdAt) AS month',
         'DATE(createdAt) AS date',
       ])
-      .andWhere({ status: CustomerStatus.active, companyId })
+      .andWhere({ status: CustomerStatus.active })
       .andWhere('DATE(createdAt) BETWEEN :from AND :to', {
         from,
         to,
@@ -787,10 +764,9 @@ export class CustomerService {
    * Show count of customers
    * GET /customers/statistic/count/admin
    */
-  async statisticCount(companyId) {
+  async statisticCount() {
     const { active, inactive } = await this.customerRepository
       .createQueryBuilder('customer')
-      .andWhere('customer.companyId = :companyId', { companyId })
       .select([
         `SUM(IF(customer.status = '${CustomerStatus.active}', 1, 0)) AS active`,
         `SUM(IF(customer.status = '${CustomerStatus.inactive}', 1, 0)) AS inactive`,

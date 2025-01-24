@@ -57,14 +57,12 @@ export class AttributeController {
     @Sort() sorts,
     @Filter([['attribute_id', 'attributeId'], ['value']])
     filters,
-    @User('companyId') companyId,
   ) {
     const list = await this.attributeService.getAllValuesForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -89,14 +87,12 @@ export class AttributeController {
     @Sort() sorts,
     @Filter(['type', ['name']])
     filters,
-    @User('companyId') companyId,
   ) {
     const list = await this.attributeService.getAllForAdmin(
       page,
       limit,
       filters,
       sorts,
-      companyId,
     );
 
     return successfulResult([], list);
@@ -110,14 +106,8 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async getByIdForAdmin(
-    @Param('id') attributeId: number,
-    @User('companyId') companyId,
-  ) {
-    const data = await this.attributeService.getByIdForAdmin(
-      attributeId,
-      companyId,
-    );
+  async getByIdForAdmin(@Param('id') attributeId: number) {
+    const data = await this.attributeService.getByIdForAdmin(attributeId);
     return successfulResult([], data);
   }
 
@@ -165,11 +155,7 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async updateValues(
-    @Body() dto: UpdateAttributeValueDto,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
+  async updateValues(@Body() dto: UpdateAttributeValueDto, @I18n() i18n) {
     await this.attributeService.updateValue(dto);
 
     return successfulResult([
@@ -185,11 +171,7 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(
-    @Body() dto: UpdateAttributeDto,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
+  async update(@Body() dto: UpdateAttributeDto, @I18n() i18n) {
     await this.attributeService.update(dto);
 
     return successfulResult([
@@ -205,12 +187,8 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async deleteValue(
-    @Param('id') attributeValueId: number,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
-    await this.attributeService.deleteValue(attributeValueId, companyId);
+  async deleteValue(@Param('id') attributeValueId: number, @I18n() i18n) {
+    await this.attributeService.deleteValue(attributeValueId);
 
     return successfulResult([i18n.t('t.The attribute value is deleted')]);
   }
@@ -223,12 +201,8 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(
-    @Param('id') attributeId: number,
-    @User('companyId') companyId,
-    @I18n() i18n,
-  ) {
-    await this.attributeService.delete(attributeId, companyId);
+  async delete(@Param('id') attributeId: number, @I18n() i18n) {
+    await this.attributeService.delete(attributeId);
 
     return successfulResult([i18n.t('t.The attribute is deleted')]);
   }
