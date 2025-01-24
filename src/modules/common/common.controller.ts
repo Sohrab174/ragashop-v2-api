@@ -17,8 +17,6 @@ import {
   ApiHeader,
   ApiTags,
 } from '@nestjs/swagger';
-import { I18n } from 'nestjs-i18n/dist/decorators/i18n.decorator';
-import { I18nContext } from 'nestjs-i18n/dist/i18n.context';
 import { ErrorService } from '../../error/error.service';
 import { Languages } from '../../global.interfaces';
 import { successfulResult } from '../../utils';
@@ -67,11 +65,11 @@ export class CommonController {
     enum: Languages,
     schema: { default: Languages.fa },
   })
-  async getLanguage(@I18n() i18n: I18nContext, @Req() req) {
+  async getLanguage(@Req() req) {
     console.log(req.lang);
 
-    // this.error.methodNotAllowed([i18n.t('t.Message sent')]);
-    return successfulResult([i18n.t('t.Message sent')], { lang: i18n.lang });
+    // this.error.methodNotAllowed([('t.Message sent')]);
+    return successfulResult(['t.Message sent']);
   }
 
   /**

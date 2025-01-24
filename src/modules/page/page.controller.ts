@@ -23,7 +23,6 @@ import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
 import { UserEntity, UserRoles } from '../user/entities/user.entity';
 import { PageService } from './page.service';
-import { I18n } from 'nestjs-i18n';
 import { CreatePageDto } from './dto/create-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
 
@@ -104,17 +103,10 @@ export class PageController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(
-    @Body() dto: CreatePageDto,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async add(@Body() dto: CreatePageDto, @User() user: UserEntity) {
     const newPage = await this.pageService.add(dto, user);
 
-    return successfulResult(
-      [i18n.t('t.The page is created successfully')],
-      newPage,
-    );
+    return successfulResult(['t.The page is created successfully'], newPage);
   }
 
   /**
@@ -125,14 +117,10 @@ export class PageController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async update(
-    @Body() dto: UpdatePageDto,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async update(@Body() dto: UpdatePageDto, @User() user: UserEntity) {
     await this.pageService.update(dto, user);
 
-    return successfulResult([i18n.t('t.The page is updated successfully')]);
+    return successfulResult(['t.The page is updated successfully']);
   }
 
   /**
@@ -143,13 +131,9 @@ export class PageController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
-  async delete(
-    @Param('id') pageId: number,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async delete(@Param('id') pageId: number, @User() user: UserEntity) {
     await this.pageService.delete(pageId);
 
-    return successfulResult([i18n.t('t.The page is deleted')]);
+    return successfulResult(['t.The page is deleted']);
   }
 }

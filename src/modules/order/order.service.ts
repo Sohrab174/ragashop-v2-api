@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as moment from 'jalali-moment';
-import { I18nContext } from 'nestjs-i18n';
 import { getConnection, Repository, LessThan } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import {
@@ -54,13 +53,11 @@ export class OrderService {
     customerId: number = null,
     orderId: number = null,
   ) {
-    const i18n = I18nContext.current();
-
     // Checking the customer by admin
     if (dto.customerId) {
       if (!(await this.customerService.getActiveById(dto.customerId))) {
         this.error.unprocessableEntity([
-          i18n.t('t.The customer was not found or her account is disabled!'),
+          't.The customer was not found or her account is disabled!',
         ]);
       }
     }
@@ -79,7 +76,7 @@ export class OrderService {
         ],
       });
       if (!order) {
-        this.error.unprocessableEntity([i18n.t('t.The request is invalid!')]);
+        this.error.unprocessableEntity(['t.The request is invalid!']);
       }
       // Removing the old items and rollback quantity
       await this._deleteItemsAndRollbackQuantity(order.orderItems);
@@ -98,7 +95,7 @@ export class OrderService {
       );
 
       if (!fromDb) {
-        this.error.unprocessableEntity([i18n.t('t.The product not found!')]);
+        this.error.unprocessableEntity(['t.The product not found!']);
       }
 
       const productAttributeValue = fromDb.productAttributeValues.find(
@@ -112,7 +109,7 @@ export class OrderService {
         cartItem.quantity > productAttributeValue.quantity
       ) {
         this.error.unprocessableEntity([
-          i18n.t('t.There is not enough product stock!'),
+          't.There is not enough product stock!',
         ]);
       }
 
@@ -123,7 +120,7 @@ export class OrderService {
         cartItem.quantity > fromDb.quantity
       ) {
         this.error.unprocessableEntity([
-          i18n.t('t.There is not enough product stock!'),
+          't.There is not enough product stock!',
         ]);
       }
 
@@ -396,8 +393,6 @@ export class OrderService {
    * GET /orders/:id/admin
    */
   async getByIdForAdmin(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.orderRepository
       .createQueryBuilder('order')
 
@@ -430,7 +425,7 @@ export class OrderService {
     const order = await builder.getOne();
 
     if (!order) {
-      this.error.unprocessableEntity([i18n.t('t.The order not found!')]);
+      this.error.unprocessableEntity(['t.The order not found!']);
     }
 
     return order;
@@ -441,8 +436,6 @@ export class OrderService {
    * GET /orders/me/:id
    */
   async getById(id: number, customerId, IP: string) {
-    const i18n = I18nContext.current();
-
     const builder = this.orderRepository
       .createQueryBuilder('order')
       .innerJoinAndSelect('order.orderItems', 'orderItems')
@@ -476,7 +469,7 @@ export class OrderService {
     const order = await builder.getOne();
 
     if (!order) {
-      this.error.unprocessableEntity([i18n.t('t.The order not found!')]);
+      this.error.unprocessableEntity(['t.The order not found!']);
     }
 
     return order;
@@ -487,14 +480,12 @@ export class OrderService {
    * PUT /orders/status/admin
    */
   async updateStatus(dto: UpdateOrderStatusDto) {
-    const i18n = I18nContext.current();
-
     const order = await this.orderRepository.findOne({
       where: { id: dto.id },
     });
 
     if (!order) {
-      this.error.unprocessableEntity([i18n.t('t.The order not found!')]);
+      this.error.unprocessableEntity(['t.The order not found!']);
     }
 
     order.status = dto.status;
@@ -510,15 +501,13 @@ export class OrderService {
    * DELETE /orders/:id/admin
    */
   async delete(id: number) {
-    const i18n = I18nContext.current();
-
     const order = await this.orderRepository.findOne({
       where: { id },
       relations: ['orderItems', 'orderItems.product', 'transactions'],
     });
 
     if (!order) {
-      this.error.unprocessableEntity([i18n.t('t.The order not found!')]);
+      this.error.unprocessableEntity(['t.The order not found!']);
     }
 
     // Rollbacking the orderItems if an error occurs
@@ -554,7 +543,7 @@ export class OrderService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
 
-      this.error.methodNotAllowed([i18n.t('t.An error has occurred!')]);
+      this.error.methodNotAllowed(['t.An error has occurred!']);
     } finally {
       await queryRunner.release();
     }

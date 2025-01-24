@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { I18nContext } from 'nestjs-i18n';
-
 import { ErrorService } from '../../error/error.service';
 import { GatewayEntity, GatewayStatus } from './entities/gateway.entity';
 import {
@@ -29,8 +27,6 @@ export class GatewayService {
    * GET /gateways/:id/admin
    */
   async getById(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.gatewayRepository
       .createQueryBuilder('gateway')
 
@@ -39,7 +35,7 @@ export class GatewayService {
     const gateway = await builder.getOne();
 
     if (!gateway) {
-      this.error.unprocessableEntity([i18n.t('t.The gateway was not found!')]);
+      this.error.unprocessableEntity(['t.The gateway was not found!']);
     }
 
     return gateway;
@@ -115,14 +111,12 @@ export class GatewayService {
    * PUT /gateways/admin
    */
   async update(dto: UpdateGatewayDto) {
-    const i18n = I18nContext.current();
-
     const gateway = await this.gatewayRepository.findOne({
       where: { id: dto.id },
     });
 
     if (!gateway) {
-      this.error.unprocessableEntity([i18n.t('t.The gateway was not found!')]);
+      this.error.unprocessableEntity(['t.The gateway was not found!']);
     }
 
     await this.gatewayRepository
@@ -140,14 +134,12 @@ export class GatewayService {
    * DELETE /gateways/:id/admin
    */
   async delete(id: number) {
-    const i18n = I18nContext.current();
-
     const gateway = await this.gatewayRepository.findOne({
       where: { id },
     });
 
     if (!gateway) {
-      this.error.unprocessableEntity([i18n.t('t.The gateway was not found!')]);
+      this.error.unprocessableEntity(['t.The gateway was not found!']);
     }
 
     gateway.isDeleted = true;

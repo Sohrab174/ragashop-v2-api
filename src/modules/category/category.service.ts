@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nContext } from 'nestjs-i18n';
 import { Repository } from 'typeorm';
 import { getConnection } from 'typeorm/globals';
 import * as path from 'path';
@@ -40,14 +39,12 @@ export class CategoryService {
    * POST /categories/admin
    */
   async add(dto: CreateCategoryDto) {
-    const i18n = I18nContext.current();
-
     if (dto.parentId) {
       const parentCategory = await this.categoryRepository.findOne({
         id: dto.parentId,
       });
       if (!parentCategory) {
-        this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+        this.error.unprocessableEntity(['t.The category not found!']);
       }
     }
 
@@ -74,17 +71,15 @@ export class CategoryService {
    * PUT /categories/admin
    */
   async update(dto: UpdateCategoryDto) {
-    const i18n = I18nContext.current();
-
     const targetCategory = await this.categoryRepository.findOne({
       where: { id: dto.id },
     });
     if (!targetCategory) {
-      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      this.error.unprocessableEntity(['t.The category not found!']);
     }
 
     if (dto.parentId === dto.id) {
-      this.error.unprocessableEntity([i18n.t('t.The request is not valid!')]);
+      this.error.unprocessableEntity(['t.The request is not valid!']);
     }
 
     if (dto.parentId) {
@@ -92,7 +87,7 @@ export class CategoryService {
         id: dto.parentId,
       });
       if (!categoryParent) {
-        this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+        this.error.unprocessableEntity(['t.The category not found!']);
       }
     }
 
@@ -111,8 +106,6 @@ export class CategoryService {
    * PUT /categories/icon/admin
    */
   async updateIcon(dto: UpdateCategoryIconDto, icon: Express.Multer.File) {
-    const i18n = I18nContext.current();
-
     const category = await this.categoryRepository
       .createQueryBuilder('category')
 
@@ -120,7 +113,7 @@ export class CategoryService {
       .getOne();
 
     if (!category) {
-      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      this.error.unprocessableEntity(['t.The category not found!']);
     }
 
     const oldIconPath = category.iconPath;
@@ -161,14 +154,12 @@ export class CategoryService {
    * DELETE /categories/:id/icon/admin
    */
   async deleteIcon(id: number, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const category = await this.categoryRepository.findOne({
       id,
     });
 
     if (!category) {
-      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      this.error.unprocessableEntity(['t.The category not found!']);
     }
 
     fs.unlink(
@@ -196,15 +187,13 @@ export class CategoryService {
    * DELETE /categories/:id/admin
    */
   async delete(id: number, user: UserEntity, dto: DeleteCategoryDto) {
-    const i18n = I18nContext.current();
-
     const category = await this.categoryRepository.findOne({
       where: { id },
       relations: ['subCategories'],
     });
 
     if (!category) {
-      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      this.error.unprocessableEntity(['t.The category not found!']);
     }
 
     const tempIconPath = category.iconPath;
@@ -212,9 +201,7 @@ export class CategoryService {
     if (category.subCategories?.length > 0 && !dto.force) {
       this.error.methodNotAllowed(
         [
-          i18n.t(
-            't.Some sub categories are related to this category, please delete the sub categories of this category first!',
-          ),
+          't.Some sub categories are related to this category, please delete the sub categories of this category first!',
         ],
         { hasSubCategories: true },
       );
@@ -247,9 +234,7 @@ export class CategoryService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        i18n.t(
-          't.Some products are related to this category, please delete the products of this category first!',
-        ),
+        't.Some products are related to this category, please delete the products of this category first!',
       ]);
     } finally {
       await queryRunner.release();
@@ -322,8 +307,6 @@ export class CategoryService {
    * GET /categories/:id/admin
    */
   async getByIdForAdmin(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.categoryRepository
       .createQueryBuilder('category')
       .leftJoinAndSelect('category.parent', 'parent')
@@ -332,7 +315,7 @@ export class CategoryService {
     const category = await builder.getOne();
 
     if (!category) {
-      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      this.error.unprocessableEntity(['t.The category not found!']);
     }
 
     return category;
@@ -414,8 +397,6 @@ export class CategoryService {
    * GET /categories/:id
    */
   async getById(categoryId, getSubIds = false) {
-    const i18n = I18nContext.current();
-
     const builder = this.categoryRepository
       .createQueryBuilder('category')
 
@@ -430,7 +411,7 @@ export class CategoryService {
     const category = await builder.getOne();
 
     if (!category) {
-      this.error.unprocessableEntity([i18n.t('t.The category not found!')]);
+      this.error.unprocessableEntity(['t.The category not found!']);
     }
 
     // Getting the sub category ids
@@ -501,8 +482,6 @@ export class CategoryService {
    * PUT /categories/sort/admin
    */
   async sort(dto: CategorySortDto, user: UserEntity, filters = null) {
-    const i18n = I18nContext.current();
-
     const original = await this.categoryRepository
       .createQueryBuilder('category')
 
@@ -511,9 +490,7 @@ export class CategoryService {
       .getOne();
 
     if (!original) {
-      return this.error.unprocessableEntity([
-        i18n.t('t.This category was not found'),
-      ]);
+      return this.error.unprocessableEntity(['t.This category was not found']);
     }
 
     let builder = this.categoryRepository
@@ -545,7 +522,7 @@ export class CategoryService {
 
     if (!alternate) {
       return this.error.unprocessableEntity([
-        i18n.t('t.Replacement category not found'),
+        't.Replacement category not found',
       ]);
     }
 

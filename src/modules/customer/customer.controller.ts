@@ -12,7 +12,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { I18n } from 'nestjs-i18n';
 import { successfulResult } from '../../utils';
 import { Filter } from '../../utils/decorators/filter.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
@@ -53,25 +52,19 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login/mobile')
-  async loginByMobile(@Body() dto: CustomerLoginMobileDto, @I18n() i18n) {
+  async loginByMobile(@Body() dto: CustomerLoginMobileDto) {
     const data = await this.customerService.loginByMobile(dto);
-    return successfulResult(
-      [i18n.t('t.The verification code has been sent')],
-      data,
-    );
+    return successfulResult(['t.The verification code has been sent'], data);
   }
 
   /**
    * --------------------------------------------------------
    */
   @Post('login/verify')
-  async verifyLogin(@Body() dto: CustomerLoginVerifyDto, @I18n() i18n) {
+  async verifyLogin(@Body() dto: CustomerLoginVerifyDto) {
     const response = await this.customerService.verifyLogin(dto);
     if (response) {
-      return successfulResult(
-        [i18n.t('t.You have successfully logged in')],
-        response,
-      );
+      return successfulResult(['t.You have successfully logged in'], response);
     }
   }
 
@@ -79,12 +72,9 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login')
-  async login(@Body() dto: CustomerLoginDto, @I18n() i18n) {
+  async login(@Body() dto: CustomerLoginDto) {
     const response = await this.customerService.login(dto);
-    return successfulResult(
-      [i18n.t('t.You have successfully logged in')],
-      response,
-    );
+    return successfulResult(['t.You have successfully logged in'], response);
   }
 
   /**
@@ -107,12 +97,9 @@ export class CustomerController {
   async updateMe(
     @Customer('id') customerId: number,
     @Body() dto: CustomerUpdateMeDto,
-    @I18n() i18n,
   ) {
     await this.customerService.updateMe(customerId, dto);
-    return successfulResult([
-      i18n.t('t.Your profile has been successfully updated'),
-    ]);
+    return successfulResult(['t.Your profile has been successfully updated']);
   }
 
   /**
@@ -125,32 +112,29 @@ export class CustomerController {
   async changePassword(
     @Customer('id') customerId: number,
     @Body() dto: CustomerChangePasswordDto,
-    @I18n() i18n,
   ) {
     await this.customerService.changePassword(customerId, dto);
-    return successfulResult([
-      i18n.t('t.The password has been successfully updated'),
-    ]);
+    return successfulResult(['t.The password has been successfully updated']);
   }
 
   /**
    * --------------------------------------------------------
    */
   @Post('password/forgot')
-  async forgotPassword(@Body() dto: CustomerForgotDto, @I18n() i18n) {
+  async forgotPassword(@Body() dto: CustomerForgotDto) {
     await this.customerService.forgotPassword(dto);
-    return successfulResult([i18n.t('t.The verification code has been sent')]);
+    return successfulResult(['t.The verification code has been sent']);
   }
 
   /**
    * --------------------------------------------------------
    */
   @Post('password/reset')
-  async resetPassword(@Body() dto: CustomerResetPasswordDto, @I18n() i18n) {
+  async resetPassword(@Body() dto: CustomerResetPasswordDto) {
     const response = await this.customerService.resetPasswordByToken(dto);
 
     return successfulResult(
-      [i18n.t('Your password has been successfully changed')],
+      ['Your password has been successfully changed'],
       response || {},
     );
   }
@@ -160,10 +144,10 @@ export class CustomerController {
    * POST /customers/signup
    */
   @Post('signup')
-  async signup(@Body() dto: CustomerSignupDto, @I18n() i18n) {
+  async signup(@Body() dto: CustomerSignupDto) {
     const response = await this.customerService.signup(dto);
     return successfulResult(
-      [i18n.t('t.The verification code has been sent')],
+      ['t.The verification code has been sent'],
       response,
     );
   }
@@ -173,11 +157,11 @@ export class CustomerController {
    * POST /customers/signup/verify
    */
   @Post('signup/verify')
-  async verifySignupByCode(@Body() dto: CustomerVerifySignupDto, @I18n() i18n) {
+  async verifySignupByCode(@Body() dto: CustomerVerifySignupDto) {
     const response = await this.customerService.verifySignupByCode(dto);
 
     return successfulResult(
-      [i18n.t('t.Your account has been verified')],
+      ['t.Your account has been verified'],
       response || {},
     );
   }
@@ -187,12 +171,10 @@ export class CustomerController {
    * POST /customers/resend-otp-code
    */
   @Post('resend-otp-code')
-  async sendOtpCode(@Body() dto: CustomerResendOtpDto, @I18n() i18n) {
+  async sendOtpCode(@Body() dto: CustomerResendOtpDto) {
     await this.customerService.sendOtpCode(dto);
 
-    return successfulResult([
-      i18n.t('t.The verification code has been sent again'),
-    ]);
+    return successfulResult(['t.The verification code has been sent again']);
   }
 
   /**
@@ -256,11 +238,11 @@ export class CustomerController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(@Body() dto: CreateCustomerDto, @I18n() i18n) {
+  async add(@Body() dto: CreateCustomerDto) {
     const newCustomer = await this.customerService.add(dto);
 
     return successfulResult(
-      [i18n.t('t.The customer is created successfully')],
+      ['t.The customer is created successfully'],
       newCustomer,
     );
   }
@@ -273,10 +255,10 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(@Body() dto: UpdateCustomerDto, @I18n() i18n) {
+  async update(@Body() dto: UpdateCustomerDto) {
     await this.customerService.update(dto);
 
-    return successfulResult([i18n.t('t.The customer is updated successfully')]);
+    return successfulResult(['t.The customer is updated successfully']);
   }
 
   /**
@@ -287,14 +269,10 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(
-    @Param('id') customerId: number,
-    @Query('force') force,
-    @I18n() i18n,
-  ) {
+  async delete(@Param('id') customerId: number, @Query('force') force) {
     await this.customerService.delete(customerId, force);
 
-    return successfulResult([i18n.t('t.The customer is deleted')]);
+    return successfulResult(['t.The customer is deleted']);
   }
 
   /**

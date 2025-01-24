@@ -1,7 +1,6 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
-import { I18nContext } from 'nestjs-i18n';
 import * as moment from 'jalali-moment';
 import { JwtService } from '@nestjs/jwt';
 
@@ -51,8 +50,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async login(dto: CustomerLoginDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository
       .createQueryBuilder('customer')
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
@@ -62,18 +59,18 @@ export class CustomerService {
 
     if (!customer) {
       this.error.unprocessableEntity([
-        i18n.t('t.The username or password is incorrect'),
+        't.The username or password is incorrect',
       ]);
     }
 
     if (!(await customer.isCorrectSaltPassword(dto.password))) {
       this.error.unprocessableEntity([
-        i18n.t('t.The username or password is incorrect'),
+        't.The username or password is incorrect',
       ]);
     }
 
     // if (customer.status === CustomerStatus.inactive) {
-    //   this.error.unprocessableEntity([i18n.t('t.Your account is inactive')]);
+    //   this.error.unprocessableEntity([('t.Your account is inactive')]);
     // }
 
     return await this.prepareCustomerResponse(customer, dto.rememberMe);
@@ -129,8 +126,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async verifyLogin(dto: CustomerLoginVerifyDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository.findOne({
       mobile: dto.mobile,
       randomHash: dto.code,
@@ -138,7 +133,7 @@ export class CustomerService {
 
     if (!(customer && moment(customer.expireRandomHash).isAfter(moment()))) {
       return this.error.unprocessableEntity([
-        i18n.t('t.The verification code is invalid or expired'),
+        't.The verification code is invalid or expired',
       ]);
     }
 
@@ -205,17 +200,13 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async changePassword(customerId: number, dto: CustomerChangePasswordDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository.findOne(customerId);
 
     if (
       dto.oldPassword &&
       !(await customer.isCorrectSaltPassword(dto.oldPassword))
     ) {
-      this.error.unprocessableEntity([
-        i18n.t('t.The current password is incorrect'),
-      ]);
+      this.error.unprocessableEntity(['t.The current password is incorrect']);
     }
 
     customer.password = dto.newPassword;
@@ -228,8 +219,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async forgotPassword(dto: CustomerForgotDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository
       .createQueryBuilder('customer')
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
@@ -239,14 +228,12 @@ export class CustomerService {
       .getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity([i18n.t('t.The customer was not found!')]);
+      this.error.unprocessableEntity(['t.The customer was not found!']);
     }
 
     if (moment(customer.expireRandomHash).isAfter(moment())) {
       this.error.unprocessableEntity([
-        i18n.t(
-          't.The verification code has already been sent, please try again in a few minutes!',
-        ),
+        't.The verification code has already been sent, please try again in a few minutes!',
       ]);
     }
 
@@ -263,8 +250,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async resetPasswordByToken(dto: CustomerResetPasswordDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository
       .createQueryBuilder('customer')
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
@@ -274,7 +259,7 @@ export class CustomerService {
       .getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity([i18n.t('t.The customer was not found!')]);
+      this.error.unprocessableEntity(['t.The customer was not found!']);
     }
 
     if (
@@ -282,7 +267,7 @@ export class CustomerService {
       !moment(customer.expireRandomHash).isAfter(moment())
     ) {
       return this.error.unprocessableEntity([
-        i18n.t('t.The verification code is invalid or expired'),
+        't.The verification code is invalid or expired',
       ]);
     }
 
@@ -342,8 +327,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async signup(dto: CustomerSignupDto) {
-    const i18n = I18nContext.current();
-
     // Checking unique email in this company
     if (dto.email) {
       const customer = await this.customerRepository.findOne({
@@ -358,7 +341,7 @@ export class CustomerService {
           });
         } else {
           this.error.unprocessableEntity([
-            i18n.t('t.This email has already been used'),
+            't.This email has already been used',
           ]);
         }
       }
@@ -378,7 +361,7 @@ export class CustomerService {
           });
         } else {
           this.error.unprocessableEntity([
-            i18n.t('t.This mobile has already been used'),
+            't.This mobile has already been used',
           ]);
         }
       }
@@ -411,7 +394,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async sendOtpCode(dto: CustomerResendOtpDto) {
-    const i18n = I18nContext.current();
     const where: any = {};
 
     if (dto.type === 'signup') {
@@ -432,23 +414,19 @@ export class CustomerService {
     const customer = await this.customerRepository.findOne(where);
     if (!customer) {
       this.error.unprocessableEntity([
-        i18n.t(
-          't.Resending the confirmation code requires initial registration, your information is not registered in the system!',
-        ),
+        't.Resending the confirmation code requires initial registration, your information is not registered in the system!',
       ]);
     }
 
     if (!customer) {
-      this.error.unprocessableEntity([i18n.t('t.The request is invalid!')]);
+      this.error.unprocessableEntity(['t.The request is invalid!']);
     }
 
     if (
       moment(customer.expireRandomHash).subtract(2, 'minutes').isAfter(moment())
     ) {
       this.error.unprocessableEntity([
-        i18n.t(
-          't.The verification code has already been sent, please try again in a few minutes!',
-        ),
+        't.The verification code has already been sent, please try again in a few minutes!',
       ]);
     }
 
@@ -466,8 +444,6 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async verifySignupByCode(dto: CustomerVerifySignupDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.findByValidHashCode(
       dto.code,
       dto.email,
@@ -477,7 +453,7 @@ export class CustomerService {
 
     if (!customer) {
       return this.error.unprocessableEntity([
-        i18n.t('t.The verification code is invalid or expired'),
+        't.The verification code is invalid or expired',
       ]);
     }
 
@@ -525,8 +501,6 @@ export class CustomerService {
    * GET /customers/:id/admin
    */
   async getByIdForAdmin(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.customerRepository
       .createQueryBuilder('customer')
 
@@ -535,7 +509,7 @@ export class CustomerService {
     const customer = await builder.getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity([i18n.t('t.The customer was not found!')]);
+      this.error.unprocessableEntity(['t.The customer was not found!']);
     }
 
     return customer;
@@ -546,16 +520,12 @@ export class CustomerService {
    * POST /customers/admin
    */
   async add(dto: CreateCustomerDto) {
-    const i18n = I18nContext.current();
-
     // Checking unique email in this company
     if (
       dto.email &&
       (await this.customerRepository.findOne({ email: dto.email }))
     ) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This email has already been used'),
-      ]);
+      this.error.unprocessableEntity(['t.This email has already been used']);
     }
 
     // Checking unique mobile number in this company
@@ -563,9 +533,7 @@ export class CustomerService {
       dto.mobile &&
       (await this.customerRepository.findOne({ mobile: dto.mobile }))
     ) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This mobile has already been used'),
-      ]);
+      this.error.unprocessableEntity(['t.This mobile has already been used']);
     }
 
     // Creating a new customer
@@ -588,14 +556,12 @@ export class CustomerService {
    * PUT /customers/admin
    */
   async update(dto: UpdateCustomerDto) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository.findOne({
       where: { id: dto.id },
     });
 
     if (!customer) {
-      this.error.unprocessableEntity([i18n.t('t.The customer was not found!')]);
+      this.error.unprocessableEntity(['t.The customer was not found!']);
     }
 
     // Checking unique email in this company
@@ -606,9 +572,7 @@ export class CustomerService {
         id: Not(dto.id),
       }))
     ) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This email has already been used'),
-      ]);
+      this.error.unprocessableEntity(['t.This email has already been used']);
     }
 
     // Checking unique mobile number in this company
@@ -619,9 +583,7 @@ export class CustomerService {
         id: Not(dto.id),
       }))
     ) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This mobile has already been used'),
-      ]);
+      this.error.unprocessableEntity(['t.This mobile has already been used']);
     }
 
     // Updating the customer
@@ -645,14 +607,12 @@ export class CustomerService {
    * DELETE /customers/:id/admin
    */
   async delete(id: number, force: string) {
-    const i18n = I18nContext.current();
-
     const customer = await this.customerRepository.findOne({
       where: { id },
     });
 
     if (!customer) {
-      this.error.unprocessableEntity([i18n.t('t.The customer was not found!')]);
+      this.error.unprocessableEntity(['t.The customer was not found!']);
     }
 
     try {
@@ -664,9 +624,7 @@ export class CustomerService {
     } catch (err) {
       this.error.methodNotAllowed(
         [
-          i18n.t(
-            't.Some orders and reserves are related to this customer. Are you sure you want to delete it?',
-          ),
+          't.Some orders and reserves are related to this customer. Are you sure you want to delete it?',
         ],
         { hasDependencies: true },
       );

@@ -1,6 +1,5 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { I18nContext } from 'nestjs-i18n';
 import { ConfigurationService } from '../config/configuration.service';
 import { MailData } from './interfaces/mail-data.interface';
 
@@ -21,9 +20,7 @@ export class MailService {
       lastName: string;
     }>,
   ) {
-    const i18n = I18nContext.current();
-
-    const title = `${i18n.t('t.Forgot password').replace(/^t\./i, '')} ${
+    const title = `${'t.Forgot password'.replace(/^t\./i, '')} ${
       this.config.app.name
     }`;
     const url = `${this.config.app.siteBaseUrl}/auth/reset-password?token=${mailData.data.hash}`;
@@ -31,8 +28,8 @@ export class MailService {
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${url} ${i18n.t('t.Forgot password').replace(/^t\./i, '')}`,
-      template: `reset-password-${i18n.lang}`,
+      text: `${url} ${'t.Forgot password'.replace(/^t\./i, '')}`,
+      template: `reset-password`,
       context: {
         full_name:
           `${mailData.data.firstName} ${mailData.data.lastName}`.trim(),
@@ -53,17 +50,15 @@ export class MailService {
       lastName: string;
     }>,
   ) {
-    const i18n = I18nContext.current();
-
-    const title = `${i18n.t('t.Forgot password').replace(/^t\./i, '')} - ${
+    const title = `${'t.Forgot password'.replace(/^t\./i, '')} - ${
       this.config.app.name
     }`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${i18n.t('t.Forgot password').replace(/^t\./i, '')}`,
-      template: `reset-customer-password-${i18n.lang}`,
+      text: `${'t.Forgot password'.replace(/^t\./i, '')}`,
+      template: `reset-customer-password`,
       context: {
         full_name:
           `${mailData.data.firstName} ${mailData.data.lastName}`.trim(),
@@ -78,18 +73,16 @@ export class MailService {
    * ************************************
    */
   async sendCustomerConfirmation(mailData: MailData<{ code: string }>) {
-    const i18n = I18nContext.current();
-
-    const title = `${i18n.t('t.Welcome to').replace(/^t\./i, '')} ${
+    const title = `${'t.Welcome to'.replace(/^t\./i, '')} ${
       this.config.app.name
     }
-    - ${i18n.t('t.Confirm Email')}`;
+    - ${'t.Confirm Email'}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${i18n.t('t.Confirm Email').replace(/^t\./i, '')}`,
-      template: `confirmation-${i18n.lang}`,
+      text: `${'t.Confirm Email'.replace(/^t\./i, '')}`,
+      template: `confirmation`,
       context: {
         email: mailData.to,
         code: mailData.data.code,
@@ -132,17 +125,15 @@ export class MailService {
       currency: string;
     }>,
   ) {
-    const i18n = I18nContext.current();
-
-    const title = `${i18n.t('t.New order').replace(/^t\./i, '')} ${
+    const title = `${'t.New order'.replace(/^t\./i, '')} ${
       this.config.app.name
     }`;
 
     return await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${i18n.t('t.New order').replace(/^t\./i, '')}`,
-      template: `notif-new-order-admin-${i18n.lang}`,
+      text: `${'t.New order'.replace(/^t\./i, '')}`,
+      template: `notif-new-order-admin`,
       context: {
         amount: mailData.data.amount,
         number: mailData.data.number,
@@ -161,17 +152,15 @@ export class MailService {
       subject: string;
     }>,
   ) {
-    const i18n = I18nContext.current();
-
-    const title = `${i18n.t('t.Reply to your ticket').replace(/^t\./i, '')} ${
+    const title = `${'t.Reply to your ticket'.replace(/^t\./i, '')} ${
       this.config.app.name
     }`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${i18n.t('t.Reply to your ticket').replace(/^t\./i, '')}`,
-      template: `notif-ticket-admin-${i18n.lang}`,
+      text: `${'t.Reply to your ticket'.replace(/^t\./i, '')}`,
+      template: `notif-ticket-admin`,
       context: {
         ticket_subject: mailData.data.subject,
         app_name: this.config.app.name,

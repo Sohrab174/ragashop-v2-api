@@ -24,7 +24,6 @@ import { Page } from '../../utils/decorators/page.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { I18n } from 'nestjs-i18n';
 import { CreateAttributeDto } from './dto/create-attribute.dto';
 import { UpdateAttributeDto } from './dto/update-attribute.dto';
 import { CreateAttributeValueDto } from './dto/create-attribute-value.dto';
@@ -120,11 +119,11 @@ export class AttributeController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async addValue(@Body() dto: CreateAttributeValueDto, @I18n() i18n) {
+  async addValue(@Body() dto: CreateAttributeValueDto) {
     const newValue = await this.attributeService.addValue(dto);
 
     return successfulResult(
-      [i18n.t('t.The attribute value is created successfully')],
+      ['t.The attribute value is created successfully'],
       newValue,
     );
   }
@@ -138,11 +137,11 @@ export class AttributeController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(@Body() dto: CreateAttributeDto, @I18n() i18n) {
+  async add(@Body() dto: CreateAttributeDto) {
     const newAttribute = await this.attributeService.add(dto);
 
     return successfulResult(
-      [i18n.t('t.The attribute is created successfully')],
+      ['t.The attribute is created successfully'],
       newAttribute,
     );
   }
@@ -155,12 +154,10 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async updateValues(@Body() dto: UpdateAttributeValueDto, @I18n() i18n) {
+  async updateValues(@Body() dto: UpdateAttributeValueDto) {
     await this.attributeService.updateValue(dto);
 
-    return successfulResult([
-      i18n.t('t.The attribute value is updated successfully'),
-    ]);
+    return successfulResult(['t.The attribute value is updated successfully']);
   }
 
   /**
@@ -171,12 +168,10 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(@Body() dto: UpdateAttributeDto, @I18n() i18n) {
+  async update(@Body() dto: UpdateAttributeDto) {
     await this.attributeService.update(dto);
 
-    return successfulResult([
-      i18n.t('t.The attribute is updated successfully'),
-    ]);
+    return successfulResult(['t.The attribute is updated successfully']);
   }
 
   /**
@@ -187,10 +182,10 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async deleteValue(@Param('id') attributeValueId: number, @I18n() i18n) {
+  async deleteValue(@Param('id') attributeValueId: number) {
     await this.attributeService.deleteValue(attributeValueId);
 
-    return successfulResult([i18n.t('t.The attribute value is deleted')]);
+    return successfulResult(['t.The attribute value is deleted']);
   }
 
   /**
@@ -201,9 +196,9 @@ export class AttributeController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(@Param('id') attributeId: number, @I18n() i18n) {
+  async delete(@Param('id') attributeId: number) {
     await this.attributeService.delete(attributeId);
 
-    return successfulResult([i18n.t('t.The attribute is deleted')]);
+    return successfulResult(['t.The attribute is deleted']);
   }
 }

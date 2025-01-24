@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { I18nContext } from 'nestjs-i18n';
 import { Repository, Not, getConnection } from 'typeorm';
 import {
   applyFiltersToBuilder,
@@ -56,8 +55,6 @@ export class PageService {
    * GET /pages/:id/admin
    */
   async getByIdForAdmin(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.pageRepository
       .createQueryBuilder('page')
       .where({ id });
@@ -65,7 +62,7 @@ export class PageService {
     const page = await builder.getOne();
 
     if (!page) {
-      this.error.unprocessableEntity([i18n.t('t.The page not found!')]);
+      this.error.unprocessableEntity(['t.The page not found!']);
     }
 
     return page;
@@ -88,15 +85,13 @@ export class PageService {
    * GET /pages/:code
    */
   async getById(code: string) {
-    const i18n = I18nContext.current();
-
     const page = await this.pageRepository
       .createQueryBuilder('page')
       .andWhere({ code })
       .getOne();
 
     if (!page) {
-      this.error.unprocessableEntity([i18n.t('t.The page not found!')]);
+      this.error.unprocessableEntity(['t.The page not found!']);
     }
 
     return page;
@@ -107,16 +102,12 @@ export class PageService {
    * POST /pages/admin
    */
   async add(dto: CreatePageDto, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     const foundPageByCode = await this.pageRepository.findOne({
       code: dto.code,
     });
 
     if (foundPageByCode) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This code has already been used'),
-      ]);
+      this.error.unprocessableEntity(['t.This code has already been used']);
     }
 
     // Creating a new page
@@ -140,8 +131,6 @@ export class PageService {
    * PUT /pages/admin
    */
   async update(dto: UpdatePageDto, user: UserEntity) {
-    const i18n = I18nContext.current();
-
     // Checking the not used page code
     const foundPageByCode = await this.pageRepository.findOne({
       code: dto.code,
@@ -149,9 +138,7 @@ export class PageService {
     });
 
     if (foundPageByCode) {
-      this.error.unprocessableEntity([
-        i18n.t('t.This code has already been used'),
-      ]);
+      this.error.unprocessableEntity(['t.This code has already been used']);
     }
 
     // Found page by id for updating
@@ -174,14 +161,12 @@ export class PageService {
    * DELETE /pages/:id/admin
    */
   async delete(id: number) {
-    const i18n = I18nContext.current();
-
     const page = await this.pageRepository.findOne({
       where: { id },
     });
 
     if (!page) {
-      this.error.unprocessableEntity([i18n.t('t.The page not found!')]);
+      this.error.unprocessableEntity(['t.The page not found!']);
     }
 
     // Rollbacking the page locales if an error occurs
@@ -197,7 +182,7 @@ export class PageService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
 
-      this.error.methodNotAllowed([i18n.t('t.An error has occurred!')]);
+      this.error.methodNotAllowed(['t.An error has occurred!']);
     } finally {
       await queryRunner.release();
     }

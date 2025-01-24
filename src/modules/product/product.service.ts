@@ -614,13 +614,6 @@ export class ProductService {
         'attributeValue',
       )
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-      .leftJoin('product.productFiles', 'productFiles')
-      .addSelect([
-        'productFiles.id',
-        'productFiles.title',
-        'productFiles.fileType',
-        'productFiles.fileSize',
-      ])
 
       // Product incredible offers for attributes
       .leftJoin(
@@ -1182,7 +1175,7 @@ export class ProductService {
   async delete(id: number, user: UserEntity) {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: ['productGalleries', 'productFiles', 'productAttributeValues'],
+      relations: ['productGalleries', 'productAttributeValues'],
     });
 
     if (!product) {

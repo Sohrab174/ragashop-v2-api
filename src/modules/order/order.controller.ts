@@ -19,7 +19,6 @@ import { RolesGuard } from '../auth/role/role.guard';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderService } from './order.service';
 
-import { I18n } from 'nestjs-i18n';
 import { Roles } from '../auth/role/role.decorator';
 import { UserRoles } from '../user/entities/user.entity';
 import { Page } from '../../utils/decorators/page.decorator';
@@ -47,14 +46,10 @@ export class OrderController {
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
   @UseGuards(CustomerJwtAuthGuard)
-  async create(
-    @Customer('id') customerId,
-    @Body() dto: CreateOrderDto,
-    @I18n() i18n,
-  ) {
+  async create(@Customer('id') customerId, @Body() dto: CreateOrderDto) {
     const newOrder = await this.orderService.addUpdate(dto, customerId);
     return successfulResult(
-      [i18n.t('t.The new order has been successfully created')],
+      ['t.The new order has been successfully created'],
       newOrder,
     );
   }
@@ -68,10 +63,10 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async createByAdmin(@Body() dto: CreateOrderByAdminDto, @I18n() i18n) {
+  async createByAdmin(@Body() dto: CreateOrderByAdminDto) {
     const newOrder = await this.orderService.addUpdate(dto);
     return successfulResult(
-      [i18n.t('t.The new order has been successfully created')],
+      ['t.The new order has been successfully created'],
       newOrder,
     );
   }
@@ -84,11 +79,9 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async updateByAdmin(@Body() dto: UpdateOrderByAdminDto, @I18n() i18n) {
+  async updateByAdmin(@Body() dto: UpdateOrderByAdminDto) {
     await this.orderService.addUpdate(dto, null, dto.id);
-    return successfulResult([
-      i18n.t('t.The order has been successfully updated'),
-    ]);
+    return successfulResult(['t.The order has been successfully updated']);
   }
 
   /**
@@ -285,10 +278,10 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(@Body() dto: UpdateOrderStatusDto, @I18n() i18n) {
+  async update(@Body() dto: UpdateOrderStatusDto) {
     await this.orderService.updateStatus(dto);
 
-    return successfulResult([i18n.t('t.The order is updated successfully')]);
+    return successfulResult(['t.The order is updated successfully']);
   }
 
   /**
@@ -299,9 +292,9 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(@Param('id') orderId: number, @I18n() i18n) {
+  async delete(@Param('id') orderId: number) {
     await this.orderService.delete(orderId);
 
-    return successfulResult([i18n.t('t.The order is deleted')]);
+    return successfulResult(['t.The order is deleted']);
   }
 }

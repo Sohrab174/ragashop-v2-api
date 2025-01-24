@@ -30,7 +30,6 @@ import { Page } from '../../utils/decorators/page.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { I18n } from 'nestjs-i18n';
 import { CreateGatewayDto } from './dto/create-gateway.dto';
 import { UpdateGatewayDto } from './dto/update-gateway.dto';
 import { sort } from '../../utils/sort';
@@ -118,11 +117,11 @@ export class GatewayController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(@Body() dto: CreateGatewayDto, @I18n() i18n) {
+  async add(@Body() dto: CreateGatewayDto) {
     const newGateway = await this.gatewayService.add(dto);
 
     return successfulResult(
-      [i18n.t('t.The gateway is created successfully')],
+      ['t.The gateway is created successfully'],
       newGateway,
     );
   }
@@ -135,16 +134,16 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async sort(@Body() dto: GatewaySortDto, @I18n() i18n) {
+  async sort(@Body() dto: GatewaySortDto) {
     const result = await sort(GatewayEntity.name, dto.id, dto.action);
 
     if (!result) {
       return this.error.unprocessableEntity([
-        i18n.t('t.Replacement gateway not found'),
+        't.Replacement gateway not found',
       ]);
     }
 
-    return successfulResult([i18n.t('t.The gateway was sorted successfully')]);
+    return successfulResult(['t.The gateway was sorted successfully']);
   }
 
   /**
@@ -155,10 +154,10 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(@Body() dto: UpdateGatewayDto, @I18n() i18n) {
+  async update(@Body() dto: UpdateGatewayDto) {
     await this.gatewayService.update(dto);
 
-    return successfulResult([i18n.t('t.The gateway is updated successfully')]);
+    return successfulResult(['t.The gateway is updated successfully']);
   }
 
   /**
@@ -169,9 +168,9 @@ export class GatewayController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(@Param('id') gatewayId: number, @I18n() i18n) {
+  async delete(@Param('id') gatewayId: number) {
     await this.gatewayService.delete(gatewayId);
 
-    return successfulResult([i18n.t('t.The gateway is deleted')]);
+    return successfulResult(['t.The gateway is deleted']);
   }
 }

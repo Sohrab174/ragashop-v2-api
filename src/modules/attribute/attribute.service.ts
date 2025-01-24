@@ -4,7 +4,6 @@ import { AttributeEntity } from './entities/attribute.entity';
 import { Repository } from 'typeorm';
 import { getConnection } from 'typeorm/globals';
 import { ErrorService } from '../../error/error.service';
-import { I18nContext } from 'nestjs-i18n';
 import {
   applyFiltersToBuilder,
   applySortingToBuilder,
@@ -33,8 +32,6 @@ export class AttributeService {
    * GET /attributes/:id/admin
    */
   async getByIdForAdmin(id: number) {
-    const i18n = I18nContext.current();
-
     const builder = this.attributeRepository
       .createQueryBuilder('attribute')
       .leftJoinAndSelect('attribute.values', 'values')
@@ -43,7 +40,7 @@ export class AttributeService {
     const attribute = await builder.getOne();
 
     if (!attribute) {
-      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+      this.error.unprocessableEntity(['t.The attribute not found!']);
     }
 
     return attribute;
@@ -114,13 +111,11 @@ export class AttributeService {
    * POST /attributes/value/admin
    */
   async addValue(dto: CreateAttributeValueDto) {
-    const i18n = I18nContext.current();
-
     const existAttribute = await this.attributeRepository.findOne({
       id: dto.attributeId,
     });
     if (!existAttribute) {
-      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+      this.error.unprocessableEntity(['t.The attribute not found!']);
     }
 
     // Creating a new attribute value
@@ -162,16 +157,12 @@ export class AttributeService {
    * PUT /attributes/value/admin
    */
   async updateValue(dto: UpdateAttributeValueDto) {
-    const i18n = I18nContext.current();
-
     const attributeValue = await this.attributeValueRepository.findOne({
       where: { id: dto.id },
     });
 
     if (!attributeValue) {
-      this.error.unprocessableEntity([
-        i18n.t('t.The attribute value not found!'),
-      ]);
+      this.error.unprocessableEntity(['t.The attribute value not found!']);
     }
 
     // Updating the attribute value
@@ -207,14 +198,12 @@ export class AttributeService {
    * PUT /attributes/admin
    */
   async update(dto: UpdateAttributeDto) {
-    const i18n = I18nContext.current();
-
     const attribute = await this.attributeRepository.findOne({
       where: { id: dto.id },
     });
 
     if (!attribute) {
-      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+      this.error.unprocessableEntity(['t.The attribute not found!']);
     }
 
     // Updating the attribute
@@ -229,14 +218,12 @@ export class AttributeService {
    * DELETE /attributes/:id/admin
    */
   async delete(id: number) {
-    const i18n = I18nContext.current();
-
     const attribute = await this.attributeRepository.findOne({
       where: { id },
     });
 
     if (!attribute) {
-      this.error.unprocessableEntity([i18n.t('t.The attribute not found!')]);
+      this.error.unprocessableEntity(['t.The attribute not found!']);
     }
 
     // Rollbacking the attribute locales if an error occurs
@@ -253,9 +240,7 @@ export class AttributeService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        i18n.t(
-          't.Some values are related to this attribute, please delete the values of this attribute first!',
-        ),
+        't.Some values are related to this attribute, please delete the values of this attribute first!',
       ]);
     } finally {
       await queryRunner.release();
@@ -269,16 +254,12 @@ export class AttributeService {
    * DELETE /attributes/value/:id/admin
    */
   async deleteValue(id: number) {
-    const i18n = I18nContext.current();
-
     const attributeValue = await this.attributeValueRepository.findOne({
       where: { id },
     });
 
     if (!attributeValue) {
-      this.error.unprocessableEntity([
-        i18n.t('t.The attribute value not found!'),
-      ]);
+      this.error.unprocessableEntity(['t.The attribute value not found!']);
     }
 
     // Rollbacking the attribute locales if an error occurs
@@ -295,9 +276,7 @@ export class AttributeService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        i18n.t(
-          't.Some products are related to this attribute value, please delete the products of this attribute value first!',
-        ),
+        't.Some products are related to this attribute value, please delete the products of this attribute value first!',
       ]);
     } finally {
       await queryRunner.release();

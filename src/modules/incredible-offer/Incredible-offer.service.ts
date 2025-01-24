@@ -7,7 +7,6 @@ import { CreateIncredibleOfferDto } from './dto/create-incredible-offer.dto';
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
 import { ProductService } from '../product/product.service';
-import { I18nContext } from 'nestjs-i18n';
 import { UpdateIncredibleOfferDto } from './dto/update-incredible-offer.dto';
 import {
   applyFiltersToBuilder,
@@ -61,8 +60,6 @@ export class IncredibleOfferService {
     dto: IncredibleOfferImportExcelDto,
     file: Express.Multer.File,
   ) {
-    const i18n = I18nContext.current();
-
     const workbook = xlsx.readFile(file.path);
 
     const sheet_name = workbook.SheetNames[0];
@@ -84,9 +81,10 @@ export class IncredibleOfferService {
           results.push({
             number,
             success: false,
-            message: i18n
-              .t('t.No product with this number was found')
-              .replace(/^t\./i, ''),
+            message: 't.No product with this number was found'.replace(
+              /^t\./i,
+              '',
+            ),
           });
           continue;
         }
@@ -105,9 +103,11 @@ export class IncredibleOfferService {
           results.push({
             number,
             success: false,
-            message: i18n
-              .t('t.The offer has already been created for this product')
-              .replace(/^t\./i, ''),
+            message:
+              't.The offer has already been created for this product'.replace(
+                /^t\./i,
+                '',
+              ),
           });
           continue;
         }
@@ -128,17 +128,17 @@ export class IncredibleOfferService {
         results.push({
           number,
           success: true,
-          message: i18n
-            .t('t.The offer for this product has been created successfully')
-            .replace(/^t\./i, ''),
+          message:
+            't.The offer for this product has been created successfully'.replace(
+              /^t\./i,
+              '',
+            ),
         });
       } catch (e) {
         results.push({
           number,
           success: false,
-          message: i18n
-            .t('t.An unexpected error has occurred')
-            .replace(/^t\./i, ''),
+          message: 't.An unexpected error has occurred'.replace(/^t\./i, ''),
         });
       }
     }

@@ -31,7 +31,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from '../../utils/multer.options';
 import { Query, UploadedFile } from '@nestjs/common/decorators';
 import { UpdateCategoryIconDto } from './dto/update-category-icon.dto';
-import { I18n } from 'nestjs-i18n';
 import { CategorySortDto } from './dto/category-sort.dto';
 import { ErrorService } from '../../error/error.service';
 import { DeleteCategoryDto } from './dto/delete-category.dto';
@@ -163,11 +162,11 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(@Body() dto: CreateCategoryDto, @I18n() i18n) {
+  async add(@Body() dto: CreateCategoryDto) {
     const newCategory = await this.categoryService.add(dto);
 
     return successfulResult(
-      [i18n.t('t.The category is created successfully')],
+      ['t.The category is created successfully'],
       newCategory,
     );
   }
@@ -187,11 +186,10 @@ export class CategoryController {
     @User() user: UserEntity,
     @Filter(['status', ['name']])
     filters,
-    @I18n() i18n,
   ) {
     await this.categoryService.sort(dto, user, filters);
 
-    return successfulResult([i18n.t('t.The category was sorted successfully')]);
+    return successfulResult(['t.The category was sorted successfully']);
   }
 
   /**
@@ -202,10 +200,10 @@ export class CategoryController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(@Body() dto: UpdateCategoryDto, @I18n() i18n) {
+  async update(@Body() dto: UpdateCategoryDto) {
     await this.categoryService.update(dto);
 
-    return successfulResult([i18n.t('t.The category is updated successfully')]);
+    return successfulResult(['t.The category is updated successfully']);
   }
 
   /**
@@ -222,12 +220,11 @@ export class CategoryController {
     @Body() dto: UpdateCategoryIconDto,
     @UploadedFile() icon,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     const iconPath = await this.categoryService.updateIcon(dto, icon);
 
     return successfulResult(
-      [i18n.t('t.The category icon is updated successfully')],
+      ['t.The category icon is updated successfully'],
       iconPath,
     );
   }
@@ -240,14 +237,10 @@ export class CategoryController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async deleteIcon(
-    @Param('id') categoryId: number,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async deleteIcon(@Param('id') categoryId: number, @User() user: UserEntity) {
     await this.categoryService.deleteIcon(categoryId, user);
 
-    return successfulResult([i18n.t('t.The category icon is deleted')]);
+    return successfulResult(['t.The category icon is deleted']);
   }
 
   /**
@@ -262,10 +255,9 @@ export class CategoryController {
     @Param('id') categoryId: number,
     @User() user: UserEntity,
     @Body() dto: DeleteCategoryDto,
-    @I18n() i18n,
   ) {
     await this.categoryService.delete(categoryId, user, dto);
 
-    return successfulResult([i18n.t('t.The category is deleted')]);
+    return successfulResult(['t.The category is deleted']);
   }
 }

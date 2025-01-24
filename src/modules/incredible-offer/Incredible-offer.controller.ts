@@ -19,7 +19,6 @@ import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { UserEntity, UserRoles } from '../user/entities/user.entity';
-import { I18n } from 'nestjs-i18n';
 import { CreateIncredibleOfferDto } from './dto/create-incredible-offer.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from '../../utils/multer.options';
@@ -51,17 +50,10 @@ export class IncredibleOffersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
-  async add(
-    @Body() dto: CreateIncredibleOfferDto,
-    @User() user: UserEntity,
-    @I18n() i18n,
-  ) {
+  async add(@Body() dto: CreateIncredibleOfferDto, @User() user: UserEntity) {
     const newOffer = await this.incredibleOfferService.add(dto, user);
 
-    return successfulResult(
-      [i18n.t('t.The offer is created successfully')],
-      newOffer,
-    );
+    return successfulResult(['t.The offer is created successfully'], newOffer);
   }
 
   /**
@@ -81,14 +73,13 @@ export class IncredibleOffersController {
     @Body() dto: IncredibleOfferImportExcelDto,
     @UploadedFile() file,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     const results = await this.incredibleOfferService.importExcel(dto, file);
 
     const successCount = results.filter((result) => result.success).length;
     if (successCount === 0) {
       this.error.unprocessableEntity(
-        [i18n.t('t.There was an error importing the incredible offers list')],
+        ['t.There was an error importing the incredible offers list'],
         results,
       );
     }
@@ -99,7 +90,7 @@ export class IncredibleOffersController {
       message = 'The list of special offers has been successfully imported';
     }
 
-    return successfulResult([i18n.t(`t.${message}`)], results);
+    return successfulResult([`t.${message}`], results);
   }
 
   /**
@@ -113,11 +104,10 @@ export class IncredibleOffersController {
   async update(
     @Body() dto: UpdateIncredibleOfferDto,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     await this.incredibleOfferService.update(dto);
 
-    return successfulResult([i18n.t('t.The offer is updated successfully')]);
+    return successfulResult(['t.The offer is updated successfully']);
   }
 
   /**
@@ -205,12 +195,8 @@ export class IncredibleOffersController {
   async delete(
     @Body() dto: DeleteIncredibleOfferDto,
     @User() user: UserEntity,
-    @I18n() i18n,
   ) {
     const data = await this.incredibleOfferService.delete(dto);
-    return successfulResult(
-      [i18n.t('t.The offers are deleted successfully')],
-      data,
-    );
+    return successfulResult(['t.The offers are deleted successfully'], data);
   }
 }
