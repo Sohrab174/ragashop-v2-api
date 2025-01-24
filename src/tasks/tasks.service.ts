@@ -8,9 +8,9 @@ dotenv.config();
 export class TasksService {
   constructor(private orderService: OrderService) {}
 
-  @Cron(process.env.CRON_JOB_DELETE_UNPAID_ORDER)
-  async handleDeleteUnpaidOrder() {
-    console.log('CRON JOB FOR DELETE UNPAID ORDER');
-    await this.orderService.handleDeleteUnpaid();
-  }
+  // @Cron(process.env.CRON_JOB_DELETE_UNPAID_ORDER)
+  // async handleDeleteUnpaidOrder() {
+  //   console.log('CRON JOB FOR DELETE UNPAID ORDER');
+  //   await this.orderService.handleDeleteUnpaid();
+  // }
 }
