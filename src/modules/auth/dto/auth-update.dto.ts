@@ -26,12 +26,12 @@ export class AuthUpdateDto {
     convertPersianToEnglishDigit(`${value}`.toLowerCase().trim()),
   )
   @Validate(IsNotExist, ['UserEntity'], {
-    message: 'This email is already registered',
+    message: 'با این ایمیل قبلا ثبت نام انجام شده است',
   })
   @IsEmail(
     {},
     {
-      message: 'The email is invalid',
+      message: 'ایمیل وارد شده نامعتبر است',
     },
   )
   email: string;
@@ -40,7 +40,7 @@ export class AuthUpdateDto {
   @IsOptional()
   @Transform(({ value }) => convertToStandardMobileFormat(value))
   @Validate(IsNotExist, ['UserEntity'], {
-    message: 'This mobile is already registered',
+    message: 'با این موبایل قبلا ثبت نام انجام شده است',
   })
   mobile?: string;
 }

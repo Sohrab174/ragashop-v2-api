@@ -40,7 +40,7 @@ export class UserController {
   @HttpCode(HttpStatus.CREATED)
   async createForGod(@Body() dto: CreateUserDto) {
     const newUser = await this.userService.add(dto);
-    return successfulResult(['t.New user successfully created'], newUser);
+    return successfulResult(['کاربر جدید با موفقیت ایجاد شد'], newUser);
   }
 
   /**
@@ -54,7 +54,7 @@ export class UserController {
   @HttpCode(HttpStatus.CREATED)
   async createForAdmin(@Body() dto: CreateUserDto) {
     const newUser = await this.userService.add(dto);
-    return successfulResult(['t.New user successfully created'], newUser);
+    return successfulResult(['کاربر جدید با موفقیت ایجاد شد'], newUser);
   }
 
   /**
@@ -67,9 +67,7 @@ export class UserController {
   @Roles(UserRoles.god)
   async updateUserForGod(@Body() dto: UpdateUserDto) {
     await this.userService.updateUser(dto.id, dto);
-    return successfulResult([
-      't.The user profile has been successfully edited',
-    ]);
+    return successfulResult(['مشخصات کاربر با موفقیت ویرایش شد']);
   }
 
   /**
@@ -82,9 +80,7 @@ export class UserController {
   @Roles(UserRoles.admin)
   async updateUserForAdmin(@Body() dto: UpdateUserDto) {
     await this.userService.updateUser(dto.id, dto);
-    return successfulResult([
-      't.The user profile has been successfully edited',
-    ]);
+    return successfulResult(['مشخصات کاربر با موفقیت ویرایش شد']);
   }
 
   /**

@@ -54,7 +54,7 @@ export class CustomerController {
   @Post('login/mobile')
   async loginByMobile(@Body() dto: CustomerLoginMobileDto) {
     const data = await this.customerService.loginByMobile(dto);
-    return successfulResult(['t.The verification code has been sent'], data);
+    return successfulResult(['کد تایید ارسال شد'], data);
   }
 
   /**
@@ -64,7 +64,7 @@ export class CustomerController {
   async verifyLogin(@Body() dto: CustomerLoginVerifyDto) {
     const response = await this.customerService.verifyLogin(dto);
     if (response) {
-      return successfulResult(['t.You have successfully logged in'], response);
+      return successfulResult(['با موفقیت لاگین شدید'], response);
     }
   }
 
@@ -74,7 +74,7 @@ export class CustomerController {
   @Post('login')
   async login(@Body() dto: CustomerLoginDto) {
     const response = await this.customerService.login(dto);
-    return successfulResult(['t.You have successfully logged in'], response);
+    return successfulResult(['با موفقیت لاگین شدید'], response);
   }
 
   /**
@@ -99,7 +99,7 @@ export class CustomerController {
     @Body() dto: CustomerUpdateMeDto,
   ) {
     await this.customerService.updateMe(customerId, dto);
-    return successfulResult(['t.Your profile has been successfully updated']);
+    return successfulResult(['پروفایل شما با موفقیت آپدیت شد']);
   }
 
   /**
@@ -114,7 +114,7 @@ export class CustomerController {
     @Body() dto: CustomerChangePasswordDto,
   ) {
     await this.customerService.changePassword(customerId, dto);
-    return successfulResult(['t.The password has been successfully updated']);
+    return successfulResult(['کلمه عبور با موفقیت آپدیت شد']);
   }
 
   /**
@@ -123,7 +123,7 @@ export class CustomerController {
   @Post('password/forgot')
   async forgotPassword(@Body() dto: CustomerForgotDto) {
     await this.customerService.forgotPassword(dto);
-    return successfulResult(['t.The verification code has been sent']);
+    return successfulResult(['کد تایید ارسال شد']);
   }
 
   /**
@@ -133,10 +133,7 @@ export class CustomerController {
   async resetPassword(@Body() dto: CustomerResetPasswordDto) {
     const response = await this.customerService.resetPasswordByToken(dto);
 
-    return successfulResult(
-      ['Your password has been successfully changed'],
-      response || {},
-    );
+    return successfulResult(['پسورد شما با موفقیت تغییر یافت'], response || {});
   }
 
   /**
@@ -146,10 +143,7 @@ export class CustomerController {
   @Post('signup')
   async signup(@Body() dto: CustomerSignupDto) {
     const response = await this.customerService.signup(dto);
-    return successfulResult(
-      ['t.The verification code has been sent'],
-      response,
-    );
+    return successfulResult(['کد تایید ارسال شد'], response);
   }
 
   /**
@@ -174,7 +168,7 @@ export class CustomerController {
   async sendOtpCode(@Body() dto: CustomerResendOtpDto) {
     await this.customerService.sendOtpCode(dto);
 
-    return successfulResult(['t.The verification code has been sent again']);
+    return successfulResult(['کد تایید مجدد ارسال شد']);
   }
 
   /**

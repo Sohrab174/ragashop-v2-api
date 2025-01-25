@@ -73,15 +73,15 @@ export class MailService {
    * ************************************
    */
   async sendCustomerConfirmation(mailData: MailData<{ code: string }>) {
-    const title = `${'t.Welcome to'.replace(/^t\./i, '')} ${
+    const title = `${'خوش آمدید به'.replace(/^t\./i, '')} ${
       this.config.app.name
     }
-    - ${'t.Confirm Email'}`;
+    - ${'تایید ایمیل'}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${'t.Confirm Email'.replace(/^t\./i, '')}`,
+      text: `${'تایید ایمیل'.replace(/^t\./i, '')}`,
       template: `confirmation`,
       context: {
         email: mailData.to,

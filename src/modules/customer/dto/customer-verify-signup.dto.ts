@@ -23,7 +23,7 @@ export class CustomerVerifySignupDto {
   @IsEmail(
     {},
     {
-      message: 'The email is invalid',
+      message: 'ایمیل وارد شده نامعتبر است',
     },
   )
   email: string;

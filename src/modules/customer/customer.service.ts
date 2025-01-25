@@ -58,15 +58,11 @@ export class CustomerService {
       .getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity([
-        't.The username or password is incorrect',
-      ]);
+      this.error.unprocessableEntity(['نام کاربری یا کلمه عبور اشتباه است']);
     }
 
     if (!(await customer.isCorrectSaltPassword(dto.password))) {
-      this.error.unprocessableEntity([
-        't.The username or password is incorrect',
-      ]);
+      this.error.unprocessableEntity(['نام کاربری یا کلمه عبور اشتباه است']);
     }
 
     // if (customer.status === CustomerStatus.inactive) {
@@ -206,7 +202,7 @@ export class CustomerService {
       dto.oldPassword &&
       !(await customer.isCorrectSaltPassword(dto.oldPassword))
     ) {
-      this.error.unprocessableEntity(['t.The current password is incorrect']);
+      this.error.unprocessableEntity(['کلمه عبور فعلی اشتباه است']);
     }
 
     customer.password = dto.newPassword;
@@ -414,7 +410,7 @@ export class CustomerService {
     const customer = await this.customerRepository.findOne(where);
     if (!customer) {
       this.error.unprocessableEntity([
-        't.Resending the confirmation code requires initial registration, your information is not registered in the system!',
+        'ارسال مجدد کد تایید نیازمند ثبت نام اولیه است، اطلاعات شما در سیستم ثبت نشده است',
       ]);
     }
 

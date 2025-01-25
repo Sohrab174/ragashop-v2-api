@@ -109,7 +109,7 @@ export class UserService {
 
     const user = await builder.getOne();
     if (!user) {
-      this.error.unprocessableEntity(['t.The user was not found']);
+      this.error.unprocessableEntity(['کاربر موردنظر یافت نشد']);
     }
 
     return {
@@ -168,7 +168,7 @@ export class UserService {
     const user = await this.userRepository.findOne(id);
 
     if (oldPassword && !(await user.isCorrectSaltPassword(oldPassword))) {
-      this.error.unprocessableEntity(['t.The current password is incorrect']);
+      this.error.unprocessableEntity(['کلمه عبور فعلی اشتباه است']);
     }
 
     user.password = newPassword;
@@ -185,7 +185,7 @@ export class UserService {
 
     if (!user) {
       throw this.error.unprocessableEntity([
-        't.There is an invalid or expired link to reset your password!',
+        'لینک تغییر پسورد نامعتبر یا منقضی شده است',
       ]);
     }
 
@@ -251,7 +251,7 @@ export class UserService {
       .getOne();
 
     if (!user) {
-      this.error.unprocessableEntity(['t.The user was not found!']);
+      this.error.unprocessableEntity(['کاربر موردنظر یافت نشد']);
     }
 
     return user;

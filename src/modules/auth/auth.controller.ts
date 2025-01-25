@@ -31,7 +31,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: AuthLoginDto) {
     const response = await this.authService.login(dto);
-    return successfulResult(['t.You have successfully logged in'], response);
+    return successfulResult(['با موفقیت لاگین شدید'], response);
   }
 
   /**
@@ -43,7 +43,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async me(@User('id') userId: number) {
     const userInfo = await this.authService.getById(userId);
-    return successfulResult(['t.User information'], userInfo);
+    return successfulResult(['اطلاعات کاربر'], userInfo);
   }
 
   /**
@@ -58,7 +58,7 @@ export class AuthController {
     @Body() dto: AuthChangePasswordDto,
   ) {
     await this.authService.changePassword(userId, dto);
-    return successfulResult(['t.The password has been successfully updated']);
+    return successfulResult(['کلمه عبور با موفقیت آپدیت شد']);
   }
 
   /**
@@ -70,7 +70,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async update(@User('id') userId: number, @Body() dto: AuthUpdateDto) {
     await this.authService.update(userId, dto);
-    return successfulResult(['t.Your profile has been successfully updated']);
+    return successfulResult(['پروفایل شما با موفقیت آپدیت شد']);
   }
 
   /**
@@ -79,7 +79,7 @@ export class AuthController {
   @Post('password/forgot')
   async forgotPassword(@Body() dto: AuthForgotDto) {
     await this.authService.forgotPassword(dto);
-    return successfulResult(['t.The verification code has been sent']);
+    return successfulResult(['کد تایید ارسال شد']);
   }
 
   /**
@@ -89,9 +89,6 @@ export class AuthController {
   async resetPassword(@Body() dto: AuthResetPasswordDto) {
     const response = await this.authService.resetPasswordByToken(dto);
 
-    return successfulResult(
-      ['Your password has been successfully changed'],
-      response || {},
-    );
+    return successfulResult(['پسورد شما با موفقیت تغییر یافت'], response || {});
   }
 }

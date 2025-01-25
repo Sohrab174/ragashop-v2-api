@@ -36,23 +36,20 @@ export class AuthService {
     );
 
     if (!user) {
-      this.error.unprocessableEntity([
-        't.The username or password is incorrect',
-      ]);
+      this.error.unprocessableEntity(['نام کاربری یا کلمه عبور اشتباه است']);
     }
 
     if (!(await user.isCorrectSaltPassword(dto.password))) {
-      this.error.unprocessableEntity([
-        't.The username or password is incorrect',
-      ]);
+      this.error.unprocessableEntity(['نام کاربری یا کلمه عبور اشتباه است']);
     }
 
     if (user.status === UserStatus.inactive) {
-      this.error.unprocessableEntity(['t.Your account is inactive']);
+      this.error.unprocessableEntity(['حساب کاربری شما غیرفعال می باشد']);
     }
 
     return await this.prepareUserResponse(user, dto.rememberMe);
   }
+  س;
 
   /**
    * --------------------------------------------------------
