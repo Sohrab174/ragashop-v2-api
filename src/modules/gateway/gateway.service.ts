@@ -35,7 +35,7 @@ export class GatewayService {
     const gateway = await builder.getOne();
 
     if (!gateway) {
-      this.error.unprocessableEntity(['t.The gateway was not found!']);
+      this.error.unprocessableEntity(['دروازه پرداخت پیدا نشد']);
     }
 
     return gateway;
@@ -116,7 +116,7 @@ export class GatewayService {
     });
 
     if (!gateway) {
-      this.error.unprocessableEntity(['t.The gateway was not found!']);
+      this.error.unprocessableEntity(['دروازه پرداخت پیدا نشد']);
     }
 
     await this.gatewayRepository
@@ -139,7 +139,7 @@ export class GatewayService {
     });
 
     if (!gateway) {
-      this.error.unprocessableEntity(['t.The gateway was not found!']);
+      this.error.unprocessableEntity(['دروازه پرداخت پیدا نشد']);
     }
 
     gateway.isDeleted = true;

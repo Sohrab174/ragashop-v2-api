@@ -318,7 +318,7 @@ export class ProductService {
         attributeName,
         attributeValue,
         success: true,
-        message: 't.The attribute is updated successfully',
+        message: 'ویژگی با موفقیت به روز شد',
       });
       return;
     }
@@ -340,7 +340,7 @@ export class ProductService {
       attributeName,
       attributeValue,
       success: true,
-      message: ['t.The attribute is created successfully'.replace(/^t\./i, '')],
+      message: ['ویژگی با موفقیت ایجاد شد'.replace(/^t\./i, '')],
     });
   }
 
@@ -554,9 +554,7 @@ export class ProductService {
     const productAttrValues = await builder.getMany();
 
     if (!productAttrValues) {
-      this.error.unprocessableEntity([
-        't.The value of the product attribute not found!',
-      ]);
+      this.error.unprocessableEntity(['مقدار مشخصه محصول موردنظر پیدا نشد']);
     }
 
     return productAttrValues;
@@ -972,7 +970,7 @@ export class ProductService {
       ))
     ) {
       this.error.unprocessableEntity([
-        't.It is not possible to define more than one multiple attribute',
+        'امکان تعریف بیش از یک ویژگی چندگانه وجود ندارد',
       ]);
     }
 
@@ -1010,9 +1008,7 @@ export class ProductService {
     );
 
     if (!productAttrValue) {
-      this.error.unprocessableEntity([
-        't.The value of the product attribute not found!',
-      ]);
+      this.error.unprocessableEntity(['مقدار مشخصه محصول موردنظر پیدا نشد']);
     }
 
     productAttrValue.isDeleted = true;
@@ -1248,7 +1244,7 @@ export class ProductService {
       .getOne();
 
     if (!gallery) {
-      this.error.unprocessableEntity(['t.The product gallery not found!']);
+      this.error.unprocessableEntity(['گالری محصول مورد نظر یافت نشد']);
     }
 
     if (gallery.product && gallery.product.coverId === +galleryId) {
@@ -1356,7 +1352,7 @@ export class ProductService {
       .getOne();
 
     if (!original) {
-      return this.error.unprocessableEntity(['t.This product not found']);
+      return this.error.unprocessableEntity(['محصول مورد نظر یافت نشد']);
     }
 
     let builder = this.productRepository
@@ -1387,9 +1383,7 @@ export class ProductService {
     const alternate = await builder.getOne();
 
     if (!alternate) {
-      return this.error.unprocessableEntity([
-        't.Replacement product not found',
-      ]);
+      return this.error.unprocessableEntity(['محصول جایگزینی یافت نشد']);
     }
 
     const tempDisplayOrder = original.displayOrder;
@@ -1644,19 +1638,25 @@ export class ProductService {
         (product.number === number || foundAttr) &&
         ((selfProductId && selfProductId !== product.id) || !selfProductId)
       ) {
-        this.error.unprocessableEntity(['This product number is already used']);
+        this.error.unprocessableEntity([
+          'این کد محصول قبلا برای محصول دیگری استفاده شده است',
+        ]);
       }
     }
     // For attribute
     else {
       if (product.number === number && selfProductId !== product.id) {
-        this.error.unprocessableEntity(['This product number is already used']);
+        this.error.unprocessableEntity([
+          'این کد محصول قبلا برای محصول دیگری استفاده شده است',
+        ]);
       } else if (
         foundAttr &&
         ((selfProductAttrValueId && foundAttr.id !== selfProductAttrValueId) ||
           !selfProductAttrValueId)
       ) {
-        this.error.unprocessableEntity(['This product number is already used']);
+        this.error.unprocessableEntity([
+          'این کد محصول قبلا برای محصول دیگری استفاده شده است',
+        ]);
       }
     }
   }

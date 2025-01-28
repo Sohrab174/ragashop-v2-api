@@ -122,10 +122,7 @@ export class AttributeController {
   async addValue(@Body() dto: CreateAttributeValueDto) {
     const newValue = await this.attributeService.addValue(dto);
 
-    return successfulResult(
-      ['t.The attribute value is created successfully'],
-      newValue,
-    );
+    return successfulResult(['مقدار مشخصه با موفقیت ایجاد شد'], newValue);
   }
 
   /**
@@ -140,10 +137,7 @@ export class AttributeController {
   async add(@Body() dto: CreateAttributeDto) {
     const newAttribute = await this.attributeService.add(dto);
 
-    return successfulResult(
-      ['t.The attribute is created successfully'],
-      newAttribute,
-    );
+    return successfulResult(['ویژگی با موفقیت ایجاد شد'], newAttribute);
   }
 
   /**
@@ -157,7 +151,7 @@ export class AttributeController {
   async updateValues(@Body() dto: UpdateAttributeValueDto) {
     await this.attributeService.updateValue(dto);
 
-    return successfulResult(['t.The attribute value is updated successfully']);
+    return successfulResult(['مقدار مشخصه با موفقیت آپدیت شد']);
   }
 
   /**
@@ -171,7 +165,7 @@ export class AttributeController {
   async update(@Body() dto: UpdateAttributeDto) {
     await this.attributeService.update(dto);
 
-    return successfulResult(['t.The attribute is updated successfully']);
+    return successfulResult(['ویژگی با موفقیت به روز شد']);
   }
 
   /**
@@ -185,7 +179,7 @@ export class AttributeController {
   async deleteValue(@Param('id') attributeValueId: number) {
     await this.attributeService.deleteValue(attributeValueId);
 
-    return successfulResult(['t.The attribute value is deleted']);
+    return successfulResult(['مقدار مشخصه حذف شد']);
   }
 
   /**
@@ -199,6 +193,6 @@ export class AttributeController {
   async delete(@Param('id') attributeId: number) {
     await this.attributeService.delete(attributeId);
 
-    return successfulResult(['t.The attribute is deleted']);
+    return successfulResult(['ویژگی حذف شد']);
   }
 }

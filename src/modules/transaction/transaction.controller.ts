@@ -118,7 +118,7 @@ export class TransactionController {
     const ip = (req?.clientIp || '').replace('::ffff:', '');
 
     const result = await this.transactionService.add(dto, customer, ip);
-    return successfulResult(['Sending to the bank gateway'], result);
+    return successfulResult(['در حال ارسال به درگاه بانکی'], result);
   }
 
   /**

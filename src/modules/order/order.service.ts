@@ -57,7 +57,7 @@ export class OrderService {
     if (dto.customerId) {
       if (!(await this.customerService.getActiveById(dto.customerId))) {
         this.error.unprocessableEntity([
-          't.The customer was not found or her account is disabled!',
+          'مشتری پیدا نشد و یا حساب کاربری وی غیرفعال است',
         ]);
       }
     }
@@ -108,9 +108,7 @@ export class OrderService {
         productAttributeValue.quantity !== -1 &&
         cartItem.quantity > productAttributeValue.quantity
       ) {
-        this.error.unprocessableEntity([
-          't.There is not enough product stock!',
-        ]);
+        this.error.unprocessableEntity(['موجودی محصول درخواستی کافی نمی‌باشد']);
       }
 
       // checking product quantity, if not exist productAttributeValue
@@ -119,9 +117,7 @@ export class OrderService {
         fromDb.quantity !== -1 &&
         cartItem.quantity > fromDb.quantity
       ) {
-        this.error.unprocessableEntity([
-          't.There is not enough product stock!',
-        ]);
+        this.error.unprocessableEntity(['موجودی محصول درخواستی کافی نمی‌باشد']);
       }
 
       mixedItems.push({
@@ -425,7 +421,7 @@ export class OrderService {
     const order = await builder.getOne();
 
     if (!order) {
-      this.error.unprocessableEntity(['t.The order not found!']);
+      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
 
     return order;
@@ -469,7 +465,7 @@ export class OrderService {
     const order = await builder.getOne();
 
     if (!order) {
-      this.error.unprocessableEntity(['t.The order not found!']);
+      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
 
     return order;
@@ -485,7 +481,7 @@ export class OrderService {
     });
 
     if (!order) {
-      this.error.unprocessableEntity(['t.The order not found!']);
+      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
 
     order.status = dto.status;
@@ -507,7 +503,7 @@ export class OrderService {
     });
 
     if (!order) {
-      this.error.unprocessableEntity(['t.The order not found!']);
+      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
 
     // Rollbacking the orderItems if an error occurs

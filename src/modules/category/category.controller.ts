@@ -165,10 +165,7 @@ export class CategoryController {
   async add(@Body() dto: CreateCategoryDto) {
     const newCategory = await this.categoryService.add(dto);
 
-    return successfulResult(
-      ['t.The category is created successfully'],
-      newCategory,
-    );
+    return successfulResult(['دسته بندی جدید با موفقیت ایجاد شد'], newCategory);
   }
 
   /**
@@ -189,7 +186,7 @@ export class CategoryController {
   ) {
     await this.categoryService.sort(dto, user, filters);
 
-    return successfulResult(['t.The category was sorted successfully']);
+    return successfulResult(['دسته بندی موردنظر جا‌به‌جا شد']);
   }
 
   /**
@@ -203,7 +200,7 @@ export class CategoryController {
   async update(@Body() dto: UpdateCategoryDto) {
     await this.categoryService.update(dto);
 
-    return successfulResult(['t.The category is updated successfully']);
+    return successfulResult(['دسته مورد نظر با موفقیت آپدیت شد']);
   }
 
   /**
@@ -224,7 +221,7 @@ export class CategoryController {
     const iconPath = await this.categoryService.updateIcon(dto, icon);
 
     return successfulResult(
-      ['t.The category icon is updated successfully'],
+      ['آیکون دسته مورد نظر با موفقیت آپدیت شد'],
       iconPath,
     );
   }
@@ -240,7 +237,7 @@ export class CategoryController {
   async deleteIcon(@Param('id') categoryId: number, @User() user: UserEntity) {
     await this.categoryService.deleteIcon(categoryId, user);
 
-    return successfulResult(['t.The category icon is deleted']);
+    return successfulResult(['آیکون دسته مورد نظر حذف شد']);
   }
 
   /**
@@ -258,6 +255,6 @@ export class CategoryController {
   ) {
     await this.categoryService.delete(categoryId, user, dto);
 
-    return successfulResult(['t.The category is deleted']);
+    return successfulResult(['دسته مورد نظر حذف شد']);
   }
 }

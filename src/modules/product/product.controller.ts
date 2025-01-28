@@ -392,10 +392,7 @@ export class ProductController {
   ) {
     const data = await this.productService.addUpdateProductAttributeValue(dto);
 
-    return successfulResult(
-      ['t.The product attribute value is saved successfully'],
-      data,
-    );
+    return successfulResult(['ویژگی مورد نظر با موفقیت ذخیره شد'], data);
   }
 
   /**
@@ -415,9 +412,7 @@ export class ProductController {
       user,
     );
 
-    return successfulResult([
-      't.The value of the product attribute is removed',
-    ]);
+    return successfulResult(['مقدار مشخصه محصول موردنظر حذف شد']);
   }
 
   /**
@@ -454,7 +449,7 @@ export class ProductController {
   ) {
     await this.productService.sort(dto, user, filters);
 
-    return successfulResult(['t.The product was sorted successfully']);
+    return successfulResult(['محصول مورد نظر جا‌به‌جا شد']);
   }
 
   /**
@@ -485,7 +480,7 @@ export class ProductController {
   ) {
     await this.productService.deleteGallery(galleryId, user);
 
-    return successfulResult(['t.The product gallery is deleted']);
+    return successfulResult(['گالری محصول مورد نظر حذف شد']);
   }
 
   /**

@@ -134,7 +134,7 @@ export class TransactionService {
   async add(dto: CreateTransactionDto, customer: CustomerEntity, ip: string) {
     const order = await this.orderService.getRecordById(dto.orderId);
     if (!order) {
-      this.error.unprocessableEntity(['t.The order not found!']);
+      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
 
     const gateway = await this.gatewayService.getById(dto.gatewayId);
@@ -150,7 +150,7 @@ export class TransactionService {
       order.status === OrderStatus.sent ||
       order.status === OrderStatus.delivered
     ) {
-      this.error.unprocessableEntity(['t.This order has been paid already!']);
+      this.error.unprocessableEntity(['این سفارش پرداخت شده است']);
     }
 
     // insert into transaction
@@ -344,7 +344,7 @@ export class TransactionService {
       }
 
       this.error.internalServerError([
-        't.The connection to the bank gateway could not be established, please try again!',
+        'اتصال به درگاه بانک برقرار نشد، لطفا مجدد تلاش کنید',
       ]);
     } catch (e) {
       console.log(e);
@@ -355,8 +355,7 @@ export class TransactionService {
       }
 
       this.error.internalServerError([
-        e ||
-          't.The connection to the bank gateway could not be established, please try again!',
+        e || 'اتصال به درگاه بانک برقرار نشد، لطفا مجدد تلاش کنید',
       ]);
     }
 

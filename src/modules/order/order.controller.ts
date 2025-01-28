@@ -48,10 +48,7 @@ export class OrderController {
   @UseGuards(CustomerJwtAuthGuard)
   async create(@Customer('id') customerId, @Body() dto: CreateOrderDto) {
     const newOrder = await this.orderService.addUpdate(dto, customerId);
-    return successfulResult(
-      ['t.The new order has been successfully created'],
-      newOrder,
-    );
+    return successfulResult(['سفارش جدید با موفقیت ثبت شد'], newOrder);
   }
 
   /**
@@ -65,10 +62,7 @@ export class OrderController {
   @Roles(UserRoles.admin, UserRoles.employee)
   async createByAdmin(@Body() dto: CreateOrderByAdminDto) {
     const newOrder = await this.orderService.addUpdate(dto);
-    return successfulResult(
-      ['t.The new order has been successfully created'],
-      newOrder,
-    );
+    return successfulResult(['سفارش جدید با موفقیت ثبت شد'], newOrder);
   }
 
   /**
@@ -81,7 +75,7 @@ export class OrderController {
   @Roles(UserRoles.admin, UserRoles.employee)
   async updateByAdmin(@Body() dto: UpdateOrderByAdminDto) {
     await this.orderService.addUpdate(dto, null, dto.id);
-    return successfulResult(['t.The order has been successfully updated']);
+    return successfulResult(['سفارش با موفقیت ویرایش شد']);
   }
 
   /**
@@ -281,7 +275,7 @@ export class OrderController {
   async update(@Body() dto: UpdateOrderStatusDto) {
     await this.orderService.updateStatus(dto);
 
-    return successfulResult(['t.The order is updated successfully']);
+    return successfulResult(['سفارش با موفقیت آپدیت شد']);
   }
 
   /**
@@ -295,6 +289,6 @@ export class OrderController {
   async delete(@Param('id') orderId: number) {
     await this.orderService.delete(orderId);
 
-    return successfulResult(['t.The order is deleted']);
+    return successfulResult(['سفارش موردنظر حذف شد']);
   }
 }

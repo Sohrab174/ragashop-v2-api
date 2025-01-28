@@ -40,7 +40,7 @@ export class AttributeService {
     const attribute = await builder.getOne();
 
     if (!attribute) {
-      this.error.unprocessableEntity(['t.The attribute not found!']);
+      this.error.unprocessableEntity(['ویژگی پیدا نشد!']);
     }
 
     return attribute;
@@ -115,7 +115,7 @@ export class AttributeService {
       id: dto.attributeId,
     });
     if (!existAttribute) {
-      this.error.unprocessableEntity(['t.The attribute not found!']);
+      this.error.unprocessableEntity(['ویژگی پیدا نشد!']);
     }
 
     // Creating a new attribute value
@@ -162,7 +162,7 @@ export class AttributeService {
     });
 
     if (!attributeValue) {
-      this.error.unprocessableEntity(['t.The attribute value not found!']);
+      this.error.unprocessableEntity(['مقدار مشخصه پیدا نشد']);
     }
 
     // Updating the attribute value
@@ -203,7 +203,7 @@ export class AttributeService {
     });
 
     if (!attribute) {
-      this.error.unprocessableEntity(['t.The attribute not found!']);
+      this.error.unprocessableEntity(['ویژگی پیدا نشد!']);
     }
 
     // Updating the attribute
@@ -223,7 +223,7 @@ export class AttributeService {
     });
 
     if (!attribute) {
-      this.error.unprocessableEntity(['t.The attribute not found!']);
+      this.error.unprocessableEntity(['ویژگی پیدا نشد!']);
     }
 
     // Rollbacking the attribute locales if an error occurs
@@ -240,7 +240,7 @@ export class AttributeService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        't.Some values are related to this attribute, please delete the values of this attribute first!',
+        'برخی از مقادیر مربوط به این ویژگی هستند، لطفاً ابتدا مقادیر این ویژگی را حذف کنید',
       ]);
     } finally {
       await queryRunner.release();
@@ -259,7 +259,7 @@ export class AttributeService {
     });
 
     if (!attributeValue) {
-      this.error.unprocessableEntity(['t.The attribute value not found!']);
+      this.error.unprocessableEntity(['مقدار مشخصه پیدا نشد']);
     }
 
     // Rollbacking the attribute locales if an error occurs
@@ -276,7 +276,7 @@ export class AttributeService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        't.Some products are related to this attribute value, please delete the products of this attribute value first!',
+        'برخی از محصولات مربوط به این ویژگی  هستند، لطفاً ابتدا محصولات این ویژگی را حذف کنید',
       ]);
     } finally {
       await queryRunner.release();

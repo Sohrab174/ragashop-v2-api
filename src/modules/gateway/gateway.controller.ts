@@ -120,10 +120,7 @@ export class GatewayController {
   async add(@Body() dto: CreateGatewayDto) {
     const newGateway = await this.gatewayService.add(dto);
 
-    return successfulResult(
-      ['t.The gateway is created successfully'],
-      newGateway,
-    );
+    return successfulResult(['دروازه پرداخت با موفقیت ایجاد شد'], newGateway);
   }
 
   /**
@@ -139,11 +136,11 @@ export class GatewayController {
 
     if (!result) {
       return this.error.unprocessableEntity([
-        't.Replacement gateway not found',
+        'دروازه پرداخت جایگزینی یافت نشد',
       ]);
     }
 
-    return successfulResult(['t.The gateway was sorted successfully']);
+    return successfulResult(['دروازه پرداخت جا‌به‌جا شد']);
   }
 
   /**
@@ -157,7 +154,7 @@ export class GatewayController {
   async update(@Body() dto: UpdateGatewayDto) {
     await this.gatewayService.update(dto);
 
-    return successfulResult(['t.The gateway is updated successfully']);
+    return successfulResult(['دروازه پرداخت با موفقیت آپدیت شد']);
   }
 
   /**
@@ -171,6 +168,6 @@ export class GatewayController {
   async delete(@Param('id') gatewayId: number) {
     await this.gatewayService.delete(gatewayId);
 
-    return successfulResult(['t.The gateway is deleted']);
+    return successfulResult(['دروازه پرداخت حذف شد']);
   }
 }

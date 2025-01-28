@@ -44,7 +44,7 @@ export class CategoryService {
         id: dto.parentId,
       });
       if (!parentCategory) {
-        this.error.unprocessableEntity(['t.The category not found!']);
+        this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
       }
     }
 
@@ -75,7 +75,7 @@ export class CategoryService {
       where: { id: dto.id },
     });
     if (!targetCategory) {
-      this.error.unprocessableEntity(['t.The category not found!']);
+      this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     if (dto.parentId === dto.id) {
@@ -87,7 +87,7 @@ export class CategoryService {
         id: dto.parentId,
       });
       if (!categoryParent) {
-        this.error.unprocessableEntity(['t.The category not found!']);
+        this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
       }
     }
 
@@ -113,7 +113,7 @@ export class CategoryService {
       .getOne();
 
     if (!category) {
-      this.error.unprocessableEntity(['t.The category not found!']);
+      this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     const oldIconPath = category.iconPath;
@@ -159,7 +159,7 @@ export class CategoryService {
     });
 
     if (!category) {
-      this.error.unprocessableEntity(['t.The category not found!']);
+      this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     fs.unlink(
@@ -193,7 +193,7 @@ export class CategoryService {
     });
 
     if (!category) {
-      this.error.unprocessableEntity(['t.The category not found!']);
+      this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     const tempIconPath = category.iconPath;
@@ -201,7 +201,7 @@ export class CategoryService {
     if (category.subCategories?.length > 0 && !dto.force) {
       this.error.methodNotAllowed(
         [
-          't.Some sub categories are related to this category, please delete the sub categories of this category first!',
+          'برخی از زیرمجموعه‌ها مربوط به این دسته هستند، لطفاً ابتدا زیر دسته‌های این دسته را حذف کنید',
         ],
         { hasSubCategories: true },
       );
@@ -234,7 +234,7 @@ export class CategoryService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        't.Some products are related to this category, please delete the products of this category first!',
+        'برخی از محصولات مربوط به این دسته هستند، لطفا ابتدا محصولات این دسته را حذف کنید',
       ]);
     } finally {
       await queryRunner.release();
@@ -315,7 +315,7 @@ export class CategoryService {
     const category = await builder.getOne();
 
     if (!category) {
-      this.error.unprocessableEntity(['t.The category not found!']);
+      this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     return category;
@@ -411,7 +411,7 @@ export class CategoryService {
     const category = await builder.getOne();
 
     if (!category) {
-      this.error.unprocessableEntity(['t.The category not found!']);
+      this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     // Getting the sub category ids
@@ -521,9 +521,7 @@ export class CategoryService {
     const alternate = await builder.getOne();
 
     if (!alternate) {
-      return this.error.unprocessableEntity([
-        't.Replacement category not found',
-      ]);
+      return this.error.unprocessableEntity(['دسته بندی جایگزینی یافت نشد']);
     }
 
     const tempDisplayOrder = original.displayOrder;

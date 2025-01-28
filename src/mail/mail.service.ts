@@ -152,14 +152,14 @@ export class MailService {
       subject: string;
     }>,
   ) {
-    const title = `${'t.Reply to your ticket'.replace(/^t\./i, '')} ${
+    const title = `${'پاسخ به تیکت شما'.replace(/^t\./i, '')} ${
       this.config.app.name
     }`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${'t.Reply to your ticket'.replace(/^t\./i, '')}`,
+      text: `${'پاسخ به تیکت شما'.replace(/^t\./i, '')}`,
       template: `notif-ticket-admin`,
       context: {
         ticket_subject: mailData.data.subject,
