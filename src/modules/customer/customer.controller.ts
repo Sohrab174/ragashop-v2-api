@@ -154,10 +154,7 @@ export class CustomerController {
   async verifySignupByCode(@Body() dto: CustomerVerifySignupDto) {
     const response = await this.customerService.verifySignupByCode(dto);
 
-    return successfulResult(
-      ['t.Your account has been verified'],
-      response || {},
-    );
+    return successfulResult(['حساب شما با موفقیت تایید شد'], response || {});
   }
 
   /**
@@ -235,10 +232,7 @@ export class CustomerController {
   async add(@Body() dto: CreateCustomerDto) {
     const newCustomer = await this.customerService.add(dto);
 
-    return successfulResult(
-      ['t.The customer is created successfully'],
-      newCustomer,
-    );
+    return successfulResult(['مشتری جدید با موفقیت ثبت شد'], newCustomer);
   }
 
   /**
@@ -252,7 +246,7 @@ export class CustomerController {
   async update(@Body() dto: UpdateCustomerDto) {
     await this.customerService.update(dto);
 
-    return successfulResult(['t.The customer is updated successfully']);
+    return successfulResult(['مشتری با موفقیت بروز شد']);
   }
 
   /**
@@ -266,7 +260,7 @@ export class CustomerController {
   async delete(@Param('id') customerId: number, @Query('force') force) {
     await this.customerService.delete(customerId, force);
 
-    return successfulResult(['t.The customer is deleted']);
+    return successfulResult(['مشتری مورد نظر حذف شد']);
   }
 
   /**

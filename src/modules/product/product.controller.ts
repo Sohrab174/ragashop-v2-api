@@ -87,14 +87,14 @@ export class ProductController {
     const successCount = results.filter((result) => result.success).length;
     if (successCount === 0) {
       this.error.unprocessableEntity(
-        ['t.There was an error importing the products list'],
+        ['بارگذاری لیست محصولات با خطا مواجه شد'],
         results,
       );
     }
 
-    let message = 'Part of the list of products has been successfully imported';
+    let message = 'بخشی از لیست محصولات با موفقیت ثبت شد';
     if (results.length === successCount) {
-      message = 'The list of products has been successfully imported';
+      message = 'لیست محصولات با موفقیت ثبت گردید';
     }
 
     return successfulResult([`t.${message}`], results);

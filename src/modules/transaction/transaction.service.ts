@@ -141,7 +141,7 @@ export class TransactionService {
 
     // if (order.status === OrderStatus.pending) {
     //   this.error.unprocessableEntity([
-    //     ('t.This order has not yet been confirmed!'),
+    //     ('This order has not yet been confirmed!'),
     //   ]);
     // }
 
@@ -203,7 +203,7 @@ export class TransactionService {
       .getOne();
 
     if (!transaction) {
-      this.error.unprocessableEntity(['t.The request is not valid!']);
+      this.error.unprocessableEntity(['این درخواست نامعتبر است']);
     }
 
     return transaction;
@@ -359,7 +359,7 @@ export class TransactionService {
       ]);
     }
 
-    this.error.unprocessableEntity(['t.The request is not valid!']);
+    this.error.unprocessableEntity(['این درخواست نامعتبر است']);
   }
 
   /**

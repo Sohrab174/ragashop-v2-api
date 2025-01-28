@@ -128,7 +128,7 @@ export class AuthService {
 
     if (moment(user.expireRandomHash).isAfter(moment())) {
       this.error.unprocessableEntity([
-        't.The verification code has already been sent, please try again in a few minutes!',
+        'کد تایید قبلا ارسال شده است، لطفا چند دقیقه دیگر دوباره تلاش کنید',
       ]);
     }
 
@@ -155,7 +155,7 @@ export class AuthService {
       !moment(user.expireRandomHash).isAfter(moment())
     ) {
       return this.error.unprocessableEntity([
-        't.The verification code is invalid or expired',
+        'کد تایید نامعتبر یا منقضی شده است',
       ]);
     }
 

@@ -76,7 +76,7 @@ export class OrderService {
         ],
       });
       if (!order) {
-        this.error.unprocessableEntity(['t.The request is invalid!']);
+        this.error.unprocessableEntity(['درخواست نامعتبر است']);
       }
       // Removing the old items and rollback quantity
       await this._deleteItemsAndRollbackQuantity(order.orderItems);
@@ -539,7 +539,7 @@ export class OrderService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
 
-      this.error.methodNotAllowed(['t.An error has occurred!']);
+      this.error.methodNotAllowed(['خطایی رخ داده است']);
     } finally {
       await queryRunner.release();
     }

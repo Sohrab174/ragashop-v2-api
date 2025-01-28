@@ -53,7 +53,7 @@ export class IncredibleOffersController {
   async add(@Body() dto: CreateIncredibleOfferDto, @User() user: UserEntity) {
     const newOffer = await this.incredibleOfferService.add(dto, user);
 
-    return successfulResult(['t.The offer is created successfully'], newOffer);
+    return successfulResult(['تخفیف با موفقیت ایجاد شد'], newOffer);
   }
 
   /**
@@ -79,15 +79,14 @@ export class IncredibleOffersController {
     const successCount = results.filter((result) => result.success).length;
     if (successCount === 0) {
       this.error.unprocessableEntity(
-        ['t.There was an error importing the incredible offers list'],
+        ['در ورود لیست پیشنهادات شگفت انگیز خطایی رخ داده است'],
         results,
       );
     }
 
-    let message =
-      'Part of the list of special offers has been successfully imported';
+    let message = 'بخشی از لیست تخفیفات شگفت انگیز با موفقیت ثبت شد';
     if (results.length === successCount) {
-      message = 'The list of special offers has been successfully imported';
+      message = 'لیست تخفیفات شگفت انگیز با موفقیت ثبت گردید';
     }
 
     return successfulResult([`t.${message}`], results);
@@ -107,7 +106,7 @@ export class IncredibleOffersController {
   ) {
     await this.incredibleOfferService.update(dto);
 
-    return successfulResult(['t.The offer is updated successfully']);
+    return successfulResult(['تخفیف با موفقیت ویرایش شد']);
   }
 
   /**
@@ -197,6 +196,6 @@ export class IncredibleOffersController {
     @User() user: UserEntity,
   ) {
     const data = await this.incredibleOfferService.delete(dto);
-    return successfulResult(['t.The offers are deleted successfully'], data);
+    return successfulResult(['پیشنهادات حذف شدند'], data);
   }
 }

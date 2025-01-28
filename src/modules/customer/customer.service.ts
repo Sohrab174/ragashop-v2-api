@@ -66,7 +66,7 @@ export class CustomerService {
     }
 
     // if (customer.status === CustomerStatus.inactive) {
-    //   this.error.unprocessableEntity([('t.Your account is inactive')]);
+    //   this.error.unprocessableEntity([('Your account is inactive')]);
     // }
 
     return await this.prepareCustomerResponse(customer, dto.rememberMe);
@@ -129,7 +129,7 @@ export class CustomerService {
 
     if (!(customer && moment(customer.expireRandomHash).isAfter(moment()))) {
       return this.error.unprocessableEntity([
-        't.The verification code is invalid or expired',
+        'کد تایید نامعتبر یا منقضی شده است',
       ]);
     }
 
@@ -224,12 +224,12 @@ export class CustomerService {
       .getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity(['t.The customer was not found!']);
+      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
 
     if (moment(customer.expireRandomHash).isAfter(moment())) {
       this.error.unprocessableEntity([
-        't.The verification code has already been sent, please try again in a few minutes!',
+        'کد تایید قبلا ارسال شده است، لطفا چند دقیقه دیگر دوباره تلاش کنید',
       ]);
     }
 
@@ -255,7 +255,7 @@ export class CustomerService {
       .getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity(['t.The customer was not found!']);
+      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
 
     if (
@@ -263,7 +263,7 @@ export class CustomerService {
       !moment(customer.expireRandomHash).isAfter(moment())
     ) {
       return this.error.unprocessableEntity([
-        't.The verification code is invalid or expired',
+        'کد تایید نامعتبر یا منقضی شده است',
       ]);
     }
 
@@ -336,9 +336,7 @@ export class CustomerService {
             type: 'signup',
           });
         } else {
-          this.error.unprocessableEntity([
-            't.This email has already been used',
-          ]);
+          this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
         }
       }
     }
@@ -357,7 +355,7 @@ export class CustomerService {
           });
         } else {
           this.error.unprocessableEntity([
-            't.This mobile has already been used',
+            'این شماره موبایل قبلا استفاده شده است',
           ]);
         }
       }
@@ -415,14 +413,14 @@ export class CustomerService {
     }
 
     if (!customer) {
-      this.error.unprocessableEntity(['t.The request is invalid!']);
+      this.error.unprocessableEntity(['درخواست نامعتبر است']);
     }
 
     if (
       moment(customer.expireRandomHash).subtract(2, 'minutes').isAfter(moment())
     ) {
       this.error.unprocessableEntity([
-        't.The verification code has already been sent, please try again in a few minutes!',
+        'کد تایید قبلا ارسال شده است، لطفا چند دقیقه دیگر دوباره تلاش کنید',
       ]);
     }
 
@@ -449,7 +447,7 @@ export class CustomerService {
 
     if (!customer) {
       return this.error.unprocessableEntity([
-        't.The verification code is invalid or expired',
+        'کد تایید نامعتبر یا منقضی شده است',
       ]);
     }
 
@@ -505,7 +503,7 @@ export class CustomerService {
     const customer = await builder.getOne();
 
     if (!customer) {
-      this.error.unprocessableEntity(['t.The customer was not found!']);
+      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
 
     return customer;
@@ -521,7 +519,7 @@ export class CustomerService {
       dto.email &&
       (await this.customerRepository.findOne({ email: dto.email }))
     ) {
-      this.error.unprocessableEntity(['t.This email has already been used']);
+      this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
     }
 
     // Checking unique mobile number in this company
@@ -529,7 +527,7 @@ export class CustomerService {
       dto.mobile &&
       (await this.customerRepository.findOne({ mobile: dto.mobile }))
     ) {
-      this.error.unprocessableEntity(['t.This mobile has already been used']);
+      this.error.unprocessableEntity(['این شماره موبایل قبلا استفاده شده است']);
     }
 
     // Creating a new customer
@@ -557,7 +555,7 @@ export class CustomerService {
     });
 
     if (!customer) {
-      this.error.unprocessableEntity(['t.The customer was not found!']);
+      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
 
     // Checking unique email in this company
@@ -568,7 +566,7 @@ export class CustomerService {
         id: Not(dto.id),
       }))
     ) {
-      this.error.unprocessableEntity(['t.This email has already been used']);
+      this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
     }
 
     // Checking unique mobile number in this company
@@ -579,7 +577,7 @@ export class CustomerService {
         id: Not(dto.id),
       }))
     ) {
-      this.error.unprocessableEntity(['t.This mobile has already been used']);
+      this.error.unprocessableEntity(['این شماره موبایل قبلا استفاده شده است']);
     }
 
     // Updating the customer
@@ -608,7 +606,7 @@ export class CustomerService {
     });
 
     if (!customer) {
-      this.error.unprocessableEntity(['t.The customer was not found!']);
+      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
 
     try {
@@ -620,7 +618,7 @@ export class CustomerService {
     } catch (err) {
       this.error.methodNotAllowed(
         [
-          't.Some orders and reserves are related to this customer. Are you sure you want to delete it?',
+          'Some orders and reserves are related to this customer. Are you sure you want to delete it?',
         ],
         { hasDependencies: true },
       );

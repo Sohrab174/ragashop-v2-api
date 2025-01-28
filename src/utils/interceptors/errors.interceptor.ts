@@ -80,7 +80,7 @@ export class ErrorsInterceptor implements NestInterceptor {
               success: false,
               messages:
                 error instanceof PayloadTooLargeException
-                  ? 't.The file size is large'
+                  ? 'حجم فایل زیاد است'
                   : typeof error?.response?.message === 'object'
                   ? error?.response?.message || 'Error'
                   : [error?.response?.error || 'Error'],

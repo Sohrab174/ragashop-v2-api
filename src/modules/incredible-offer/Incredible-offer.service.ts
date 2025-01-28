@@ -81,10 +81,7 @@ export class IncredibleOfferService {
           results.push({
             number,
             success: false,
-            message: 't.No product with this number was found'.replace(
-              /^t\./i,
-              '',
-            ),
+            message: 'محصولی با این کد یافت نشد'.replace(/^t\./i, ''),
           });
           continue;
         }
@@ -103,11 +100,10 @@ export class IncredibleOfferService {
           results.push({
             number,
             success: false,
-            message:
-              't.The offer has already been created for this product'.replace(
-                /^t\./i,
-                '',
-              ),
+            message: 'تخفیف موردنظر قبلا برای این محصول ثبت شده است'.replace(
+              /^t\./i,
+              '',
+            ),
           });
           continue;
         }
@@ -128,17 +124,16 @@ export class IncredibleOfferService {
         results.push({
           number,
           success: true,
-          message:
-            't.The offer for this product has been created successfully'.replace(
-              /^t\./i,
-              '',
-            ),
+          message: 'تخفیف موردنظر برای این محصول، با موفقیت ثبت شد'.replace(
+            /^t\./i,
+            '',
+          ),
         });
       } catch (e) {
         results.push({
           number,
           success: false,
-          message: 't.An unexpected error has occurred'.replace(/^t\./i, ''),
+          message: 'خطای غیرمنتظره ای رخ داده است',
         });
       }
     }

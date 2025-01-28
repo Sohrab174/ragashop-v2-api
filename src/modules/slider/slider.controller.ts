@@ -62,7 +62,7 @@ export class SliderController {
       SliderType.photo,
     );
 
-    return successfulResult(['The slider is uploaded successfully'], filePath);
+    return successfulResult(['اسلاید جدید با موفقیت آپلود شد'], filePath);
   }
 
   /**
@@ -78,7 +78,7 @@ export class SliderController {
   async updatePhotoSlider(@Body() dto: UpdateSliderDto, @UploadedFile() file) {
     await this.sliderService.updateSlider(dto, SliderType.photo, file);
 
-    return successfulResult(['The slider is updated successfully']);
+    return successfulResult(['اسلاید مورد نظر بروز شد']);
   }
 
   /**
@@ -107,7 +107,7 @@ export class SliderController {
       SliderType.video,
     );
 
-    return successfulResult(['The slider is uploaded successfully'], filePath);
+    return successfulResult(['اسلاید جدید با موفقیت آپلود شد'], filePath);
   }
 
   /**
@@ -132,7 +132,7 @@ export class SliderController {
   async updateVideoSlider(@Body() dto: UpdateSliderDto, @UploadedFile() file) {
     await this.sliderService.updateSlider(dto, SliderType.video, file);
 
-    return successfulResult(['The slider is updated successfully']);
+    return successfulResult(['اسلاید مورد نظر بروز شد']);
   }
 
   /**
@@ -146,7 +146,7 @@ export class SliderController {
   async deleteSlider(@Param('id') sliderId: number) {
     await this.sliderService.deleteSlider(sliderId);
 
-    return successfulResult(['The slider is deleted']);
+    return successfulResult(['اسلاید مورد نظر حذف شد']);
   }
 
   /**
@@ -229,9 +229,9 @@ export class SliderController {
     const result = await sort(SliderEntity.name, dto.id, dto.action);
 
     if (!result) {
-      return this.error.unprocessableEntity(['Replacement slider not found']);
+      return this.error.unprocessableEntity(['اسلاید جایگزینی یافت نشد']);
     }
 
-    return successfulResult(['The slider was sorted successfully']);
+    return successfulResult(['اسلاید جا‌به‌جا شد']);
   }
 }

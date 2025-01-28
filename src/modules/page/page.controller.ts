@@ -106,7 +106,7 @@ export class PageController {
   async add(@Body() dto: CreatePageDto, @User() user: UserEntity) {
     const newPage = await this.pageService.add(dto, user);
 
-    return successfulResult(['t.The page is created successfully'], newPage);
+    return successfulResult(['صفحه باموفقیت ایجاد شد'], newPage);
   }
 
   /**
@@ -120,7 +120,7 @@ export class PageController {
   async update(@Body() dto: UpdatePageDto, @User() user: UserEntity) {
     await this.pageService.update(dto, user);
 
-    return successfulResult(['t.The page is updated successfully']);
+    return successfulResult(['صفحه باموفقیت ویرایش شد']);
   }
 
   /**
@@ -134,6 +134,6 @@ export class PageController {
   async delete(@Param('id') pageId: number, @User() user: UserEntity) {
     await this.pageService.delete(pageId);
 
-    return successfulResult(['t.The page is deleted']);
+    return successfulResult(['صفحه حذف شد']);
   }
 }

@@ -68,8 +68,8 @@ export class CommonController {
   async getLanguage(@Req() req) {
     console.log(req.lang);
 
-    // this.error.methodNotAllowed([('t.Message sent')]);
-    return successfulResult(['t.Message sent']);
+    // this.error.methodNotAllowed([('پیام ارسال شد')]);
+    return successfulResult(['پیام ارسال شد']);
   }
 
   /**

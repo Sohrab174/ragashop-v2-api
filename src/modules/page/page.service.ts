@@ -62,7 +62,7 @@ export class PageService {
     const page = await builder.getOne();
 
     if (!page) {
-      this.error.unprocessableEntity(['t.The page not found!']);
+      this.error.unprocessableEntity(['صفحه پیدا نشد!']);
     }
 
     return page;
@@ -91,7 +91,7 @@ export class PageService {
       .getOne();
 
     if (!page) {
-      this.error.unprocessableEntity(['t.The page not found!']);
+      this.error.unprocessableEntity(['صفحه پیدا نشد!']);
     }
 
     return page;
@@ -107,7 +107,7 @@ export class PageService {
     });
 
     if (foundPageByCode) {
-      this.error.unprocessableEntity(['t.This code has already been used']);
+      this.error.unprocessableEntity(['این کد استفاده شده است']);
     }
 
     // Creating a new page
@@ -138,7 +138,7 @@ export class PageService {
     });
 
     if (foundPageByCode) {
-      this.error.unprocessableEntity(['t.This code has already been used']);
+      this.error.unprocessableEntity(['این کد استفاده شده است']);
     }
 
     // Found page by id for updating
@@ -166,7 +166,7 @@ export class PageService {
     });
 
     if (!page) {
-      this.error.unprocessableEntity(['t.The page not found!']);
+      this.error.unprocessableEntity(['صفحه پیدا نشد!']);
     }
 
     // Rollbacking the page locales if an error occurs
@@ -182,7 +182,7 @@ export class PageService {
     } catch (err) {
       await queryRunner.rollbackTransaction();
 
-      this.error.methodNotAllowed(['t.An error has occurred!']);
+      this.error.methodNotAllowed(['خطایی رخ داده است']);
     } finally {
       await queryRunner.release();
     }

@@ -28,7 +28,7 @@ for (const file of files) {
   while ((match = regex.exec(content))) {
     const text = `"${match[1].substring(2)}": "${match[1].substring(2)}",`;
 
-    if (match[1].substring(0, 2) !== 't.') {
+    if (match[1].substring(0, 2) !== '') {
       console.log(`!!!!! ${match[1]}`);
     }
     // not exist

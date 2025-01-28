@@ -79,7 +79,7 @@ export class CategoryService {
     }
 
     if (dto.parentId === dto.id) {
-      this.error.unprocessableEntity(['t.The request is not valid!']);
+      this.error.unprocessableEntity(['این درخواست نامعتبر است']);
     }
 
     if (dto.parentId) {
@@ -490,7 +490,7 @@ export class CategoryService {
       .getOne();
 
     if (!original) {
-      return this.error.unprocessableEntity(['t.This category was not found']);
+      return this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
     }
 
     let builder = this.categoryRepository

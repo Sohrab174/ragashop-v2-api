@@ -20,15 +20,13 @@ export class MailService {
       lastName: string;
     }>,
   ) {
-    const title = `${'t.Forgot password'.replace(/^t\./i, '')} ${
-      this.config.app.name
-    }`;
+    const title = `${'فراموشی کلمه عبور'} ${this.config.app.name}`;
     const url = `${this.config.app.siteBaseUrl}/auth/reset-password?token=${mailData.data.hash}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${url} ${'t.Forgot password'.replace(/^t\./i, '')}`,
+      text: `${url} ${'فراموشی کلمه عبور'}`,
       template: `reset-password`,
       context: {
         full_name:
@@ -50,14 +48,12 @@ export class MailService {
       lastName: string;
     }>,
   ) {
-    const title = `${'t.Forgot password'.replace(/^t\./i, '')} - ${
-      this.config.app.name
-    }`;
+    const title = `${'فراموشی کلمه عبور'} - ${this.config.app.name}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${'t.Forgot password'.replace(/^t\./i, '')}`,
+      text: `${'فراموشی کلمه عبور'}`,
       template: `reset-customer-password`,
       context: {
         full_name:
@@ -73,15 +69,13 @@ export class MailService {
    * ************************************
    */
   async sendCustomerConfirmation(mailData: MailData<{ code: string }>) {
-    const title = `${'خوش آمدید به'.replace(/^t\./i, '')} ${
-      this.config.app.name
-    }
+    const title = `${'خوش آمدید به'} ${this.config.app.name}
     - ${'تایید ایمیل'}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${'تایید ایمیل'.replace(/^t\./i, '')}`,
+      text: `${'تایید ایمیل'}`,
       template: `confirmation`,
       context: {
         email: mailData.to,
@@ -125,14 +119,12 @@ export class MailService {
       currency: string;
     }>,
   ) {
-    const title = `${'t.New order'.replace(/^t\./i, '')} ${
-      this.config.app.name
-    }`;
+    const title = `${'سفارش جدید'} ${this.config.app.name}`;
 
     return await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${'t.New order'.replace(/^t\./i, '')}`,
+      text: `${'سفارش جدید'}`,
       template: `notif-new-order-admin`,
       context: {
         amount: mailData.data.amount,
@@ -152,14 +144,12 @@ export class MailService {
       subject: string;
     }>,
   ) {
-    const title = `${'پاسخ به تیکت شما'.replace(/^t\./i, '')} ${
-      this.config.app.name
-    }`;
+    const title = `${'پاسخ به تیکت شما'} ${this.config.app.name}`;
 
     await this.mailerService.sendMail({
       to: mailData.to,
       subject: title,
-      text: `${'پاسخ به تیکت شما'.replace(/^t\./i, '')}`,
+      text: `${'پاسخ به تیکت شما'}`,
       template: `notif-ticket-admin`,
       context: {
         ticket_subject: mailData.data.subject,

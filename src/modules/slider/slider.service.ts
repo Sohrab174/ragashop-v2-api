@@ -73,7 +73,7 @@ export class SliderService {
       id: dto.id,
     });
     if (!slider) {
-      this.error.unprocessableEntity(['The slider not found!']);
+      this.error.unprocessableEntity(['اسلاید مورد نظر یافت نشد']);
     }
 
     const values: any = {
@@ -112,7 +112,7 @@ export class SliderService {
     });
 
     if (!slider) {
-      this.error.unprocessableEntity(['The slider not found!']);
+      this.error.unprocessableEntity(['اسلاید مورد نظر یافت نشد']);
     }
 
     const tempPathFile = slider.pathFile;
@@ -159,7 +159,7 @@ export class SliderService {
     const slider = await builder.getOne();
 
     if (!slider) {
-      this.error.unprocessableEntity(['The slider not found!']);
+      this.error.unprocessableEntity(['اسلاید مورد نظر یافت نشد']);
     }
 
     return slider;

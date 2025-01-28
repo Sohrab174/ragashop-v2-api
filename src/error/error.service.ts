@@ -7,7 +7,7 @@ export class ErrorService {
       {
         success: false,
         messages: messages.map((message) =>
-          typeof message === 'string' ? message.replace(/^t\./i, '') : message,
+          typeof message === 'string' ? message : message,
         ),
         data,
       },

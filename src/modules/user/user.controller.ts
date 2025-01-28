@@ -141,6 +141,6 @@ export class UserController {
   // @HttpCode(HttpStatus.OK)
   // async deleteUser(@Param('id') id: number ,) {
   //   await this.userService.deleteUser(id);
-  //   return successfulResult([('t.The user has been successfully deleted')]);
+  //   return successfulResult([('The user has been successfully deleted')]);
   // }
 }

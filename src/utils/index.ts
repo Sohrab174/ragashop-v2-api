@@ -50,7 +50,7 @@ export const successfulResult = (
 ) => {
   return {
     success: true,
-    messages: messages.map((message) => message.replace(/^t\./i, '')),
+    messages: messages.map((message) => message),
     data,
   };
 };

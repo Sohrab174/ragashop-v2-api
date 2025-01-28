@@ -111,7 +111,7 @@ export class ProductService {
             number,
             name: productName,
             success: false,
-            message: 't.The category is not found'.replace(/^t\./i, ''),
+            message: 'دسته بندی مورد نظر یافت نشد',
           });
           continue;
         }
@@ -243,7 +243,7 @@ export class ProductService {
           number,
           name: productName,
           success: false,
-          message: ['t.An unexpected error has occurred'.replace(/^t\./i, '')],
+          message: ['خطای غیرمنتظره ای رخ داده است'],
         });
       }
     }
@@ -293,7 +293,7 @@ export class ProductService {
         attributeName,
         attributeValue,
         success: false,
-        message: 't.The attribute is not found'.replace(/^t\./i, ''),
+        message: 'ویژگی مورد نظر یافت نشد',
       });
       return;
     }
@@ -340,7 +340,7 @@ export class ProductService {
       attributeName,
       attributeValue,
       success: true,
-      message: ['ویژگی با موفقیت ایجاد شد'.replace(/^t\./i, '')],
+      message: ['ویژگی با موفقیت ایجاد شد'],
     });
   }
 
@@ -923,7 +923,7 @@ export class ProductService {
     );
 
     if (!product || !attributeValue) {
-      this.error.unprocessableEntity(['t.The request is not valid!']);
+      this.error.unprocessableEntity(['این درخواست نامعتبر است']);
     }
 
     // Updating the product attribute value
