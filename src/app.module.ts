@@ -27,6 +27,7 @@ import { TasksModule } from './tasks/tasks.module';
 import { IncredibleOfferModule } from './modules/incredible-offer/Incredible-offer.module';
 import { TelegramApiModule } from './thirdParty/telegram-api/telegram-api.module';
 import { DiscountCouponModule } from './modules/discount-coupon/discount-coupon.module';
+import { BrandModule } from './modules/brand/brand.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { DiscountCouponModule } from './modules/discount-coupon/discount-coupon.
     TasksModule,
     IncredibleOfferModule,
     DiscountCouponModule,
+    BrandModule,
   ],
   providers: [
     {
