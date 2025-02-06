@@ -36,4 +36,79 @@ export class BrandController {
     private brandService: BrandService,
     private error: ErrorService,
   ) {}
+
+  /**
+   * -------------------------------------------------------
+   * GET /brands/admin
+   */
+  @Get('admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @ApiQuery({ name: 'name', required: false })
+  @ApiQuery({ name: 'is_selection', required: false })
+  @ApiQuery({ name: 'description', required: false })
+  @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
+  @ApiQuery({ name: 'page', required: false, description: 'Default: 1' })
+  async getAllForAdmin(
+    @Page() page,
+    @Limit() limit,
+    @Sort() sorts,
+    @Filter([['description'], ['name']])
+    filters,
+    @Query('is_selection') isSelection,
+  ) {
+    const list = await this.brandService.getAllForAdmin(
+      page,
+      limit,
+      filters,
+      sorts,
+      isSelection === '1',
+    );
+
+    return successfulResult([], list);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /brands/:id/admin
+   */
+  @Get(':id/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  async getByIdForAdmin(@Param('id') brandId: number) {
+    const data = await this.brandService.getByIdForAdmin(brandId);
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /brands
+   */
+  @Get()
+  @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
+  @ApiQuery({ name: 'page', required: false, description: 'Default: 1' })
+  @ApiQuery({
+    name: 'is_selection',
+    required: false,
+  })
+  @ApiQuery({ name: 'is_selection', required: false, description: '1 | 0' })
+  async getAll(
+    @Page() page,
+    @Limit() limit,
+    @Sort() sorts,
+    @Query('is_selection') isSelection,
+  ) {
+    const list = await this.brandService.getAll(
+      page,
+      limit,
+      sorts,
+      isSelection === '1',
+    );
+
+    return successfulResult([], list);
+  }
 }

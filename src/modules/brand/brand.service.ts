@@ -29,4 +29,85 @@ export class BrandService {
 
     private error: ErrorService,
   ) {}
+
+  /**
+   * -------------------------------------------------------
+   * GET /brands/admin
+   */
+  async getAllForAdmin(
+    page = 1,
+    limit = 20,
+    filters = null,
+    sorts = null,
+    isSelection: boolean,
+  ) {
+    let builder = this.brandRepository.createQueryBuilder('brand');
+
+    if (sorts) {
+      builder = applySortingToBuilder(builder, sorts);
+    } else {
+      builder.orderBy('brand.id', 'ASC');
+    }
+
+    if (isSelection) {
+      builder.andWhere({ isSelection: true });
+    }
+    builder = applyFiltersToBuilder(builder, filters);
+
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      pagination: paginationResult(page, limit, totalItems),
+    };
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /brands/:id/admin
+   */
+  async getByIdForAdmin(id: number) {
+    const builder = this.brandRepository
+      .createQueryBuilder('brand')
+      .where({ id });
+
+    const brand = await builder.getOne();
+
+    if (!brand) {
+      this.error.unprocessableEntity(['برند مورد نظر یافت نشد']);
+    }
+
+    return brand;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /brands
+   */
+  async getAll(page = 1, limit = 20, sorts = null, isSelection = false) {
+    let builder = this.brandRepository.createQueryBuilder('brand');
+
+    if (isSelection) {
+      builder.andWhere({ isSelection: true });
+    }
+
+    if (sorts) {
+      builder = applySortingToBuilder(builder, sorts);
+    } else {
+      builder.orderBy('brand.id', 'ASC');
+    }
+
+    const [items, totalItems] = await builder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      pagination: paginationResult(page, limit, totalItems),
+    };
+  }
 }
