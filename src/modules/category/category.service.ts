@@ -56,6 +56,7 @@ export class CategoryService {
         name: dto.name,
         status: dto.status,
         parentId: dto.parentId,
+        isSelection: dto.isSelection || false,
         displayOrder: await getLastDisplayOrder(CategoryEntity.name),
         createdAt: new Date(),
       })
@@ -95,6 +96,7 @@ export class CategoryService {
     targetCategory.parentId = dto.parentId;
     targetCategory.status = dto.status;
     targetCategory.name = dto.name;
+    targetCategory.isSelection = dto.isSelection || false;
 
     await targetCategory.save();
 

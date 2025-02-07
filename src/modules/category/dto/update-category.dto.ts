@@ -19,4 +19,8 @@ export class UpdateCategoryDto {
   @IsNotEmpty()
   @IsIn(Object.values(CategoryStatus))
   status: CategoryStatus;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  isSelection: boolean;
 }

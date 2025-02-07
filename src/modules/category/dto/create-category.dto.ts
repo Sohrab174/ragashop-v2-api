@@ -15,4 +15,8 @@ export class CreateCategoryDto {
   @ApiProperty({ required: false })
   @IsOptional()
   parentId: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  isSelection: boolean;
 }
