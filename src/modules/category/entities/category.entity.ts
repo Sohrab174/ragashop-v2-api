@@ -21,8 +21,8 @@ export class CategoryEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
-  @Column('int', { name: 'sourceId' })
-  sourceId: number;
+  @Column('int', { name: 'sourceId', nullable: true })
+  sourceId: number | null;
 
   @Column('int', { name: 'parentId', nullable: true })
   parentId: number | null;
