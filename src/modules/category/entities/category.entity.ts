@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { ProductEntity } from '../../product/entities/product.entity';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
 export enum CategoryStatus {
   active = 'active',
@@ -36,7 +37,7 @@ export class CategoryEntity extends BaseEntity {
   @Column('int', { name: 'displayOrder', default: () => "'1'" })
   displayOrder: number;
 
-  @Column('tinyint', { name: 'isSelection', width: 1, default: () => "'0'" })
+  @Column('tinyint', { name: 'isSelection', width: 1, default: () => "'0'", transformer: new BooleanTransformer(), })
   isSelection: boolean;
 
   @Column('enum', {
