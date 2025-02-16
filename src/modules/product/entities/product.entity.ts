@@ -126,6 +126,18 @@ export class ProductEntity extends BaseEntity {
   @Column('enum', { name: 'gender', nullable: true, enum: ProductGender })
   gender: ProductGender | null;
 
+  @Column('decimal', {
+    name: 'star',
+    default: () => "'0'",
+    precision: 10,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  star: number;
+
+  @Column('int', { name: 'starCountPerson', default: () => "'0'" })
+  starCountPerson: number;
+
   @Column('text', { name: 'description', nullable: true })
   description: string | null;
 
