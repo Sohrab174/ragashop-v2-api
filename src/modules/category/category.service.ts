@@ -453,7 +453,7 @@ export class CategoryService {
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .select(['category.id', 'category.parentId', 'category.iconPath'])
+      .select(['category.id', 'category.parentId', 'category.iconPath', 'category.name'])
       .where({ status: CategoryStatus.active })
       .orderBy('category.displayOrder', 'ASC')
       .getMany();
