@@ -40,7 +40,7 @@ export class DiscountCouponController {
   @Get('/:id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getById(@Param('id') id: number) {
     const data = await this.discountCouponService.getById(id);
     return successfulResult([], data);
@@ -53,7 +53,7 @@ export class DiscountCouponController {
   @Get('/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'title', required: false })
   @ApiQuery({ name: 'code', required: false })
   @ApiQuery({ name: 'start_at', required: false })

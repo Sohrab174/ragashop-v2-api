@@ -5,7 +5,6 @@ import { BeforeUpdate } from 'typeorm/decorator/listeners/BeforeUpdate';
 import * as bcrypt from 'bcryptjs';
 
 export enum UserRoles {
-  god = 'god',
   admin = 'admin',
   employee = 'employee',
 }

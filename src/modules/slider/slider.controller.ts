@@ -156,7 +156,7 @@ export class SliderController {
   @Get('positions/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getPositions() {
     const list = await this.sliderService.getPositions();
 
@@ -170,7 +170,7 @@ export class SliderController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getSliderById(@Param('id') sliderId: number) {
     const data = await this.sliderService.getSliderById(sliderId);
 
@@ -184,7 +184,7 @@ export class SliderController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'language', required: false, enum: Languages })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
   @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })

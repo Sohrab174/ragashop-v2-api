@@ -116,7 +116,7 @@ export class IncredibleOffersController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getById(@Param('id') offerId: number) {
     const data = await this.incredibleOfferService.getById(offerId);
     return successfulResult([], data);
@@ -129,7 +129,7 @@ export class IncredibleOffersController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'product_id', required: false })
   @ApiQuery({
     name: 'from_date',

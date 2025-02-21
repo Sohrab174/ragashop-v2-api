@@ -44,7 +44,7 @@ export class BrandController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'is_selection', required: false })
   @ApiQuery({ name: 'description', required: false })
@@ -77,7 +77,7 @@ export class BrandController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getByIdForAdmin(@Param('id') brandId: number) {
     const data = await this.brandService.getByIdForAdmin(brandId);
     return successfulResult([], data);

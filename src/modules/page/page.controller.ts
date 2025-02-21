@@ -38,7 +38,7 @@ export class PageController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'title', required: false })
   @ApiQuery({ name: 'code', required: false })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -68,7 +68,7 @@ export class PageController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getByIdForAdmin(@Param('id') pageId: number) {
     const data = await this.pageService.getByIdForAdmin(pageId);
     return successfulResult([], data);
@@ -101,7 +101,7 @@ export class PageController {
   @Post('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @HttpCode(HttpStatus.CREATED)
   async add(@Body() dto: CreatePageDto, @User() user: UserEntity) {
     const newPage = await this.pageService.add(dto, user);
@@ -116,7 +116,7 @@ export class PageController {
   @Put('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async update(@Body() dto: UpdatePageDto, @User() user: UserEntity) {
     await this.pageService.update(dto, user);
 
@@ -130,7 +130,7 @@ export class PageController {
   @Delete(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async delete(@Param('id') pageId: number, @User() user: UserEntity) {
     await this.pageService.delete(pageId);
 

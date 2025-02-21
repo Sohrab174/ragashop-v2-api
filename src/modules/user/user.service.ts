@@ -47,9 +47,6 @@ export class UserService {
 
     builder = applyFiltersToBuilder(builder, filters);
 
-    // Custom condition
-    builder.andWhere('user.role != :role', { role: UserRoles.god });
-
     const [items, totalItems] = await builder
       .take(limit) // LIMIT
       .skip((page - 1) * limit) // OFFSET

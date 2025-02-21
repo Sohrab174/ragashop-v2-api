@@ -175,7 +175,7 @@ export class CustomerController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'first_name', required: false })
   @ApiQuery({ name: 'last_name', required: false })
   @ApiQuery({ name: 'mobile', required: false })
@@ -214,7 +214,7 @@ export class CustomerController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getByIdForAdmin(@Param('id') customerId: number) {
     const data = await this.customerService.getByIdForAdmin(customerId);
     return successfulResult([], data);

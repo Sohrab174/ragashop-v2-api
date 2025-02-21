@@ -31,20 +31,6 @@ export class UserController {
 
   /**
    * -------------------------------------------------------
-   * POST /users/god
-   */
-  @Post('god')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god)
-  @HttpCode(HttpStatus.CREATED)
-  async createForGod(@Body() dto: CreateUserDto) {
-    const newUser = await this.userService.add(dto);
-    return successfulResult(['کاربر جدید با موفقیت ایجاد شد'], newUser);
-  }
-
-  /**
-   * -------------------------------------------------------
    * POST /users/admin
    */
   @Post('admin')
@@ -55,19 +41,6 @@ export class UserController {
   async createForAdmin(@Body() dto: CreateUserDto) {
     const newUser = await this.userService.add(dto);
     return successfulResult(['کاربر جدید با موفقیت ایجاد شد'], newUser);
-  }
-
-  /**
-   * -------------------------------------------------------
-   * PUT /users/1/god
-   */
-  @Put('god')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god)
-  async updateUserForGod(@Body() dto: UpdateUserDto) {
-    await this.userService.updateUser(dto.id, dto);
-    return successfulResult(['مشخصات کاربر با موفقیت ویرایش شد']);
   }
 
   /**
@@ -90,7 +63,7 @@ export class UserController {
   @Get()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin)
+  @Roles(UserRoles.admin)
   @ApiQuery({ name: 'first_name', required: false })
   @ApiQuery({ name: 'last_name', required: false })
   @ApiQuery({ name: 'email', required: false })
@@ -124,7 +97,7 @@ export class UserController {
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin)
+  @Roles(UserRoles.admin)
   async getById(@Param('id') userId: number) {
     const userInfo = await this.userService.getById(userId);
     return successfulResult([], userInfo);

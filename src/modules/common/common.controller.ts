@@ -95,7 +95,7 @@ export class CommonController {
   @Post('/upload/ckeditor')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('upload', multerOptions('ckeditor')))
   async updateIcon(@Body() dto: UploadCkeditorDto, @UploadedFile() upload) {

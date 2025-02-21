@@ -50,7 +50,7 @@ export class CategoryController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: CategoryStatus })
@@ -83,7 +83,7 @@ export class CategoryController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getByIdForAdmin(@Param('id') categoryId: number) {
     const data = await this.categoryService.getByIdForAdmin(categoryId);
     return successfulResult([], data);

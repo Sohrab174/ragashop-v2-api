@@ -50,7 +50,7 @@ export class GatewayController {
   @Get('availabilities/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getAvailabilities() {
     return successfulResult([], Object.values(GatewayNames));
   }
@@ -62,7 +62,7 @@ export class GatewayController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getById(@Param('id') gatewayId: number) {
     const data = await this.gatewayService.getById(gatewayId);
     return successfulResult([], data);
@@ -75,7 +75,7 @@ export class GatewayController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: GatewayStatus })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })

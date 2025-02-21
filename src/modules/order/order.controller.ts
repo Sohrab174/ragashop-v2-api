@@ -85,7 +85,7 @@ export class OrderController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'number', required: false })
   @ApiQuery({ name: 'customer', required: false })
   @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
@@ -238,7 +238,7 @@ export class OrderController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getByIdForAdmin(@Param('id') orderId: number) {
     const data = await this.orderService.getByIdForAdmin(orderId);
     return successfulResult([], data);

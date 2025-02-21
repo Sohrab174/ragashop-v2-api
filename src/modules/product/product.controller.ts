@@ -132,7 +132,7 @@ export class ProductController {
   @Get('galleries/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'product_id', required: false })
   @ApiQuery({ name: 'type', required: false, enum: ProductGalleryType })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -162,7 +162,7 @@ export class ProductController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'category_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'number', required: false })
@@ -196,7 +196,7 @@ export class ProductController {
   @Get('with-attributes/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getAllForAdminWithAttributes() {
     const list = await this.productService.getAllForAdminWithAttributes();
 
@@ -210,7 +210,7 @@ export class ProductController {
   @Get(':id/attributes/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getAttributesByProductId(@Param('id') productId: number) {
     const data = await this.productService.getAttributesByProductId(productId);
     return successfulResult([], data);
@@ -223,7 +223,7 @@ export class ProductController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.god, UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin, UserRoles.employee)
   async getByIdForAdmin(@Param('id') productId: number) {
     const data = await this.productService.getByIdForAdmin(productId);
     return successfulResult([], data);
