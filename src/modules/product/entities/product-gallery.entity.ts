@@ -15,11 +15,7 @@ export enum ProductGalleryType {
   video = 'video',
 }
 
-export enum ProductGallerySource {
-  trendyol = 'trendyol',
-}
-
-@Index('fk_gallery_product1_idx', ['productId'], {})
+@Index('fk_product_gallery_product1_idx', ['productId'], {})
 @Entity('product_gallery')
 export class ProductGalleryEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
@@ -35,13 +31,8 @@ export class ProductGalleryEntity extends BaseEntity {
   })
   type: ProductGalleryType;
 
-  @Column('enum', {
-    name: 'source',
-    enum: ProductGallerySource,
-    default: null,
-    nullable: true,
-  })
-  source: ProductGallerySource;
+  @Column('varchar', { name: 'source', nullable: true, length: 128 })
+  source: string | null;
 
   @Column('varchar', { name: 'pathFile', length: 128 })
   pathFile: string;

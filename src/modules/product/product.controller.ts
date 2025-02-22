@@ -38,7 +38,6 @@ import { ProductSortDto } from './dto/product-sort.dto';
 import * as dotenv from 'dotenv';
 import { CreateUpdateProductAttrValueDto } from './dto/create-update-product-attr-value.dto';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
-import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
 dotenv.config();
 
 @ApiTags('Product')
@@ -47,7 +46,6 @@ export class ProductController {
   constructor(
     private productService: ProductService,
     private error: ErrorService,
-    private crawlerService: CrawlerService,
   ) {}
 
   /**
@@ -62,6 +60,20 @@ export class ProductController {
     const results = await this.productService.getProductsByCrawler();
 
     return successfulResult([], results);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /products/111111/crawler/admin
+   */
+  @Get('/:id/crawler/admin')
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(UserRoles.admin, UserRoles.employee)
+  async crawlerById(@Param('id') id: string) {
+    const result = await this.productService.getProductIdByCrawler(id);
+
+    return successfulResult([], result);
   }
 
   /**

@@ -22,11 +22,14 @@ export class CategoryEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
-  @Column('int', { name: 'sourceId', nullable: true })
-  sourceId: number | null;
+  @Column('varchar', { name: 'sourceId', nullable: true, length: 128 })
+  sourceId: string | null;
 
   @Column('int', { name: 'parentId', nullable: true })
   parentId: number | null;
+
+  @Column('varchar', { name: 'sourceName', nullable: true, length: 128 })
+  sourceName: string | null;
 
   @Column('varchar', { name: 'name', length: 255 })
   name: string;
@@ -34,10 +37,24 @@ export class CategoryEntity extends BaseEntity {
   @Column('varchar', { name: 'iconPath', nullable: true, length: 128 })
   iconPath: string | null;
 
+  @Column('varchar', { name: 'hierarchy', nullable: true, length: 255 })
+  hierarchy: string | null;
+
+  @Column('varchar', { name: 'bankTypeId', nullable: true, length: 128 })
+  bankTypeId: string | null;
+
+  @Column('varchar', { name: 'bankTypeName', nullable: true, length: 128 })
+  bankTypeName: string | null;
+
   @Column('int', { name: 'displayOrder', default: () => "'1'" })
   displayOrder: number;
 
-  @Column('tinyint', { name: 'isSelection', width: 1, default: () => "'0'", transformer: new BooleanTransformer(), })
+  @Column('tinyint', {
+    name: 'isSelection',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
   isSelection: boolean;
 
   @Column('enum', {

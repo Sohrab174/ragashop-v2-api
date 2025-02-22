@@ -18,8 +18,14 @@ export class AttributeEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
-  @Column('int', { name: 'sourceId' })
-  sourceId: number;
+  @Column('varchar', { name: 'source', nullable: true, length: 128 })
+  source: string | null;
+
+  @Column('varchar', { name: 'sourceId', length: 128 })
+  sourceId: string;
+
+  @Column('varchar', { name: 'sourceName', nullable: true, length: 128 })
+  sourceName: string | null;
 
   @Column('varchar', { name: 'name', length: 255 })
   name: string;

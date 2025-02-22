@@ -20,6 +20,18 @@ export class AttributeValueEntity extends BaseEntity {
   @Column('int', { name: 'attributeId' })
   attributeId: number;
 
+  @Column('varchar', { name: 'source', nullable: true, length: 128 })
+  source: string | null;
+
+  @Column('varchar', { name: 'sourceId', nullable: true, length: 128 })
+  sourceId: string | null;
+
+  @Column('varchar', { name: 'sourceName', nullable: true, length: 128 })
+  sourceName: string | null;
+
+  @Column('varchar', { name: 'name', length: 128 })
+  name: string;
+
   @Column('varchar', { name: 'extraValue', nullable: true, length: 128 })
   extraValue: string | null;
 

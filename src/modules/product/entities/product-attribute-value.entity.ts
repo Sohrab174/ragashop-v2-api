@@ -26,6 +26,9 @@ export class ProductAttributeValueEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
+  @Column('varchar', { name: 'source', nullable: true, length: 128 })
+  source: string | null;
+
   @Column('int', { name: 'productId' })
   productId: number;
 
@@ -64,6 +67,20 @@ export class ProductAttributeValueEntity extends BaseEntity {
     transformer: new DecimalTransformer(),
   })
   discountPercent: number | null;
+
+  @Column('tinyint', {
+    name: 'starred',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  starred: boolean;
+
+  @Column('text', { name: 'sourceDescription', nullable: true })
+  sourceDescription: string | null;
+
+  @Column('text', { name: 'description', nullable: true })
+  description: string | null;
 
   @Column('tinyint', {
     name: 'isDeleted',

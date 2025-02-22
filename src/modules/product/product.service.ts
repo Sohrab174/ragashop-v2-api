@@ -1691,6 +1691,7 @@ export class ProductService {
         existingProduct.price = product.price;
         existingProduct.discountedPrice = product.discountedPrice;
         existingProduct.currency = product.currency;
+        existingProduct.lastCrawlingAt = new Date();
 
         // ذخیره تغییرات
         await existingProduct.save();
@@ -1710,6 +1711,7 @@ export class ProductService {
                 type: ProductGalleryType.photo,
                 source,
                 pathFile: product.coverPath,
+                createdAt: new Date(),
               })
               .execute();
           }
@@ -1727,12 +1729,17 @@ export class ProductService {
             source: product.source,
             sourceId: product.sourceId,
             sourceName: product.sourceName,
-            name: product.name,
+            name: product.sourceName,
             sourceUrl: product.sourceUrl,
             sourceGroupId: product.sourceGroupId,
             price: product.price,
             discountedPrice: product.discountedPrice,
             currency: product.currency,
+            quantity: -1,
+            star: 0,
+            starCountPerson: 0,
+            lastCrawlingAt: new Date(),
+            createdAt: new Date(),
           })
           .execute();
 
@@ -1745,6 +1752,7 @@ export class ProductService {
               type: ProductGalleryType.photo,
               source: product.source,
               pathFile: product.coverPath,
+              createdAt: new Date(),
             })
             .execute();
         }
@@ -1754,7 +1762,14 @@ export class ProductService {
       }
     }
 
-    // بازگشت نتایج به کلاینت
-    return successfulResult([], results);
+    return results;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getProductIdByCrawler(id) {
+    const crawledProduct = await this.crawlerService.getProductById(id);
+    return crawledProduct;
   }
 }

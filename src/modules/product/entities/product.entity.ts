@@ -15,6 +15,8 @@ import { ProductAttributeValueEntity } from './product-attribute-value.entity';
 import { IncredibleOfferEntity } from '../../incredible-offer/entities/Incredible-offer.entity';
 import { BrandEntity } from '../../brand/entities/brand.entity';
 import { OrderItemEntity } from '../../order/entities/order-item.entity';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
+import { ProductDescriptionEntity } from './Product-description.entity';
 
 export enum ProductStatus {
   active = 'active',
@@ -38,12 +40,9 @@ export enum ProductCurrency {
   IRT = 'IRT',
 }
 
-export enum ProductSource {
-  trendyol = 'trendyol',
-}
-
+@Index('fk_product_brand1_idx', ['brandId'], {})
 @Index('fk_product_category1_idx', ['categoryId'], {})
-@Index('fk_product_gallery1_idx', ['coverId'], {})
+@Index('fk_product_product_gallery1_idx', ['coverId'], {})
 @Entity('product')
 export class ProductEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
@@ -58,8 +57,8 @@ export class ProductEntity extends BaseEntity {
   @Column('int', { name: 'brandId', nullable: true })
   brandId: number | null;
 
-  @Column('int', { name: 'sourceId', nullable: true })
-  sourceId: number | null;
+  @Column('varchar', { name: 'sourceId', nullable: true, length: 128 })
+  sourceId: string | null;
 
   @Column('varchar', { name: 'sourceUrl', nullable: true, length: 255 })
   sourceUrl: string | null;
@@ -67,13 +66,8 @@ export class ProductEntity extends BaseEntity {
   @Column('varchar', { name: 'sourceGroupId', nullable: true, length: 128 })
   sourceGroupId: string | null;
 
-  @Column('enum', {
-    name: 'source',
-    enum: ProductSource,
-    default: null,
-    nullable: true,
-  })
-  source: ProductSource;
+  @Column('varchar', { name: 'source', nullable: true, length: 128 })
+  source: string | null;
 
   @Column('varchar', { name: 'name', length: 255 })
   name: string;
@@ -144,6 +138,80 @@ export class ProductEntity extends BaseEntity {
   @Column('text', { name: 'sourceDescription', nullable: true })
   sourceDescription: string | null;
 
+  @Column('varchar', { name: 'color', nullable: true, length: 128 })
+  color: string | null;
+
+  @Column('tinyint', {
+    name: 'isVasEnabled',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isVasEnabled: boolean;
+
+  @Column('decimal', {
+    name: 'tax',
+    nullable: true,
+    precision: 10,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  tax: number | null;
+
+  @Column('tinyint', {
+    name: 'isSellable',
+    width: 1,
+    default: () => "'1'",
+    transformer: new BooleanTransformer(),
+  })
+  isSellable: boolean;
+
+  @Column('tinyint', {
+    name: 'isBasketDiscount',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isBasketDiscount: boolean;
+
+  @Column('tinyint', {
+    name: 'hasStock',
+    width: 1,
+    default: () => "'1'",
+    transformer: new BooleanTransformer(),
+  })
+  hasStock: boolean;
+
+  @Column('tinyint', {
+    name: 'isFreeCargo',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isFreeCargo: boolean;
+
+  @Column('int', { name: 'favoriteCount', default: () => "'0'" })
+  favoriteCount: number;
+
+  @Column('varchar', { name: 'uxLayout', nullable: true, length: 128 })
+  uxLayout: string | null;
+
+  @Column('tinyint', {
+    name: 'isDigitalGood',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isDigitalGood: boolean;
+
+  @Column('tinyint', {
+    name: 'isArtWork',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isArtWork: boolean;
+
   @Column('int', { name: 'displayOrder', default: () => "'1'" })
   displayOrder: number;
 
@@ -204,4 +272,10 @@ export class ProductEntity extends BaseEntity {
 
   @OneToMany(() => OrderItemEntity, (orderItem) => orderItem.product)
   orderItems: OrderItemEntity[];
+
+  @OneToMany(
+    () => ProductDescriptionEntity,
+    (productDescription) => productDescription.product,
+  )
+  productDescriptions: ProductDescriptionEntity[];
 }
