@@ -1883,7 +1883,7 @@ export class ProductService {
       const existingImagePaths = new Set(
         product.productGalleries.map((img) => img.pathFile),
       );
-      const newImagePaths = new Set(crawlerProduct.images);
+      // const newImagePaths = new Set(crawlerProduct.images);
 
       // Identify images to add and remove
       const imagesToAdd = crawlerProduct.images
@@ -1895,14 +1895,14 @@ export class ProductService {
           createdAt: new Date(),
         }));
 
-      const imagesToRemove = product.productGalleries
-        .filter((img) => !newImagePaths.has(img.pathFile))
-        .map((img) => img.id);
+      // const imagesToRemove = product.productGalleries
+      //   .filter((img) => !newImagePaths.has(img.pathFile))
+      //   .map((img) => img.id);
 
       // Apply changes
-      if (imagesToRemove.length > 0) {
-        await this.galleryRepository.delete(imagesToRemove);
-      }
+      // if (imagesToRemove.length > 0) {
+      //   await this.galleryRepository.delete(imagesToRemove);
+      // }
       if (imagesToAdd.length > 0) {
         await this.galleryRepository.save(imagesToAdd);
       }
