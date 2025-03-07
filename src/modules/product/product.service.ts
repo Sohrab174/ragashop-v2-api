@@ -37,7 +37,7 @@ import * as xlsx from 'xlsx';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
 import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
 import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
-import { ProductDescriptionEntity } from './entities/Product-description.entity';
+import { ProductDescriptionEntity } from './entities/product-description.entity';
 import { BrandService } from '../brand/brand.service';
 
 @Injectable()

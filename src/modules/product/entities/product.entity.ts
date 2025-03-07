@@ -16,7 +16,7 @@ import { IncredibleOfferEntity } from '../../incredible-offer/entities/Incredibl
 import { BrandEntity } from '../../brand/entities/brand.entity';
 import { OrderItemEntity } from '../../order/entities/order-item.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
-import { ProductDescriptionEntity } from './Product-description.entity';
+import { ProductDescriptionEntity } from './product-description.entity';
 
 export enum ProductStatus {
   active = 'active',
