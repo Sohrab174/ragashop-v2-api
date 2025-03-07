@@ -681,16 +681,18 @@ export class ProductService {
       })
       .getMany();
 
-    if (product.coverId && product.productGalleries?.length === 1) {
-      return product;
-    }
+    return product;
 
-    return {
-      ...product,
-      productGalleries: product.productGalleries.filter(
-        (g) => g.id !== product.coverId,
-      ),
-    };
+    // if (product.coverId && product.productGalleries?.length === 1) {
+    //   return product;
+    // }
+
+    // return {
+    //   ...product,
+    //   productGalleries: product.productGalleries.filter(
+    //     (g) => g.id !== product.coverId,
+    //   ),
+    // };
   }
 
   /**
