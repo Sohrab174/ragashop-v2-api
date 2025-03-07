@@ -341,18 +341,15 @@ export class AttributeService {
    * -------------------------------------------------------
    */
   async addOrUpdates(attributes, source) {
-    const currentAttrbiutes = await this.attributeRepository.find({
-      relations: ['values'],
-      where: { source },
-    });
-
     const attributeValues = [];
 
     for (const attribute of attributes) {
-      let foundAttribute = currentAttrbiutes.find(
-        (ca) => ca.sourceId === `${attribute.id}`,
-      );
+      let foundAttribute = await this.attributeRepository.findOne({
+        source,
+        sourceId: attribute.id,
+      });
 
+      let foundAttributeValue = null;
       if (!foundAttribute) {
         foundAttribute = this.attributeRepository.create({
           source,
@@ -361,16 +358,23 @@ export class AttributeService {
           name: attribute.name,
         });
         await this.attributeRepository.save(foundAttribute);
-        foundAttribute.values = [];
-        // Push the new attribute to currentAttrbiutes
-        currentAttrbiutes.push(foundAttribute);
+      } else {
+        foundAttributeValue = await this.attributeValueRepository.findOne({
+          where: [
+            attribute.value.id
+              ? {
+                  source,
+                  sourceId: attribute.value.id,
+                  attributeId: foundAttribute.id,
+                }
+              : {
+                  source,
+                  sourceName: attribute.value.name,
+                  attributeId: foundAttribute.id,
+                },
+          ],
+        });
       }
-
-      let foundAttributeValue = foundAttribute.values.find(
-        (cav) =>
-          (attribute.value.id && cav.sourceId === `${attribute.value.id}`) ||
-          (!attribute.value.id && cav.sourceName === attribute.value.name),
-      );
 
       if (!foundAttributeValue) {
         foundAttributeValue = this.attributeValueRepository.create({
@@ -381,8 +385,6 @@ export class AttributeService {
           name: attribute.value.name,
         });
         await this.attributeValueRepository.save(foundAttributeValue);
-        // Push the new attribute value to currentAttrbiutes
-        foundAttribute.values.push(foundAttributeValue);
       }
 
       attributeValues.push({
