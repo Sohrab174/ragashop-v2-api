@@ -8,6 +8,8 @@ import { ProductService } from './product.service';
 import { AttributeModule } from '../attribute/attribute.module';
 import { ProductAttributeValueEntity } from './entities/product-attribute-value.entity';
 import { CrawlerModule } from '../../thirdParty/crawler/crawler.module';
+import { ProductDescriptionEntity } from './entities/Product-description.entity';
+import { BrandModule } from '../brand/brand.module';
 
 @Module({
   imports: [
@@ -15,10 +17,12 @@ import { CrawlerModule } from '../../thirdParty/crawler/crawler.module';
       ProductEntity,
       ProductGalleryEntity,
       ProductAttributeValueEntity,
+      ProductDescriptionEntity,
     ]),
     CategoryModule,
     AttributeModule,
     CrawlerModule,
+    BrandModule,
   ],
   controllers: [ProductController],
   providers: [ProductService],

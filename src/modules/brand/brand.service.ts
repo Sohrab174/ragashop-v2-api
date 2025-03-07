@@ -110,4 +110,38 @@ export class BrandService {
       pagination: paginationResult(page, limit, totalItems),
     };
   }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async addOrUpdate(
+    source,
+    sourceId,
+    { sourceName, description = null, isVirtual = null },
+  ) {
+    let brand = await this.brandRepository.findOne({
+      where: { source, sourceId },
+      select: ['id', 'sourceName'],
+    });
+
+    if (brand) {
+      if (brand.sourceName !== sourceName) {
+        brand.sourceName = sourceName;
+        await brand.save();
+      }
+    } else {
+      brand = this.brandRepository.create({
+        source,
+        sourceId,
+        sourceName,
+        name: sourceName,
+        description,
+        isVirtual,
+      });
+
+      await this.brandRepository.save(brand);
+    }
+
+    return brand.id;
+  }
 }

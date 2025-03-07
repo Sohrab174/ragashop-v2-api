@@ -64,6 +64,19 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
+   * POST /products/crawler/admin
+   */
+  @Post('/crawler/details/admin')
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(UserRoles.admin, UserRoles.employee)
+  async crawlerDetails() {
+    const result = await this.productService.getProductsDetailsByCrawler();
+    return successfulResult(['Done'], result);
+  }
+
+  /**
+   * -------------------------------------------------------
    * GET /products/111111/crawler/admin
    */
   @Get('/:id/crawler/admin')

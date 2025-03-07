@@ -22,6 +22,9 @@ export class CategoryEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
 
+  @Column('varchar', { name: 'source', nullable: true, length: 128 })
+  source: string | null;
+
   @Column('varchar', { name: 'sourceId', nullable: true, length: 128 })
   sourceId: string | null;
 

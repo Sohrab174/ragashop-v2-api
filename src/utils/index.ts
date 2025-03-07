@@ -261,3 +261,16 @@ export const sliceText = (text, maxLength = 160) => {
 
   return slicedText;
 };
+
+export const removeDuplicate = (arr) =>
+  arr
+    .filter((value) => !!value)
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+export const removeDuplicateByKey = (arr, key = 'name') =>
+  arr
+    .filter((value) => !!value)
+    .filter(
+      (value, index, array) =>
+        array.findIndex((item) => item[key] === value[key]) === index,
+    );

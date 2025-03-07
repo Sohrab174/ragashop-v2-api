@@ -10,6 +10,7 @@ import {
   applySortingToBuilder,
   findCategoryParentsByChildId,
   paginationResult,
+  removeDuplicateByKey,
 } from '../../utils';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -453,7 +454,12 @@ export class CategoryService {
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .select(['category.id', 'category.parentId', 'category.iconPath', 'category.name'])
+      .select([
+        'category.id',
+        'category.parentId',
+        'category.iconPath',
+        'category.name',
+      ])
       .where({ status: CategoryStatus.active })
       .orderBy('category.displayOrder', 'ASC')
       .getMany();
@@ -607,5 +613,76 @@ export class CategoryService {
     }
 
     return result;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async addOrUpdate(
+    source,
+    sourceId,
+    { sourceName, hierarchy = null, bankTypeId = null, bankTypeName = null },
+    tree = [],
+  ) {
+    let category = await this.categoryRepository.findOne({
+      where: { source, sourceId },
+      select: ['id', 'parentId', 'sourceName'],
+    });
+
+    if (category) {
+      if (category.sourceName !== sourceName) {
+        category.sourceName = sourceName;
+        category.hierarchy = hierarchy;
+        await category.save();
+      }
+    } else {
+      tree = removeDuplicateByKey(tree, 'level').filter(
+        (node) => node.id !== sourceId,
+      );
+      let parentId: number | null = null;
+
+      if (tree.length > 0) {
+        let parentCategory = null;
+
+        for (const node of tree.sort((a, b) => a.level - b.level)) {
+          parentCategory = await this.categoryRepository.findOne({
+            where: { source, sourceId: node.id },
+            select: ['id'],
+          });
+
+          if (!parentCategory) {
+            parentCategory = this.categoryRepository.create({
+              parentId,
+              source,
+              sourceId: node.id,
+              sourceName: node.name,
+              name: node.name,
+              displayOrder: await getLastDisplayOrder(CategoryEntity.name),
+              createdAt: new Date(),
+            });
+
+            await this.categoryRepository.save(parentCategory);
+          }
+
+          parentId = parentCategory.id;
+        }
+      }
+
+      category = this.categoryRepository.create({
+        parentId,
+        source,
+        sourceId,
+        sourceName,
+        name: sourceName,
+        hierarchy,
+        bankTypeId,
+        bankTypeName,
+        displayOrder: await getLastDisplayOrder(CategoryEntity.name),
+        createdAt: new Date(),
+      });
+      await this.categoryRepository.save(category);
+    }
+
+    return category.id;
   }
 }

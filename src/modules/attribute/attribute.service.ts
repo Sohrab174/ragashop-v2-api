@@ -8,6 +8,7 @@ import {
   applyFiltersToBuilder,
   applySortingToBuilder,
   paginationResult,
+  removeDuplicateByKey,
 } from '../../utils';
 import { CreateAttributeDto } from './dto/create-attribute.dto';
 import { UpdateAttributeDto } from './dto/update-attribute.dto';
@@ -334,5 +335,58 @@ export class AttributeService {
     // );
 
     return newAttrValueId;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async addOrUpdates(attributes, source) {
+    const currentAttrbiutes = await this.attributeRepository.find({
+      relations: ['values'],
+      where: { source },
+    });
+
+    const attributeValues = [];
+
+    for (const attribute of removeDuplicateByKey(attributes, 'id')) {
+      let foundAttribute = currentAttrbiutes.find(
+        (ca) => ca.sourceId === `${attribute.id}`,
+      );
+
+      if (!foundAttribute) {
+        foundAttribute = this.attributeRepository.create({
+          source,
+          sourceId: attribute.id,
+          sourceName: attribute.name,
+          name: attribute.name,
+        });
+        await this.attributeRepository.save(foundAttribute);
+        foundAttribute.values = [];
+      }
+
+      let foundAttributeValue = foundAttribute.values.find(
+        (cav) =>
+          (attribute.value.id && cav.sourceId === `${attribute.value.id}`) ||
+          (!attribute.value.id && cav.sourceName === attribute.value.name),
+      );
+
+      if (!foundAttributeValue) {
+        foundAttributeValue = this.attributeValueRepository.create({
+          attributeId: foundAttribute.id,
+          source,
+          sourceId: attribute.value.id,
+          sourceName: attribute.value.name,
+          name: attribute.value.name,
+        });
+        await this.attributeValueRepository.save(foundAttributeValue);
+      }
+
+      attributeValues.push({
+        valueId: foundAttributeValue.id,
+        ...attribute.value,
+      });
+    }
+
+    return attributeValues;
   }
 }

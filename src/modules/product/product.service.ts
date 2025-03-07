@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { getConnection, Repository, IsNull } from 'typeorm';
+import { getConnection, Repository, IsNull, In } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -9,7 +9,7 @@ import {
   applySortingToBuilder,
   getDuplicateItems,
   paginationResult,
-  successfulResult,
+  sleep,
 } from '../../utils';
 import { CategoryService } from '../category/category.service';
 import { CategoryStatus } from '../category/entities/category.entity';
@@ -37,6 +37,8 @@ import * as xlsx from 'xlsx';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
 import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
 import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
+import { ProductDescriptionEntity } from './entities/Product-description.entity';
+import { BrandService } from '../brand/brand.service';
 
 @Injectable()
 export class ProductService {
@@ -50,12 +52,13 @@ export class ProductService {
     @InjectRepository(ProductGalleryEntity)
     private galleryRepository: Repository<ProductGalleryEntity>,
 
-    @InjectRepository(ProductGalleryEntity)
-    private productGalleryRepository: Repository<ProductGalleryEntity>,
+    @InjectRepository(ProductDescriptionEntity)
+    private descriptionRepository: Repository<ProductDescriptionEntity>,
 
     private error: ErrorService,
     private categoryService: CategoryService,
     private attributeService: AttributeService,
+    private brandService: BrandService,
 
     private crawlerService: CrawlerService,
   ) {}
@@ -428,7 +431,8 @@ export class ProductService {
       .leftJoinAndSelect(
         'product.productAttributeValues',
         'productAttributeValues',
-      );
+      )
+      .andWhere({ isDeleted: false });
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -494,6 +498,7 @@ export class ProductService {
       .andWhere('product.status = :status', {
         product: ProductStatus.active,
       })
+      .andWhere({ isDeleted: false })
       .orderBy('product.displayOrder', 'ASC');
 
     const products = await builder.getMany();
@@ -568,9 +573,11 @@ export class ProductService {
     const builder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.cover', 'cover')
-      // .leftJoinAndSelect('product.galleries', 'galleries')
+      .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
       .innerJoinAndSelect('product.category', 'category')
-      .where({ id });
+      .leftJoinAndSelect('product.brand', 'brand')
+      .where({ id })
+      .andWhere({ isDeleted: false });
 
     const product = await builder.getOne();
 
@@ -590,7 +597,9 @@ export class ProductService {
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.productGalleries', 'productGalleries')
+      .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
       .innerJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('product.brand', 'brand')
       // Product incredible offers
       .leftJoin(
         'product.incredibleOffers',
@@ -623,8 +632,8 @@ export class ProductService {
       .addSelect('productAttributeIncredibleOffers.id')
       .addSelect('productAttributeIncredibleOffers.discountedPrice')
       .addSelect('productAttributeIncredibleOffers.toDate')
-
-      .where({ id });
+      .where({ id })
+      .andWhere({ isDeleted: false });
 
     builder.andWhere({ status: ProductStatus.active });
 
@@ -685,6 +694,7 @@ export class ProductService {
       })
       .leftJoinAndSelect('product.cover', 'cover')
       .andWhere({ status: ProductStatus.active })
+      .andWhere({ isDeleted: false })
 
       // Product incredible offers
       .leftJoin(
@@ -769,7 +779,8 @@ export class ProductService {
         builder = applySortingToBuilder(builder, sorts);
       }
     } else {
-      builder.orderBy('product.displayOrder', 'ASC');
+      // builder.orderBy('product.displayOrder', 'ASC');
+      builder.orderBy('RAND()');
     }
 
     builder = applyFiltersToBuilder(builder, filters);
@@ -795,7 +806,8 @@ export class ProductService {
         'ROW_NUMBER() OVER (PARTITION BY subProduct.sourceGroupId ORDER BY subProduct.id)',
         'row_num',
       )
-      .andWhere({ status: ProductStatus.active });
+      .andWhere({ status: ProductStatus.active })
+      .andWhere({ isDeleted: false });
 
     builder.innerJoin(
       `(${subQuery.getQuery()})`,
@@ -835,6 +847,7 @@ export class ProductService {
         'product',
       )
       .andWhere('product.row_num <= :num', { num: limitPerCategory })
+      .andWhere({ isDeleted: false })
       .getRawMany();
 
     // Not found
@@ -875,6 +888,7 @@ export class ProductService {
       .andWhere('product.id IN (:...ids)', {
         ids: targetProductList.map((p) => p.id),
       })
+      .andWhere({ isDeleted: false })
 
       // GPT SAYS: In general, when you use a subquery in MySQL, the subquery is executed for each row in the outer query.
       // .andWhere(
@@ -1178,56 +1192,59 @@ export class ProductService {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
-    // Rollbacking the product locales if an error occurs
-    const queryRunner = getConnection().createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+    product.isDeleted = true;
+    await product.save();
 
-    const oldGalleryPaths = [];
-    const oldFilePaths = [];
+    // // Rollbacking the product locales if an error occurs
+    // const queryRunner = getConnection().createQueryRunner();
+    // await queryRunner.connect();
+    // await queryRunner.startTransaction();
 
-    try {
-      product.coverId = null;
-      await queryRunner.manager.save(product);
+    // const oldGalleryPaths = [];
+    // const oldFilePaths = [];
 
-      for (let i = 0; i < product.productAttributeValues.length; i++) {
-        const productAttributeValue = product.productAttributeValues[i];
-        // Removing the product attribute value
-        await queryRunner.manager.remove(productAttributeValue);
-      }
+    // try {
+    //   product.coverId = null;
+    //   await queryRunner.manager.save(product);
 
-      for (let i = 0; i < product.productGalleries.length; i++) {
-        const gallery = product.productGalleries[i];
-        oldGalleryPaths.push(gallery.pathFile);
-        // Removing the product gallery
-        await queryRunner.manager.remove(gallery);
-      }
+    //   for (let i = 0; i < product.productAttributeValues.length; i++) {
+    //     const productAttributeValue = product.productAttributeValues[i];
+    //     // Removing the product attribute value
+    //     await queryRunner.manager.remove(productAttributeValue);
+    //   }
 
-      // Removing the product
-      await queryRunner.manager.remove(product);
+    //   for (let i = 0; i < product.productGalleries.length; i++) {
+    //     const gallery = product.productGalleries[i];
+    //     oldGalleryPaths.push(gallery.pathFile);
+    //     // Removing the product gallery
+    //     await queryRunner.manager.remove(gallery);
+    //   }
 
-      await queryRunner.commitTransaction();
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
+    //   // Removing the product
+    //   await queryRunner.manager.remove(product);
 
-      this.error.methodNotAllowed([
-        'برخی از سفارشات مربوط به این محصول هستند، لطفا ابتدا سفارشات این محصول را حذف کنید',
-      ]);
-    } finally {
-      await queryRunner.release();
-    }
+    //   await queryRunner.commitTransaction();
+    // } catch (err) {
+    //   await queryRunner.rollbackTransaction();
 
-    oldGalleryPaths.forEach((pathFile) => {
-      fs.unlink(path.join(__dirname, '../../..', 'uploads', pathFile), (e) =>
-        console.log(e),
-      );
-    });
+    //   this.error.methodNotAllowed([
+    //     'برخی از سفارشات مربوط به این محصول هستند، لطفا ابتدا سفارشات این محصول را حذف کنید',
+    //   ]);
+    // } finally {
+    //   await queryRunner.release();
+    // }
 
-    oldFilePaths.forEach((pathFile) => {
-      fs.unlink(path.join(__dirname, '../../..', 'uploads', pathFile), (e) =>
-        console.log(e),
-      );
-    });
+    // oldGalleryPaths.forEach((pathFile) => {
+    //   fs.unlink(path.join(__dirname, '../../..', 'uploads', pathFile), (e) =>
+    //     console.log(e),
+    //   );
+    // });
+
+    // oldFilePaths.forEach((pathFile) => {
+    //   fs.unlink(path.join(__dirname, '../../..', 'uploads', pathFile), (e) =>
+    //     console.log(e),
+    //   );
+    // });
 
     return true;
   }
@@ -1317,6 +1334,7 @@ export class ProductService {
       .addSelect('productAttributeIncredibleOffers.discountedPrice')
 
       .where('product.id IN (:...productIds) ', { productIds })
+      .andWhere({ isDeleted: false })
       .getMany();
 
     return products.map((product) => ({
@@ -1358,7 +1376,8 @@ export class ProductService {
     let builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoinAndSelect('product.category', 'category')
-      .select(['product.id', 'product.number', 'product.displayOrder']);
+      .select(['product.id', 'product.number', 'product.displayOrder'])
+      .andWhere({ isDeleted: false });
 
     if (dto.action) {
       builder = applyFiltersToBuilder(builder, filters);
@@ -1473,6 +1492,7 @@ export class ProductService {
         'productAttributeValues',
         'productAttributeValues.isDeleted = 0',
       )
+      .andWhere({ isDeleted: false })
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);
@@ -1497,6 +1517,7 @@ export class ProductService {
         { type: AttributeTypes.color },
       )
       .select(['DISTINCT attributeValue.extraValue AS color'])
+      .andWhere({ isDeleted: false })
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);
@@ -1528,10 +1549,8 @@ export class ProductService {
 
     return {
       ...item,
-      price: item.showPrice ? item.price : 0,
-      discountedPrice: item.showPrice
-        ? offer?.discountedPrice || item.discountedPrice
-        : 0,
+      price: item.price,
+      discountedPrice: offer?.discountedPrice || item.discountedPrice,
       incredibleOfferExpire: offer?.toDate || null,
       productAttributeValues: item.productAttributeValues
         .filter(
@@ -1542,11 +1561,9 @@ export class ProductService {
         .map((attr) => ({
           id: attr.id,
           color: attr.attributeValue?.extraValue || null,
-          price: item.showPrice ? attr.price : 0,
-          discountedPrice: item.showPrice
-            ? attr.incredibleOffers?.[0]?.discountedPrice ||
-              attr.discountedPrice
-            : 0,
+          price: attr.price,
+          discountedPrice:
+            attr.incredibleOffers?.[0]?.discountedPrice || attr.discountedPrice,
           quantity: item.quantity,
           incredibleOfferExpire: attr.incredibleOffers?.[0]?.toDate || null,
         })),
@@ -1559,6 +1576,7 @@ export class ProductService {
   async statistic() {
     const published = await this.productRepository.count({
       status: ProductStatus.active,
+      isDeleted: false,
     });
 
     return {
@@ -1583,6 +1601,7 @@ export class ProductService {
 
     const product = await this.productRepository.findOne({
       number,
+      isDeleted: false,
     });
 
     if (product) {
@@ -1620,10 +1639,12 @@ export class ProductService {
         'productAttributeValues.number',
       ]);
 
-    builder.andWhere(
-      '(product.number = :number OR productAttributeValues.number = :number)',
-      { number },
-    );
+    builder
+      .andWhere(
+        '(product.number = :number OR productAttributeValues.number = :number)',
+        { number },
+      )
+      .andWhere({ isDeleted: false });
 
     const product = await builder.getOne();
     if (!product) return true;
@@ -1665,35 +1686,30 @@ export class ProductService {
    * -------------------------------------------------------
    */
   async getProductsByCrawler() {
-    // دریافت محصولات از کراولر
     const crawledProducts = await this.crawlerService.getProducts();
 
-    // نتیجه نهایی برای بازگشت
     const results = [];
 
-    // بررسی وجود محصول در دیتابیس براساس sourceId
     const existingProducts = await this.productRepository.find({
       where: { source: 'trendyol' },
       relations: ['productGalleries'],
     });
 
-    // پردازش هر محصول کراول‌شده
     for (const product of crawledProducts) {
       const existingProduct = existingProducts.find(
         (p) => p.sourceId == product.sourceId,
       );
 
       if (existingProduct) {
-        // اگر محصول وجود داشت، به‌روزرسانی
         existingProduct.name = product.sourceName;
         existingProduct.sourceName = product.sourceName;
         existingProduct.sourceUrl = product.sourceUrl;
         existingProduct.price = product.price;
         existingProduct.discountedPrice = product.discountedPrice;
         existingProduct.currency = product.currency;
+        existingProduct.isDeleted = false;
         existingProduct.lastCrawlingAt = new Date();
 
-        // ذخیره تغییرات
         await existingProduct.save();
 
         if (product.coverPath) {
@@ -1703,7 +1719,7 @@ export class ProductService {
             )
           ) {
             const source: any = existingProduct.source;
-            await this.productGalleryRepository
+            await this.galleryRepository
               .createQueryBuilder()
               .insert()
               .values({
@@ -1717,10 +1733,8 @@ export class ProductService {
           }
         }
 
-        // افزودن به نتایج
         results.push({ action: 'updated', product: existingProduct });
       } else {
-        // اگر محصول وجود نداشت، ایجاد رکورد جدید
         const { identifiers } = await this.productRepository
           .createQueryBuilder()
           .insert()
@@ -1744,7 +1758,7 @@ export class ProductService {
           .execute();
 
         if (product.coverPath) {
-          await this.productGalleryRepository
+          await this.galleryRepository
             .createQueryBuilder()
             .insert()
             .values({
@@ -1757,12 +1771,214 @@ export class ProductService {
             .execute();
         }
 
-        // افزودن به نتایج
         results.push({ action: 'created', product: null });
       }
     }
 
     return results;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getProductsDetailsByCrawler() {
+    const existingProducts = await this.productRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.productGalleries', 'productGalleries')
+      .leftJoin('product.productDescriptions', 'productDescriptions')
+      .leftJoin('product.productAttributeValues', 'productAttributeValues')
+      .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
+      .select([
+        'product.id',
+        'product.source',
+        'product.sourceId',
+        'product.categoryId',
+        'product.brandId',
+        'productGalleries.id',
+        'productGalleries.pathFile',
+        'productDescriptions.id',
+        'productDescriptions.sourceContent',
+        'productAttributeValues.id',
+        'productAttributeValues.attributeValueId',
+        'attributeValue.id',
+        'attributeValue.sourceId',
+      ])
+      .where({ source: 'trendyol', isDeleted: false })
+      .andWhere('DATE(product.lastCrawlingAt) < CURDATE()')
+      // .take(1)
+      .getMany();
+
+    for (const product of existingProducts) {
+      const crawlerProduct = await this.crawlerService.getProductById(
+        product.sourceId,
+      );
+      if (!crawlerProduct) {
+        await this.productRepository
+          .createQueryBuilder()
+          .update()
+          .set({ lastCrawlingAt: new Date(), isDeleted: true })
+          .where({ id: product.id })
+          .execute();
+        continue;
+      }
+
+      // Update or insert brand if missing --------------------------------------
+      if (!product.brandId) {
+        product.brandId = await this.brandService.addOrUpdate(
+          product.source,
+          crawlerProduct.brandId,
+          { sourceName: crawlerProduct.brandName },
+        );
+      }
+
+      // Update or insert category if missing --------------------------------------
+      if (product.categoryId === 1) {
+        product.categoryId = await this.categoryService.addOrUpdate(
+          product.source,
+          crawlerProduct.categoryId,
+          {
+            sourceName: crawlerProduct.categoryName,
+            bankTypeId: crawlerProduct.categoryBankTypeId,
+            bankTypeName: crawlerProduct.categoryBankTypeName,
+            hierarchy: crawlerProduct.categoryHierarchy,
+          },
+          crawlerProduct.categoryTree,
+        );
+      }
+
+      // Synchronize images based on pathFile --------------------------------------
+      const existingImagePaths = new Set(
+        product.productGalleries.map((img) => img.pathFile),
+      );
+      const newImagePaths = new Set(crawlerProduct.images);
+
+      // Identify images to add and remove
+      const imagesToAdd = crawlerProduct.images
+        .filter((pathFile) => !existingImagePaths.has(pathFile))
+        .map((pathFile) => ({
+          productId: product.id,
+          pathFile,
+          source: product.source,
+          createdAt: new Date(),
+        }));
+
+      const imagesToRemove = product.productGalleries
+        .filter((img) => !newImagePaths.has(img.pathFile))
+        .map((img) => img.id);
+
+      // Apply changes
+      if (imagesToRemove.length > 0) {
+        await this.galleryRepository.delete(imagesToRemove);
+      }
+      if (imagesToAdd.length > 0) {
+        await this.galleryRepository.save(imagesToAdd);
+      }
+
+      // Synchronize descriptions --------------------------------------
+      const existingDescriptionContents = new Set(
+        product.productDescriptions.map((desc) => desc.sourceContent),
+      );
+      const newDescriptionContents = new Set(
+        crawlerProduct.descriptions.map((desc) => desc.content),
+      );
+
+      // Identify descriptions to add and remove
+      const descriptionsToAdd = crawlerProduct.descriptions
+        .filter((desc) => !existingDescriptionContents.has(desc.content))
+        .map((desc) => ({
+          productId: product.id,
+          source: product.source,
+          content: desc.content,
+          sourceContent: desc.content,
+          displayOrder: desc.displayOrder,
+        }));
+      const descriptionsToRemove = product.productDescriptions
+        .filter((desc) => !newDescriptionContents.has(desc.sourceContent))
+        .map((desc) => desc.id);
+
+      // Apply changes
+      if (descriptionsToRemove.length > 0) {
+        await this.descriptionRepository.delete(descriptionsToRemove);
+      }
+      if (descriptionsToAdd.length > 0) {
+        await this.descriptionRepository.save(descriptionsToAdd);
+      }
+
+      // Synchronize attributes --------------------------------------
+      const attributeValues = await this.attributeService.addOrUpdates(
+        crawlerProduct.attributes,
+        product.source,
+      );
+
+      const existingAttributeIds = new Set(
+        product.productAttributeValues.map((attr) => attr.attributeValueId),
+      );
+      const newAttributeIds = new Set(
+        attributeValues.map((attr) => attr.valueId),
+      );
+
+      // Identify attributes to add and remove
+      const attributesToAdd = attributeValues
+        .filter((attr) => !existingAttributeIds.has(attr.valueId))
+        .map((attr) => ({
+          productId: product.id,
+          source: product.source,
+          attributeValueId: attr.valueId,
+          discountedPrice: attr.discountedPrice,
+          discountPercent: attr.discountPercent,
+          price: attr.price,
+          quantity: attr.quantity,
+        }));
+      const attributesToRemove = product.productAttributeValues
+        .filter((attr) => !newAttributeIds.has(attr.attributeValueId))
+        .map((attr) => attr.id);
+
+      // Apply changes
+      if (attributesToRemove.length > 0) {
+        await this.productAttributeValueRepository.update(
+          { id: In(attributesToRemove) },
+          { isDeleted: true },
+        );
+      }
+      if (attributesToAdd.length > 0) {
+        await this.productAttributeValueRepository.save(attributesToAdd);
+      }
+
+      // Update product details --------------------------------------
+      await this.productRepository
+        .createQueryBuilder()
+        .update()
+        .set({
+          brandId: product.brandId,
+          categoryId: product.categoryId,
+          sourceName: crawlerProduct.sourceName,
+          price: crawlerProduct.price,
+          discountedPrice: crawlerProduct.discountedPrice,
+          discountPercent: crawlerProduct.discountedPrice
+            ? (1 - crawlerProduct.discountedPrice / crawlerProduct.price) * 100
+            : 0,
+          color: crawlerProduct.color,
+          star: crawlerProduct.star,
+          starCountPerson: crawlerProduct.starCountPerson,
+          favoriteCount: crawlerProduct.favoriteCount,
+          isVasEnabled: crawlerProduct.isVasEnabled,
+          tax: crawlerProduct.tax,
+          isSellable: crawlerProduct.isSellable,
+          isBasketDiscount: crawlerProduct.isBasketDiscount,
+          hasStock: crawlerProduct.hasStock,
+          isFreeCargo: crawlerProduct.isFreeCargo,
+          uxLayout: crawlerProduct.uxLayout,
+          isDigitalGood: crawlerProduct.isDigitalGood,
+          isArtWork: crawlerProduct.isArtWork,
+          lastCrawlingAt: new Date(),
+        })
+        .where({ id: product.id })
+        .execute();
+
+      await sleep(1000);
+    }
+
+    return true;
   }
 
   /**

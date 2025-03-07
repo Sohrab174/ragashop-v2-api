@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 // import * as cheerio from 'cheerio';
-import { Translate } from '@google-cloud/translate/build/src/v2';
-import OpenAI from 'openai';
+// import { Translate } from '@google-cloud/translate/build/src/v2';
+// import OpenAI from 'openai';
 
 @Injectable()
 export class CrawlerService {
   private axios;
-  private translate: Translate;
-  private openai: OpenAI;
+  // private translate: Translate;
+  // private openai: OpenAI;
 
   constructor() {
     this.axios = axios.create({
@@ -16,14 +16,14 @@ export class CrawlerService {
       timeout: 60000,
     });
 
-    this.translate = new Translate({
-      key: 'AIzaSyBHGqx0yujSMl5r0dQfTjdTQ5JjB4fl9eo',
-    });
+    // this.translate = new Translate({
+    //   key: 'AIzaSyBHGqx0yujSMl5r0dQfTjdTQ5JjB4fl9eo',
+    // });
 
-    this.openai = new OpenAI({
-      apiKey:
-        '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',
-    });
+    // this.openai = new OpenAI({
+    //   apiKey:
+    //     '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',
+    // });
   }
 
   /**
@@ -101,11 +101,12 @@ export class CrawlerService {
       );
       const product = data.result;
 
-      return {
+      const result = {
         source: 'trendyol',
         sourceId: product.id,
         sourceName: product.name,
         name: product.name, // translatedName,
+        color: product?.color || null,
         number: product.productCode,
         sourceUrl: product.url,
         star: product?.ratingScore?.averageRating || 0,
@@ -113,12 +114,111 @@ export class CrawlerService {
         sourceGroupId: product.productGroupId,
         sizeChartUrl: product.sizeChartUrl,
         coverPath: product.imageUrl,
-        price: product.price.originalPrice,
-        discountedPrice: product.price.discountedPrice,
+        images: product.images,
+        price: product.price.originalPrice.value,
+        discountedPrice: product.price.discountedPrice.value,
+        tax: product?.tax || 0,
         currency:
           product.price.currency === 'TL' ? 'TRY' : product.price.currency,
+        brandId: product?.brand?.id || null,
+        brandName: product?.brand?.name || null,
+        isVasEnabled: product?.isVasEnabled || false,
+        isSellable: product?.isSellable || false,
+        isBasketDiscount: product?.isBasketDiscount || false,
+        isFreeCargo: product?.isFreeCargo || false,
+        isArtWork: product?.isArtWork || false,
+        isDigitalGood: product?.isDigitalGood || false,
+        hasStock: product?.hasStock || false,
+        favoriteCount: product?.favoriteCount || 0,
+        uxLayout: product?.uxLayout || null,
+        categoryId: product?.category?.id || null,
+        categoryName: product?.category?.name || null,
+        categoryHierarchy: product?.category?.hierarchy || null,
+        categoryIsVASEnabled: product?.category?.isVASEnabled || false,
+        categoryBankTypeId: product?.originalCategory?.bankType?.id || null,
+        categoryBankTypeName: product?.originalCategory?.bankType?.name || null,
+        categoryTree: product?.webCategoryTree || [],
+        descriptions: product.descriptions.map((d) => ({
+          content: d.text,
+          displayOrder: d.priority,
+        })),
+        fixAttributes: product.attributes.map((a) => ({
+          id: a.key.id,
+          name: a.key.name,
+          // starred: a.starred,
+          // description: a.description,
+          value: {
+            id: a.value.id,
+            name: a.value.name,
+          },
+        })),
+        selectionAttributes: product.allVariants.map((p) => ({
+          value: p.value,
+          inStock: p.inStock,
+          currency: p.currency,
+          price: p.price,
+        })),
+        selectionAttribute: {
+          currency:
+            product.merchantListings?.[0]?.variants?.[0]?.price?.currency ||
+            null,
+          discountedPrice:
+            product.merchantListings?.[0]?.variants?.[0]?.price
+              ?.discountedPrice || null,
+          price:
+            product.merchantListings?.[0]?.variants?.[0]?.price
+              ?.originalPrice || null,
+          quantity:
+            product.merchantListings?.[0]?.variants?.[0]?.quantity || null,
+          type:
+            product.merchantListings?.[0]?.variants?.[0]?.variantAttributes?.[0]
+              ?.attributeType || null,
+          name:
+            product.merchantListings?.[0]?.variants?.[0]?.variantAttributes?.[0]
+              ?.attributeName || null,
+          attributeId:
+            product.merchantListings?.[0]?.variants?.[0]?.variantAttributes?.[0]
+              ?.attributeId || null,
+        },
+        attributes: {},
       };
+
+      result.attributes = [
+        ...result.selectionAttributes.map((sa) => ({
+          id: result.selectionAttribute.attributeId,
+          name: result.selectionAttribute.name,
+          value: {
+            id: null,
+            name: sa.value,
+            currency: sa.currency,
+            discountedPrice: result.selectionAttribute.discountedPrice,
+            discountPercent: result.selectionAttribute.discountedPrice
+              ? (1 - result.selectionAttribute.discountedPrice / sa.price) * 100
+              : 0,
+            price: sa.price,
+            quantity: sa.inStock ? -1 : 0,
+          },
+        })),
+        ...result.fixAttributes.map((fa) => ({
+          id: fa.id,
+          name: fa.name,
+          value: {
+            id: fa.value.id,
+            name: fa.value.name,
+            currency: null,
+            discountedPrice: null,
+            discountPercent: 0,
+            price: null,
+            quantity: -1,
+          },
+        })),
+      ];
+
+      return result;
     } catch (error) {
+      if (error.response && error.response.status === 404) {
+        return null;
+      }
       console.error('Error crawling Trendyol by id:', id, error);
       throw new Error(`Failed to crawl Trendyol by ID: ${id}`);
     }
@@ -128,10 +228,9 @@ export class CrawlerService {
    * -----------------------------------------
    * translator
    */
-  async translateText(text: string): Promise<string> {
-    const [translatedText] = await this.translate.translate(text, 'fa');
-    return translatedText;
-
+  async translateText(text: string) {
+    // const [translatedText] = await this.translate.translate(text, 'fa');
+    // return translatedText;
     // const res = await this.openai.chat.completions.create({
     //   model: 'gpt-3.5-turbo',
     //   messages: [

@@ -111,8 +111,9 @@ export class ProductEntity extends BaseEntity {
     nullable: true,
     precision: 10,
     scale: 2,
+    transformer: new DecimalTransformer(),
   })
-  discountPercent: string | null;
+  discountPercent: number | null;
 
   @Column('int', { name: 'quantity', default: () => "'-1'" })
   quantity: number;
@@ -224,6 +225,13 @@ export class ProductEntity extends BaseEntity {
 
   @Column('datetime', { name: 'lastCrawlingAt', nullable: true })
   lastCrawlingAt: Date | null;
+
+  @Column('tinyint', {
+    name: 'isDeleted',
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isDeleted: boolean;
 
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;

@@ -86,6 +86,14 @@ ADD \`isArtWork\` TINYINT(1) NOT NULL DEFAULT '0' AFTER \`isDigitalGood\`;`);
 ENGINE = InnoDB
 DEFAULT CHARACTER SET = utf8mb4
 COLLATE = utf8mb4_unicode_ci;`);
+
+    await queryRunner.query(
+      `ALTER TABLE \`category\` ADD \`source\` VARCHAR(128) NULL DEFAULT NULL AFTER \`id\`;`,
+    );
+
+    await queryRunner.query(
+      `ALTER TABLE \`product\` ADD \`isDeleted\` TINYINT(1) NOT NULL DEFAULT '0' AFTER \`lastCrawlingAt\``,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
