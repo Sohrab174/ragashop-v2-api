@@ -348,7 +348,7 @@ export class AttributeService {
 
     const attributeValues = [];
 
-    for (const attribute of removeDuplicateByKey(attributes, 'id')) {
+    for (const attribute of attributes) {
       let foundAttribute = currentAttrbiutes.find(
         (ca) => ca.sourceId === `${attribute.id}`,
       );
@@ -362,6 +362,8 @@ export class AttributeService {
         });
         await this.attributeRepository.save(foundAttribute);
         foundAttribute.values = [];
+        // Push the new attribute to currentAttrbiutes
+        currentAttrbiutes.push(foundAttribute);
       }
 
       let foundAttributeValue = foundAttribute.values.find(
@@ -379,6 +381,8 @@ export class AttributeService {
           name: attribute.value.name,
         });
         await this.attributeValueRepository.save(foundAttributeValue);
+        // Push the new attribute value to currentAttrbiutes
+        foundAttribute.values.push(foundAttributeValue);
       }
 
       attributeValues.push({
