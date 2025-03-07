@@ -94,6 +94,10 @@ COLLATE = utf8mb4_unicode_ci;`);
     await queryRunner.query(
       `ALTER TABLE \`product\` ADD \`isDeleted\` TINYINT(1) NOT NULL DEFAULT '0' AFTER \`lastCrawlingAt\``,
     );
+
+    await queryRunner.query(
+      `ALTER TABLE \`product\` ADD INDEX(\`sourceGroupId\`)`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

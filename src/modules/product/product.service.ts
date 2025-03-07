@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { getConnection, Repository, IsNull, In } from 'typeorm';
+import { getConnection, Repository, IsNull, In, Not } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -663,6 +663,23 @@ export class ProductService {
     );
 
     delete product.incredibleOffers;
+
+    (product as any).relatedProducts = await this.productRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.cover', 'cover')
+      .select([
+        'product.id',
+        'product.name',
+        'cover.id',
+        'cover.type',
+        'cover.pathFile',
+      ])
+      .where({
+        isDeleted: false,
+        sourceGroupId: product.sourceGroupId,
+        id: Not(product.id),
+      })
+      .getMany();
 
     if (product.coverId && product.productGalleries?.length === 1) {
       return product;
@@ -1701,6 +1718,29 @@ export class ProductService {
       );
 
       if (existingProduct) {
+        if (product.coverPath) {
+          const existCover = existingProduct.productGalleries.find(
+            (pg) => pg.pathFile === product.coverPath,
+          );
+
+          if (!existCover) {
+            const { identifiers } = await this.galleryRepository
+              .createQueryBuilder()
+              .insert()
+              .values({
+                productId: existingProduct.id,
+                type: ProductGalleryType.photo,
+                source: existingProduct.source,
+                pathFile: product.coverPath,
+                createdAt: new Date(),
+              })
+              .execute();
+            existingProduct.coverId = identifiers[0].id;
+          } else {
+            existingProduct.coverId = existCover.id;
+          }
+        }
+
         existingProduct.name = product.sourceName;
         existingProduct.sourceName = product.sourceName;
         existingProduct.sourceUrl = product.sourceUrl;
@@ -1712,28 +1752,7 @@ export class ProductService {
 
         await existingProduct.save();
 
-        if (product.coverPath) {
-          if (
-            !existingProduct.productGalleries.find(
-              (pg) => pg.pathFile === product.coverPath,
-            )
-          ) {
-            const source: any = existingProduct.source;
-            await this.galleryRepository
-              .createQueryBuilder()
-              .insert()
-              .values({
-                productId: existingProduct.id,
-                type: ProductGalleryType.photo,
-                source,
-                pathFile: product.coverPath,
-                createdAt: new Date(),
-              })
-              .execute();
-          }
-        }
-
-        results.push({ action: 'updated', product: existingProduct });
+        results.push({ action: 'updated', productId: existingProduct.id });
       } else {
         const { identifiers } = await this.productRepository
           .createQueryBuilder()
@@ -1757,21 +1776,31 @@ export class ProductService {
           })
           .execute();
 
+        const productId = identifiers[0].id;
+
         if (product.coverPath) {
-          await this.galleryRepository
+          const { identifiers } = await this.galleryRepository
             .createQueryBuilder()
             .insert()
             .values({
-              productId: identifiers[0].id,
+              productId,
               type: ProductGalleryType.photo,
               source: product.source,
               pathFile: product.coverPath,
               createdAt: new Date(),
             })
             .execute();
+          const coverId = identifiers[0].id;
+
+          await this.productRepository
+            .createQueryBuilder()
+            .update()
+            .set({ coverId })
+            .where({ id: productId })
+            .execute();
         }
 
-        results.push({ action: 'created', product: null });
+        results.push({ action: 'created', productId });
       }
     }
 
