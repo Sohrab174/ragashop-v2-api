@@ -1767,6 +1767,7 @@ export class ProductService {
             sourceGroupId: product.sourceGroupId,
             price: product.price,
             discountedPrice: product.discountedPrice,
+            discountPercent: 0,
             currency: product.currency,
             quantity: -1,
             star: 0,
