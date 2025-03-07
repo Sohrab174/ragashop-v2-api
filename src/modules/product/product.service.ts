@@ -1768,6 +1768,7 @@ export class ProductService {
             price: product.price,
             discountedPrice: product.discountedPrice,
             discountPercent: 0,
+            tax: 0,
             currency: product.currency,
             quantity: -1,
             star: 0,
