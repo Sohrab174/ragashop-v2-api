@@ -1835,7 +1835,9 @@ export class ProductService {
         'attributeValue.sourceId',
       ])
       .where({ source: 'trendyol', isDeleted: false })
-      .andWhere('DATE(product.lastCrawlingAt) < CURDATE()')
+      .andWhere(
+        '(DATE(product.lastCrawlingAt) < CURDATE() OR product.categoryId = 1)',
+      )
       // .take(1)
       .getMany();
 
