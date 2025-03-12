@@ -84,7 +84,7 @@ export class ProductController {
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(UserRoles.admin, UserRoles.employee)
   async crawlerById(@Param('id') id: string) {
-    const result = await this.productService.getProductIdByCrawler(id);
+    const result = await this.productService.getProductSourceIdByCrawler(id);
 
     return successfulResult([], result);
   }
@@ -297,6 +297,16 @@ export class ProductController {
   @Get(':id')
   async getById(@Param('id') productId: number) {
     const data = await this.productService.getById(productId);
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /products/:id/crawler
+   */
+  @Get(':id/crawler')
+  async getProductIdByCrawler(@Param('id') productId: number) {
+    const data = await this.productService.getProductIdByCrawler(productId);
     return successfulResult([], data);
   }
 

@@ -1844,172 +1844,7 @@ export class ProductService {
       .getMany();
 
     for (const product of existingProducts) {
-      const crawlerProduct = await this.crawlerService.getProductById(
-        product.sourceId,
-      );
-      if (!crawlerProduct) {
-        await this.productRepository
-          .createQueryBuilder()
-          .update()
-          .set({ lastCrawlingAt: new Date(), isDeleted: true })
-          .where({ id: product.id })
-          .execute();
-        continue;
-      }
-
-      // Update or insert brand if missing --------------------------------------
-      if (!product.brandId) {
-        product.brandId = await this.brandService.addOrUpdate(
-          product.source,
-          crawlerProduct.brandId,
-          { sourceName: crawlerProduct.brandName },
-        );
-      }
-
-      // Update or insert category if missing --------------------------------------
-      if (product.categoryId === 1) {
-        product.categoryId = await this.categoryService.addOrUpdate(
-          product.source,
-          crawlerProduct.categoryId,
-          {
-            sourceName: crawlerProduct.categoryName,
-            bankTypeId: crawlerProduct.categoryBankTypeId,
-            bankTypeName: crawlerProduct.categoryBankTypeName,
-            hierarchy: crawlerProduct.categoryHierarchy,
-          },
-          crawlerProduct.categoryTree,
-        );
-      }
-
-      // Synchronize images based on pathFile --------------------------------------
-      const existingImagePaths = new Set(
-        product.productGalleries.map((img) => img.pathFile),
-      );
-      // const newImagePaths = new Set(crawlerProduct.images);
-
-      // Identify images to add and remove
-      const imagesToAdd = crawlerProduct.images
-        .filter((pathFile) => !existingImagePaths.has(pathFile))
-        .map((pathFile) => ({
-          productId: product.id,
-          pathFile,
-          source: product.source,
-          createdAt: new Date(),
-        }));
-
-      // const imagesToRemove = product.productGalleries
-      //   .filter((img) => !newImagePaths.has(img.pathFile))
-      //   .map((img) => img.id);
-
-      // Apply changes
-      // if (imagesToRemove.length > 0) {
-      //   await this.galleryRepository.delete(imagesToRemove);
-      // }
-      if (imagesToAdd.length > 0) {
-        await this.galleryRepository.save(imagesToAdd);
-      }
-
-      // Synchronize descriptions --------------------------------------
-      const existingDescriptionContents = new Set(
-        product.productDescriptions.map((desc) => desc.sourceContent),
-      );
-      const newDescriptionContents = new Set(
-        crawlerProduct.descriptions.map((desc) => desc.content),
-      );
-
-      // Identify descriptions to add and remove
-      const descriptionsToAdd = crawlerProduct.descriptions
-        .filter((desc) => !existingDescriptionContents.has(desc.content))
-        .map((desc) => ({
-          productId: product.id,
-          source: product.source,
-          content: desc.content,
-          sourceContent: desc.content,
-          displayOrder: desc.displayOrder,
-        }));
-      const descriptionsToRemove = product.productDescriptions
-        .filter((desc) => !newDescriptionContents.has(desc.sourceContent))
-        .map((desc) => desc.id);
-
-      // Apply changes
-      if (descriptionsToRemove.length > 0) {
-        await this.descriptionRepository.delete(descriptionsToRemove);
-      }
-      if (descriptionsToAdd.length > 0) {
-        await this.descriptionRepository.save(descriptionsToAdd);
-      }
-
-      // Synchronize attributes --------------------------------------
-      const attributeValues = await this.attributeService.addOrUpdates(
-        crawlerProduct.attributes,
-        product.source,
-      );
-
-      const existingAttributeIds = new Set(
-        product.productAttributeValues.map((attr) => attr.attributeValueId),
-      );
-      const newAttributeIds = new Set(
-        attributeValues.map((attr) => attr.valueId),
-      );
-
-      // Identify attributes to add and remove
-      const attributesToAdd = attributeValues
-        .filter((attr) => !existingAttributeIds.has(attr.valueId))
-        .map((attr) => ({
-          productId: product.id,
-          source: product.source,
-          attributeValueId: attr.valueId,
-          discountedPrice: attr.discountedPrice,
-          discountPercent: attr.discountPercent,
-          price: attr.price,
-          quantity: attr.quantity,
-        }));
-      const attributesToRemove = product.productAttributeValues
-        .filter((attr) => !newAttributeIds.has(attr.attributeValueId))
-        .map((attr) => attr.id);
-
-      // Apply changes
-      if (attributesToRemove.length > 0) {
-        await this.productAttributeValueRepository.update(
-          { id: In(attributesToRemove) },
-          { isDeleted: true },
-        );
-      }
-      if (attributesToAdd.length > 0) {
-        await this.productAttributeValueRepository.save(attributesToAdd);
-      }
-
-      // Update product details --------------------------------------
-      await this.productRepository
-        .createQueryBuilder()
-        .update()
-        .set({
-          brandId: product.brandId,
-          categoryId: product.categoryId,
-          sourceName: crawlerProduct.sourceName,
-          price: crawlerProduct.price,
-          discountedPrice: crawlerProduct.discountedPrice,
-          discountPercent: crawlerProduct.discountedPrice
-            ? (1 - crawlerProduct.discountedPrice / crawlerProduct.price) * 100
-            : 0,
-          color: crawlerProduct.color,
-          star: crawlerProduct.star,
-          starCountPerson: crawlerProduct.starCountPerson,
-          favoriteCount: crawlerProduct.favoriteCount,
-          isVasEnabled: crawlerProduct.isVasEnabled,
-          tax: crawlerProduct.tax,
-          isSellable: crawlerProduct.isSellable,
-          isBasketDiscount: crawlerProduct.isBasketDiscount,
-          hasStock: crawlerProduct.hasStock,
-          isFreeCargo: crawlerProduct.isFreeCargo,
-          uxLayout: crawlerProduct.uxLayout,
-          isDigitalGood: crawlerProduct.isDigitalGood,
-          isArtWork: crawlerProduct.isArtWork,
-          lastCrawlingAt: new Date(),
-        })
-        .where({ id: product.id })
-        .execute();
-
+      await this.getProductByCrawler(product);
       await sleep(1000);
     }
 
@@ -2020,7 +1855,220 @@ export class ProductService {
    * -------------------------------------------------------
    */
   async getProductIdByCrawler(id) {
-    const crawledProduct = await this.crawlerService.getProductById(id);
+    const product = await this.productRepository
+      .createQueryBuilder('product')
+      .leftJoin('product.productGalleries', 'productGalleries')
+      .leftJoin('product.productDescriptions', 'productDescriptions')
+      .leftJoin('product.productAttributeValues', 'productAttributeValues')
+      .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
+      .select([
+        'product.id',
+        'product.source',
+        'product.sourceId',
+        'product.categoryId',
+        'product.brandId',
+        'productGalleries.id',
+        'productGalleries.pathFile',
+        'productDescriptions.id',
+        'productDescriptions.sourceContent',
+        'productAttributeValues.id',
+        'productAttributeValues.attributeValueId',
+        'attributeValue.id',
+        'attributeValue.sourceId',
+      ])
+      .where({ source: 'trendyol', isDeleted: false, id })
+      .andWhere(
+        '(product.lastCrawlingAt < DATE_SUB(NOW(), INTERVAL 30 MINUTE) OR product.categoryId = 1)',
+      )
+      .getOne();
+
+    if (!product) return null;
+    await this.getProductByCrawler(product);
+
+    try {
+      return await this.getById(product.id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getProductByCrawler(product: ProductEntity) {
+    const crawlerProduct = await this.crawlerService.getProductById(
+      product.sourceId,
+    );
+    if (!crawlerProduct) {
+      await this.productRepository
+        .createQueryBuilder()
+        .update()
+        .set({ lastCrawlingAt: new Date(), isDeleted: true })
+        .where({ id: product.id })
+        .execute();
+      return;
+    }
+
+    // Update or insert brand if missing --------------------------------------
+    if (!product.brandId) {
+      product.brandId = await this.brandService.addOrUpdate(
+        product.source,
+        crawlerProduct.brandId,
+        { sourceName: crawlerProduct.brandName },
+      );
+    }
+
+    // Update or insert category if missing --------------------------------------
+    if (product.categoryId === 1) {
+      product.categoryId = await this.categoryService.addOrUpdate(
+        product.source,
+        crawlerProduct.categoryId,
+        {
+          sourceName: crawlerProduct.categoryName,
+          bankTypeId: crawlerProduct.categoryBankTypeId,
+          bankTypeName: crawlerProduct.categoryBankTypeName,
+          hierarchy: crawlerProduct.categoryHierarchy,
+        },
+        crawlerProduct.categoryTree,
+      );
+    }
+
+    // Synchronize images based on pathFile --------------------------------------
+    const existingImagePaths = new Set(
+      product.productGalleries.map((img) => img.pathFile),
+    );
+    // const newImagePaths = new Set(crawlerProduct.images);
+
+    // Identify images to add and remove
+    const imagesToAdd = crawlerProduct.images
+      .filter((pathFile) => !existingImagePaths.has(pathFile))
+      .map((pathFile) => ({
+        productId: product.id,
+        pathFile,
+        source: product.source,
+        createdAt: new Date(),
+      }));
+
+    // const imagesToRemove = product.productGalleries
+    //   .filter((img) => !newImagePaths.has(img.pathFile))
+    //   .map((img) => img.id);
+
+    // Apply changes
+    // if (imagesToRemove.length > 0) {
+    //   await this.galleryRepository.delete(imagesToRemove);
+    // }
+    if (imagesToAdd.length > 0) {
+      await this.galleryRepository.save(imagesToAdd);
+    }
+
+    // Synchronize descriptions --------------------------------------
+    const existingDescriptionContents = new Set(
+      product.productDescriptions.map((desc) => desc.sourceContent),
+    );
+    const newDescriptionContents = new Set(
+      crawlerProduct.descriptions.map((desc) => desc.content),
+    );
+
+    // Identify descriptions to add and remove
+    const descriptionsToAdd = crawlerProduct.descriptions
+      .filter((desc) => !existingDescriptionContents.has(desc.content))
+      .map((desc) => ({
+        productId: product.id,
+        source: product.source,
+        content: desc.content,
+        sourceContent: desc.content,
+        displayOrder: desc.displayOrder,
+      }));
+    const descriptionsToRemove = product.productDescriptions
+      .filter((desc) => !newDescriptionContents.has(desc.sourceContent))
+      .map((desc) => desc.id);
+
+    // Apply changes
+    if (descriptionsToRemove.length > 0) {
+      await this.descriptionRepository.delete(descriptionsToRemove);
+    }
+    if (descriptionsToAdd.length > 0) {
+      await this.descriptionRepository.save(descriptionsToAdd);
+    }
+
+    // Synchronize attributes --------------------------------------
+    const attributeValues = await this.attributeService.addOrUpdates(
+      crawlerProduct.attributes,
+      product.source,
+    );
+
+    const existingAttributeIds = new Set(
+      product.productAttributeValues.map((attr) => attr.attributeValueId),
+    );
+    const newAttributeIds = new Set(
+      attributeValues.map((attr) => attr.valueId),
+    );
+
+    // Identify attributes to add and remove
+    const attributesToAdd = attributeValues
+      .filter((attr) => !existingAttributeIds.has(attr.valueId))
+      .map((attr) => ({
+        productId: product.id,
+        source: product.source,
+        attributeValueId: attr.valueId,
+        discountedPrice: attr.discountedPrice,
+        discountPercent: attr.discountPercent,
+        price: attr.price,
+        quantity: attr.quantity,
+      }));
+    const attributesToRemove = product.productAttributeValues
+      .filter((attr) => !newAttributeIds.has(attr.attributeValueId))
+      .map((attr) => attr.id);
+
+    // Apply changes
+    if (attributesToRemove.length > 0) {
+      await this.productAttributeValueRepository.update(
+        { id: In(attributesToRemove) },
+        { isDeleted: true },
+      );
+    }
+    if (attributesToAdd.length > 0) {
+      await this.productAttributeValueRepository.save(attributesToAdd);
+    }
+
+    // Update product details --------------------------------------
+    await this.productRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        brandId: product.brandId,
+        categoryId: product.categoryId,
+        sourceName: crawlerProduct.sourceName,
+        price: crawlerProduct.price,
+        discountedPrice: crawlerProduct.discountedPrice,
+        discountPercent: crawlerProduct.discountedPrice
+          ? (1 - crawlerProduct.discountedPrice / crawlerProduct.price) * 100
+          : 0,
+        sizeChartUrl: crawlerProduct.sizeChartUrl,
+        color: crawlerProduct.color,
+        star: crawlerProduct.star,
+        starCountPerson: crawlerProduct.starCountPerson,
+        favoriteCount: crawlerProduct.favoriteCount,
+        isVasEnabled: crawlerProduct.isVasEnabled,
+        tax: crawlerProduct.tax,
+        isSellable: crawlerProduct.isSellable,
+        isBasketDiscount: crawlerProduct.isBasketDiscount,
+        hasStock: crawlerProduct.hasStock,
+        isFreeCargo: crawlerProduct.isFreeCargo,
+        uxLayout: crawlerProduct.uxLayout,
+        isDigitalGood: crawlerProduct.isDigitalGood,
+        isArtWork: crawlerProduct.isArtWork,
+        lastCrawlingAt: new Date(),
+      })
+      .where({ id: product.id })
+      .execute();
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getProductSourceIdByCrawler(sourceId) {
+    const crawledProduct = await this.crawlerService.getProductById(sourceId);
     return crawledProduct;
   }
 }

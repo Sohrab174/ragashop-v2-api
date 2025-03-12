@@ -142,6 +142,9 @@ export class ProductEntity extends BaseEntity {
   @Column('varchar', { name: 'color', nullable: true, length: 128 })
   color: string | null;
 
+  @Column('varchar', { name: 'sizeChartUrl', nullable: true, length: 255 })
+  sizeChartUrl: string | null;
+
   @Column('tinyint', {
     name: 'isVasEnabled',
     width: 1,
