@@ -1864,9 +1864,11 @@ export class ProductService {
       .select([
         'product.id',
         'product.source',
+        'product.name',
         'product.sourceId',
         'product.categoryId',
         'product.brandId',
+        'product.color',
         'productGalleries.id',
         'productGalleries.pathFile',
         'productDescriptions.id',
