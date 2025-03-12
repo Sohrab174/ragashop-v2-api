@@ -2039,13 +2039,14 @@ export class ProductService {
         brandId: product.brandId,
         categoryId: product.categoryId,
         sourceName: crawlerProduct.sourceName,
+        name: product.name || crawlerProduct.sourceName,
         price: crawlerProduct.price,
         discountedPrice: crawlerProduct.discountedPrice,
         discountPercent: crawlerProduct.discountedPrice
           ? (1 - crawlerProduct.discountedPrice / crawlerProduct.price) * 100
           : 0,
         sizeChartUrl: crawlerProduct.sizeChartUrl,
-        color: crawlerProduct.color,
+        color: product.color || crawlerProduct.color,
         star: crawlerProduct.star,
         starCountPerson: crawlerProduct.starCountPerson,
         favoriteCount: crawlerProduct.favoriteCount,
