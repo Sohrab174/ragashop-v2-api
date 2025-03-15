@@ -452,7 +452,6 @@ export class OrderService {
     const builder = this.orderRepository
       .createQueryBuilder('order')
       .innerJoinAndSelect('order.orderItems', 'orderItems')
-      .leftJoinAndSelect('order.address', 'address')
 
       .leftJoinAndSelect(
         'orderItems.productAttributeValue',
