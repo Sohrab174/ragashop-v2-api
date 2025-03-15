@@ -30,6 +30,7 @@ import { DiscountCouponModule } from './modules/discount-coupon/discount-coupon.
 import { BrandModule } from './modules/brand/brand.module';
 import { AddressModule } from './modules/address/address.module';
 import { SettingModule } from './modules/setting/setting.module';
+import { CityModule } from './modules/city/city.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { SettingModule } from './modules/setting/setting.module';
     BrandModule,
     AddressModule,
     SettingModule,
+    CityModule,
   ],
   providers: [
     {
