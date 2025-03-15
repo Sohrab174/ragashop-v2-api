@@ -9,7 +9,8 @@ export class AmootsmsService {
 
   constructor(private config: ConfigurationService) {
     this.axios = axios.create({
-      baseURL: `https://portal.amootsms.com/webservice2.asmx`,
+      // baseURL: `https://portal.amootsms.com/webservice2.asmx`,
+      baseURL: `http://5.34.202.72:1070/https://portal.amootsms.com/webservice2.asmx`,
     });
   }
 
