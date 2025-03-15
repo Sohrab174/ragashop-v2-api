@@ -98,9 +98,6 @@ export class OrderEntity extends BaseEntity {
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;
 
-  @Column('datetime', { name: 'updatedAt', nullable: true })
-  updatedAt: Date | null;
-
   /**
    * Relations
    */
