@@ -88,7 +88,6 @@ export class OrderService {
     const address = await this.addressService.getRecordById(
       dto.addressId,
       customerId,
-      ['id'],
     );
     if (!address) {
       this.error.methodNotAllowed(['آدرس انتخابی معتبر نمی‌باشد!']);
