@@ -462,9 +462,9 @@ export class OrderService {
         'attributeValue',
       )
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-      .leftJoinAndSelect('product.cover', 'cover')
 
       .leftJoin('orderItems.product', 'product')
+      .leftJoinAndSelect('product.cover', 'cover')
       .addSelect('product.id')
       .addSelect('product.name')
       .where({ id });
