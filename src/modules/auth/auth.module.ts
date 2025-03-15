@@ -9,16 +9,15 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt/jwt.strategy';
 import { MailModule } from '../../mail/mail.module';
-import { KavenegarModule } from '../../sms/kavenegar/kavenegar.module';
-// import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
 
 @Module({
   imports: [
     UserModule,
     PassportModule,
     MailModule,
-    // AmootsmsModule,
-    KavenegarModule,
+    AmootsmsModule,
+    // KavenegarModule,
     JwtModule.registerAsync({
       imports: [ConfigurationModule],
       inject: [ConfigurationService],

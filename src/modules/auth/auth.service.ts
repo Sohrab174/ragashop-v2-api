@@ -11,9 +11,8 @@ import { AuthLoginDto } from './dto/auth-login.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthForgotDto } from './dto/auth-forgot.dto';
 import { MailService } from '../../mail/mail.service';
-// import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
-import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
+import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +21,8 @@ export class AuthService {
     private error: ErrorService,
     private mail: MailService,
     // private amootsmsService: AmootsmsService,
-    private kavenegarService: KavenegarService,
+    // private kavenegarService: KavenegarService,
+    private amootsmsService: AmootsmsService,
     private config: ConfigurationService,
     private jwtService: JwtService,
   ) {}
@@ -137,7 +137,7 @@ export class AuthService {
     await user.save();
 
     // Sending SMS
-    await this.kavenegarService.sendOTP(user.mobile, user.randomHash);
+    await this.amootsmsService.sendOTP(user.mobile, user.randomHash);
 
     return user;
   }

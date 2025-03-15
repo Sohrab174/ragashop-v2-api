@@ -12,8 +12,7 @@ import { CustomerController } from './customer.controller';
 import { CustomerService } from './customer.service';
 import { CustomerEntity } from './entities/customer.entity';
 import { CustomerJwtStrategy } from './jwt/jwt.strategy';
-import { KavenegarModule } from '../../sms/kavenegar/kavenegar.module';
-// import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
 
 @Module({
   imports: [
@@ -21,8 +20,8 @@ import { KavenegarModule } from '../../sms/kavenegar/kavenegar.module';
     UserModule,
     ErrorModule,
     MailModule,
-    // AmootsmsModule,
-    KavenegarModule,
+    AmootsmsModule,
+    // KavenegarModule,
     PassportModule,
     forwardRef(() => OrderModule),
     JwtModule.registerAsync({

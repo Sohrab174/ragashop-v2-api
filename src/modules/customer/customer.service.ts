@@ -24,10 +24,9 @@ import { CustomerVerifySignupDto } from './dto/customer-verify-signup.dto';
 import { CustomerResetPasswordDto } from './dto/customer-reset-password.dto';
 import { CustomerForgotDto } from './dto/customer-forgot.dto';
 import { CustomerResendOtpDto } from './dto/customer-resend-otp.dto';
-// import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
-import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
 import { CustomerLoginMobileDto } from './dto/customer-login-mobile.dto';
 import { CustomerLoginVerifyDto } from './dto/customer-login-verify.dto';
+import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
 
 @Injectable()
 export class CustomerService {
@@ -39,8 +38,8 @@ export class CustomerService {
     private jwtService: JwtService,
     private error: ErrorService,
     private mail: MailService,
-    // private amootsmsService: AmootsmsService,
-    private kavenegarService: KavenegarService,
+    private amootsmsService: AmootsmsService,
+    // private kavenegarService: KavenegarService,
 
     @Inject(forwardRef(() => OrderService))
     private orderService: OrderService,
@@ -113,7 +112,7 @@ export class CustomerService {
     await customer.save();
 
     // Sending SMS
-    await this.kavenegarService.sendOTP(dto.mobile, customer.randomHash);
+    await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
 
     return { mobile: dto.mobile, isNewUser };
   }
