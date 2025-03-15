@@ -1323,6 +1323,10 @@ export class ProductService {
    * -------------------------------------------------------
    */
   async findByIds(productIds: number[]) {
+    for (const productId of productIds) {
+      await this.getProductIdByCrawler(productId, false);
+    }
+
     const products = await this.productRepository
       .createQueryBuilder('product')
 
@@ -1854,7 +1858,7 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  async getProductIdByCrawler(id) {
+  async getProductIdByCrawler(id, getAfterCrawler = true) {
     const product = await this.productRepository
       .createQueryBuilder('product')
       .leftJoin('product.productGalleries', 'productGalleries')
@@ -1887,10 +1891,12 @@ export class ProductService {
     if (!product) return null;
     await this.getProductByCrawler(product);
 
-    try {
-      return await this.getById(product.id);
-    } catch (e) {
-      return null;
+    if (getAfterCrawler) {
+      try {
+        return await this.getById(product.id);
+      } catch (e) {
+        return null;
+      }
     }
   }
 
