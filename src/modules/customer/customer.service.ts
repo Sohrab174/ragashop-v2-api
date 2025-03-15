@@ -81,6 +81,10 @@ export class CustomerService {
 
     let isNewUser = false;
     if (customer) {
+      if (!customer.firstName && !customer.lastName) {
+        isNewUser = true;
+      }
+
       if (customer.status === CustomerStatus.banned) {
         this.error.methodNotAllowed([
           'حساب کاربری شما مسدود شده است، با پشتیبانی تماس حاصل نمایید',
