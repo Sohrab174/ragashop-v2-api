@@ -377,7 +377,7 @@ export class CustomerService {
       .execute();
 
     // Sending SMS
-    await this.kavenegarService.sendOTP(dto.mobile, newCustomer.randomHash);
+    await this.amootsmsService.sendOTP(dto.mobile, newCustomer.randomHash);
 
     const newCustomerId = identifiers[0].id;
     return { id: newCustomerId };
@@ -428,7 +428,7 @@ export class CustomerService {
     await customer.save();
 
     // Sending SMS
-    await this.kavenegarService.sendOTP(dto.mobile, customer.randomHash);
+    await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
 
     return true;
   }
