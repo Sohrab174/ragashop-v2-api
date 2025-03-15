@@ -6,8 +6,6 @@ import { ErrorService } from '../../error/error.service';
 import {
   applyFiltersToBuilder,
   applySortingToBuilder,
-  decryptByPassword,
-  encryptByPassword,
   paginationResult,
 } from '../../utils';
 
@@ -18,7 +16,6 @@ import { OrderEntity, OrderStatus } from './entities/order.entity';
 import { MailService } from '../../mail/mail.service';
 // import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
 // import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
-import { ProductType } from '../product/entities/product.entity';
 import { ConfigurationService } from '../../config/configuration.service';
 import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
 import { DiscountCouponService } from '../discount-coupon/discount-coupon.service';
@@ -468,16 +465,11 @@ export class OrderService {
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
 
       .leftJoin('orderItems.product', 'product')
-      .leftJoin('product.service', 'service')
-      .leftJoinAndSelect('product.productFiles', 'productFiles')
 
       .leftJoinAndSelect('product.cover', 'cover')
 
       .addSelect('product.id')
       .addSelect('product.type')
-      .addSelect('service.id')
-      .addSelect('service.type')
-      .addSelect('service.messageAfterPurchase')
       .where({ id });
 
     builder.andWhere({ customerId });
@@ -586,12 +578,7 @@ export class OrderService {
   async complete(orderId: number) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
-      relations: [
-        'customer',
-        'orderItems',
-        'orderItems.product',
-        'orderItems.product.service',
-      ],
+      relations: ['customer', 'orderItems', 'orderItems.product'],
     });
 
     order.status = OrderStatus.paid;
