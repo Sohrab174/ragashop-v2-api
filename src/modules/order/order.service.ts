@@ -205,32 +205,36 @@ export class OrderService {
       // Generating new order number
       const generatedNumber = await this._generateOrderNumber();
 
+      const value = {
+        customerId: customerId || dto.customerId,
+        number: generatedNumber,
+        amount,
+        discount,
+        shipping,
+        tax,
+        finalAmount,
+        address: address.address,
+        location: address.location,
+        addressDetails: address.details,
+        postalCode: address.postalCode,
+        phone: address.phone,
+        cityId: address.cityId,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        // discountCoupon: coupon?.discountAmount || 0,
+        // discountCouponUsedId: coupon?.usedId || null,
+        description: dto.description,
+        status: dto.status || OrderStatus.pending,
+        createdAt: new Date(),
+      };
+
+      console.log({ address, value });
+
       // Inserting into order
       const { identifiers } = await this.orderRepository
         .createQueryBuilder()
         .insert()
-        .values({
-          customerId: customerId || dto.customerId,
-          number: generatedNumber,
-          amount,
-          discount,
-          shipping,
-          tax,
-          finalAmount,
-          address: address.address,
-          location: address.location,
-          addressDetails: address.details,
-          postalCode: address.postalCode,
-          phone: address.phone,
-          cityId: address.cityId,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          // discountCoupon: coupon?.discountAmount || 0,
-          // discountCouponUsedId: coupon?.usedId || null,
-          description: dto.description,
-          status: dto.status || OrderStatus.pending,
-          createdAt: new Date(),
-        })
+        .values(value)
         .execute();
 
       orderId = identifiers[0].id;
