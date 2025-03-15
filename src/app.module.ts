@@ -28,6 +28,8 @@ import { IncredibleOfferModule } from './modules/incredible-offer/Incredible-off
 import { TelegramApiModule } from './thirdParty/telegram-api/telegram-api.module';
 import { DiscountCouponModule } from './modules/discount-coupon/discount-coupon.module';
 import { BrandModule } from './modules/brand/brand.module';
+import { AddressModule } from './modules/address/address.module';
+import { SettingModule } from './modules/setting/setting.module';
 
 @Module({
   imports: [
@@ -60,6 +62,8 @@ import { BrandModule } from './modules/brand/brand.module';
     IncredibleOfferModule,
     DiscountCouponModule,
     BrandModule,
+    AddressModule,
+    SettingModule,
   ],
   providers: [
     {

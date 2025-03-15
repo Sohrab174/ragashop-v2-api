@@ -51,6 +51,11 @@ export class CustomerService {
   async login(dto: CustomerLoginDto) {
     const customer = await this.customerRepository
       .createQueryBuilder('customer')
+      .leftJoinAndSelect(
+        'customer.addresses',
+        'addresses',
+        'addresses.isDeleted = 0',
+      )
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
@@ -126,8 +131,11 @@ export class CustomerService {
    */
   async verifyLogin(dto: CustomerLoginVerifyDto) {
     const customer = await this.customerRepository.findOne({
-      mobile: dto.mobile,
-      randomHash: dto.code,
+      where: {
+        mobile: dto.mobile,
+        randomHash: dto.code,
+      },
+      relations: ['addresses'],
     });
 
     if (!(customer && moment(customer.expireRandomHash).isAfter(moment()))) {
@@ -160,8 +168,11 @@ export class CustomerService {
    */
   async getActiveById(id: number) {
     const customer = await this.customerRepository.findOne({
-      id,
-      status: CustomerStatus.active,
+      where: {
+        id,
+        status: CustomerStatus.active,
+      },
+      relations: ['addresses'],
     });
 
     if (customer) {
@@ -254,6 +265,11 @@ export class CustomerService {
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
+      .leftJoinAndSelect(
+        'customer.addresses',
+        'addresses',
+        'addresses.isDeleted = 0',
+      )
       .andWhere({ status: CustomerStatus.active })
       .getOne();
 
@@ -294,6 +310,7 @@ export class CustomerService {
         fullName: `${customer.firstName} ${customer.lastName}`.trim(),
         firstName: customer.firstName,
         lastName: customer.lastName,
+        addresses: customer.addresses.filter((a) => !a.isDeleted),
       },
       accessToken,
     };
@@ -646,7 +663,10 @@ export class CustomerService {
       where.email = email;
     }
 
-    const customer = await this.customerRepository.findOne(where);
+    const customer = await this.customerRepository.findOne({
+      where,
+      relations: ['addresses'],
+    });
     if (customer && moment(customer.expireRandomHash).isAfter(moment())) {
       return customer;
     }

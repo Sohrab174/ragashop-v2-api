@@ -25,8 +25,16 @@ export class CreateOrderDto {
   productItems: ProductItem[];
 
   @ApiProperty({ required: false })
-  @IsOptional()
-  address: string;
+  @IsNotEmpty()
+  addressId: number;
+
+  @ApiProperty({ required: false })
+  @IsNotEmpty()
+  firstName: string;
+
+  @ApiProperty({ required: false })
+  @IsNotEmpty()
+  lastName: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

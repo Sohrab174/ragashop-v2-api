@@ -3,6 +3,7 @@ import * as moment from 'jalali-moment';
 import * as crypto from 'crypto';
 import * as CryptoJS from 'crypto-js';
 import * as dns from 'dns';
+import { convertPersianToEnglishDigit } from './persianNumbers';
 
 export const dateTime = () => {
   return moment().format('YYYY-MM-DD HH:mm:ss');
@@ -274,3 +275,17 @@ export const removeDuplicateByKey = (arr, key = 'name') =>
       (value, index, array) =>
         array.findIndex((item) => item[key] === value[key]) === index,
     );
+
+export const prettyText = (value) => {
+  if (value === null) return null;
+
+  return convertPersianToEnglishDigit(
+    `${value || ''}`
+      .replace(/\n/g, '{{ENTER}}')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/ي/g, 'ی')
+      .replace(/ك/g, 'ک')
+      .replace(/{{ENTER}}/g, '\n'),
+  );
+};

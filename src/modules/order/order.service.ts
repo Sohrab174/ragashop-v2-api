@@ -23,6 +23,8 @@ import { ConfigurationService } from '../../config/configuration.service';
 import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
 import { DiscountCouponService } from '../discount-coupon/discount-coupon.service';
 import { CustomerService } from '../customer/customer.service';
+import { OrderStatusEntity } from './entities/order-status.entity';
+import { AddressService } from '../address/address.service';
 // import { CreateOrderDto } from './dto/create-order.dto';
 // import { CreateOrderByAdminDto } from './dto/create-order-by-admin.dto';
 
@@ -35,6 +37,9 @@ export class OrderService {
     @InjectRepository(OrderItemEntity)
     private orderItemRepository: Repository<OrderItemEntity>,
 
+    @InjectRepository(OrderStatusEntity)
+    private orderStatusRepository: Repository<OrderStatusEntity>,
+
     private config: ConfigurationService,
     private mail: MailService,
     private productService: ProductService,
@@ -43,6 +48,7 @@ export class OrderService {
     private error: ErrorService,
     private discountCouponService: DiscountCouponService,
     private customerService: CustomerService,
+    private addressService: AddressService,
   ) {}
 
   /**
@@ -80,6 +86,17 @@ export class OrderService {
       }
       // Removing the old items and rollback quantity
       await this._deleteItemsAndRollbackQuantity(order.orderItems);
+    }
+
+    if (customerId) {
+      const address = await this.addressService.getRecordById(
+        dto.addressId,
+        customerId,
+        ['id'],
+      );
+      if (!address) {
+        this.error.methodNotAllowed(['آدرس انتخابی معتبر نمی‌باشد!']);
+      }
     }
 
     // get products from DB
@@ -183,6 +200,8 @@ export class OrderService {
       order.shipping = shipping;
       order.tax = tax;
       order.finalAmount = finalAmount;
+      order.firstName = dto.firstName;
+      order.lastName = dto.lastName;
       order.description = dto.description;
       order.address = dto.address;
       order.status = dto.status;

@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { ProductEntity } from '../../product/entities/product.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
+import { NavMenuEntity } from '../../nav-menu/entities/nav-menu.entity';
 
 export enum CategoryStatus {
   active = 'active',
@@ -86,4 +87,7 @@ export class CategoryEntity extends BaseEntity {
 
   @OneToMany(() => CategoryEntity, (category) => category.parent)
   subCategories: CategoryEntity[];
+
+  @OneToMany(() => NavMenuEntity, (navMenu) => navMenu.category)
+  navMenus: NavMenuEntity[];
 }

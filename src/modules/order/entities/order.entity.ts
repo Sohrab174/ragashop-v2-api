@@ -12,6 +12,8 @@ import { DecimalTransformer } from '../../../utils/transformers/DecimalTransform
 import { CustomerEntity } from '../../customer/entities/customer.entity';
 import { TransactionEntity } from '../../transaction/entities/transaction.entity';
 import { OrderItemEntity } from './order-item.entity';
+import { CityEntity } from '../../city/entities/city.entity';
+import { OrderStatusEntity } from './order-status.entity';
 
 export enum OrderStatus {
   pending = 'pending',
@@ -20,8 +22,11 @@ export enum OrderStatus {
   paid = 'paid',
   sent = 'sent',
   delivered = 'delivered',
+  buyFromSource = 'buy_from_source',
+  sendToDestination = 'send_to_destination',
 }
 
+@Index('fk_order_city1_idx', ['cityId'], {})
 @Index('fk_order_customer1_idx', ['customerId'], {})
 @Entity('order')
 export class OrderEntity extends BaseEntity {
@@ -79,8 +84,29 @@ export class OrderEntity extends BaseEntity {
   })
   finalAmount: number;
 
+  @Column('varchar', { name: 'firstName', nullable: true, length: 45 })
+  firstName: string | null;
+
+  @Column('varchar', { name: 'lastName', nullable: true, length: 45 })
+  lastName: string | null;
+
   @Column('text', { name: 'address', nullable: true })
   address: string | null;
+
+  @Column('varchar', { name: 'location', nullable: true, length: 45 })
+  location: string | null;
+
+  @Column('varchar', { name: 'addressDetails', nullable: true, length: 45 })
+  addressDetails: string | null;
+
+  @Column('varchar', { name: 'postalCode', nullable: true, length: 45 })
+  postalCode: string | null;
+
+  @Column('varchar', { name: 'phone', nullable: true, length: 45 })
+  phone: string | null;
+
+  @Column('int', { name: 'cityId', nullable: true })
+  cityId: number | null;
 
   @Column('text', { name: 'description', nullable: true })
   description: string | null;
@@ -94,6 +120,9 @@ export class OrderEntity extends BaseEntity {
 
   @Column('varchar', { name: 'reasonRejected', nullable: true, length: 255 })
   reasonRejected: string | null;
+
+  @Column('tinyint', { name: 'isDeleted', width: 1, default: () => "'0'" })
+  isDeleted: boolean;
 
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;
@@ -113,4 +142,14 @@ export class OrderEntity extends BaseEntity {
 
   @OneToMany(() => TransactionEntity, (transaction) => transaction.order)
   transactions: TransactionEntity[];
+
+  @ManyToOne(() => CityEntity, (city) => city.orders, {
+    onDelete: 'NO ACTION',
+    onUpdate: 'NO ACTION',
+  })
+  @JoinColumn([{ name: 'cityId', referencedColumnName: 'id' }])
+  city: CityEntity;
+
+  @OneToMany(() => OrderStatusEntity, (orderStatus) => orderStatus.order)
+  orderStatuses: OrderStatusEntity[];
 }

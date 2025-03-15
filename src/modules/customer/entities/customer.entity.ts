@@ -12,6 +12,7 @@ import { BeforeInsert } from 'typeorm/decorator/listeners/BeforeInsert';
 import { BeforeUpdate } from 'typeorm/decorator/listeners/BeforeUpdate';
 import * as bcrypt from 'bcryptjs';
 import { TransactionEntity } from '../../transaction/entities/transaction.entity';
+import { AddressEntity } from '../../address/entities/address.entity';
 
 export enum CustomerStatus {
   active = 'active',
@@ -71,6 +72,9 @@ export class CustomerEntity extends BaseEntity {
 
   @OneToMany(() => TransactionEntity, (transaction) => transaction.customer)
   transactions: TransactionEntity[];
+
+  @OneToMany(() => AddressEntity, (address) => address.customer)
+  addresses: AddressEntity[];
 
   /**
    * Entity Listeners

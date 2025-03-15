@@ -9,18 +9,19 @@ import { MailModule } from '../../mail/mail.module';
 import { KavenegarModule } from '../../sms/kavenegar/kavenegar.module';
 import { DiscountCouponModule } from '../discount-coupon/discount-coupon.module';
 import { CustomerModule } from '../customer/customer.module';
-import { SpotplayerModule } from '../../thirdParty/spotplayer/spotplayer.module';
+import { OrderStatusEntity } from './entities/order-status.entity';
+import { AddressModule } from '../address/address.module';
 // import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OrderEntity, OrderItemEntity]),
+    TypeOrmModule.forFeature([OrderEntity, OrderItemEntity, OrderStatusEntity]),
     ProductModule,
     MailModule,
     KavenegarModule,
     DiscountCouponModule,
     CustomerModule,
-    SpotplayerModule,
+    AddressModule,
     // AmootsmsModule,
   ],
   controllers: [OrderController],
