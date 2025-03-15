@@ -64,11 +64,11 @@ export class AddressEntity extends BaseEntity {
   /**
    * Relations
    */
-  @ManyToOne(() => CustomerEntity, (user) => user.addresses, {
+  @ManyToOne(() => CustomerEntity, (customer) => customer.addresses, {
     onDelete: 'NO ACTION',
     onUpdate: 'NO ACTION',
   })
-  @JoinColumn([{ name: 'userId', referencedColumnName: 'id' }])
+  @JoinColumn([{ name: 'customerId', referencedColumnName: 'id' }])
   customer: CustomerEntity;
 
   @ManyToOne(() => CityEntity, (city) => city.addresses, {
