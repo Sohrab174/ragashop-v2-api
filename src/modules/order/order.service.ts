@@ -220,7 +220,7 @@ export class OrderService {
           shipping,
           tax,
           finalAmount,
-          address: dto.address,
+          address: address.address,
           location: address.location,
           addressDetails: address.details,
           postalCode: address.postalCode,
