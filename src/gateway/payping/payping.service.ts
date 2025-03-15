@@ -12,7 +12,8 @@ export class PaypingService {
     this.sandboxMerchant = 'O0F8s_4O7cMyTrs4-cqpd3qDWxsgXGndzwfKtLGXHBA';
 
     this.axios = axios.create({
-      baseURL: 'https://api.payping.ir/v2',
+      // baseURL: 'https://api.payping.ir/v2',
+      baseURL: 'http://5.34.202.72:1070/https://api.payping.ir/v2',
     });
 
     this.redirectUrl = 'https://api.payping.ir/v2/pay/gotoipg';
