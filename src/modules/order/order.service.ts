@@ -88,15 +88,13 @@ export class OrderService {
       await this._deleteItemsAndRollbackQuantity(order.orderItems);
     }
 
-    if (customerId) {
-      const address = await this.addressService.getRecordById(
-        dto.addressId,
-        customerId,
-        ['id'],
-      );
-      if (!address) {
-        this.error.methodNotAllowed(['آدرس انتخابی معتبر نمی‌باشد!']);
-      }
+    const address = await this.addressService.getRecordById(
+      dto.addressId,
+      customerId,
+      ['id'],
+    );
+    if (!address) {
+      this.error.methodNotAllowed(['آدرس انتخابی معتبر نمی‌باشد!']);
     }
 
     // get products from DB
@@ -200,10 +198,7 @@ export class OrderService {
       order.shipping = shipping;
       order.tax = tax;
       order.finalAmount = finalAmount;
-      order.firstName = dto.firstName;
-      order.lastName = dto.lastName;
       order.description = dto.description;
-      order.address = dto.address;
       order.status = dto.status;
       await order.save();
     }
@@ -225,10 +220,17 @@ export class OrderService {
           shipping,
           tax,
           finalAmount,
+          address: dto.address,
+          location: address.location,
+          addressDetails: address.details,
+          postalCode: address.postalCode,
+          phone: address.phone,
+          cityId: address.cityId,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
           // discountCoupon: coupon?.discountAmount || 0,
           // discountCouponUsedId: coupon?.usedId || null,
           description: dto.description,
-          address: dto.address,
           status: dto.status || OrderStatus.pending,
           createdAt: new Date(),
         })
