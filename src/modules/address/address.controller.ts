@@ -11,12 +11,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { successfulResult } from '../../utils';
-import { User } from '../../utils/decorators/user.decorator';
-import { UserEntity } from '../user/entities/user.entity';
-import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { AddressService } from './address.service';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
+import { Customer } from '../../utils/decorators/customer.decorator';
+import { CustomerEntity } from '../customer/entities/customer.entity';
+import { CustomerJwtAuthGuard } from '../customer/jwt/jwt.guard';
 
 @ApiTags('Address')
 @Controller('addresses')
@@ -29,10 +29,13 @@ export class AddressController {
    */
   @Post('me')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(CustomerJwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  async add(@Body() dto: CreateAddressDto, @User() user: UserEntity) {
-    const newAddress = await this.addressService.add(dto, user.id);
+  async add(
+    @Body() dto: CreateAddressDto,
+    @Customer() customer: CustomerEntity,
+  ) {
+    const newAddress = await this.addressService.add(dto, customer.id);
     return successfulResult(['آدرس جدید با موفقیت ثبت شد'], newAddress);
   }
 
@@ -42,9 +45,12 @@ export class AddressController {
    */
   @Put('me')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  async update(@Body() dto: UpdateAddressDto, @User() user: UserEntity) {
-    await this.addressService.update(dto, user.id);
+  @UseGuards(CustomerJwtAuthGuard)
+  async update(
+    @Body() dto: UpdateAddressDto,
+    @Customer() customer: CustomerEntity,
+  ) {
+    await this.addressService.update(dto, customer.id);
     return successfulResult(['آدرس شما با موفقیت به روز شد']);
   }
 
@@ -54,9 +60,12 @@ export class AddressController {
    */
   @Delete(':id/me')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  async delete(@Param('id') addressId: number, @User() user: UserEntity) {
-    await this.addressService.delete(addressId, user);
+  @UseGuards(CustomerJwtAuthGuard)
+  async delete(
+    @Param('id') addressId: number,
+    @Customer() customer: CustomerEntity,
+  ) {
+    await this.addressService.delete(addressId, customer);
     return successfulResult(['آدرس مورد نظر شما حذف شد']);
   }
 }

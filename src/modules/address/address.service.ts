@@ -4,8 +4,8 @@ import { ErrorService } from '../../error/error.service';
 import { AddressEntity } from './entities/address.entity';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { UserEntity } from '../user/entities/user.entity';
 import { Repository } from 'typeorm';
+import { CustomerEntity } from '../customer/entities/customer.entity';
 
 @Injectable()
 export class AddressService {
@@ -102,9 +102,9 @@ export class AddressService {
    * -------------------------------------------------------
    * DELETE /addresses/:id/me
    */
-  async delete(id: number, user: UserEntity) {
+  async delete(id: number, customer: CustomerEntity) {
     const address = await this.addressRepository.findOne({
-      where: { id, customerId: user.id },
+      where: { id, customerId: customer.id },
     });
 
     if (!address) {
