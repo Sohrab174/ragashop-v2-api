@@ -186,7 +186,6 @@ export class OrderService {
       order.description = dto.description;
       order.address = dto.address;
       order.status = dto.status;
-      order.updatedAt = new Date();
       await order.save();
     }
 
