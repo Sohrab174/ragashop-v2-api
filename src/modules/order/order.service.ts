@@ -461,15 +461,12 @@ export class OrderService {
         'productAttributeValue.attributeValue',
         'attributeValue',
       )
-
       .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-
-      .leftJoin('orderItems.product', 'product')
-
       .leftJoinAndSelect('product.cover', 'cover')
 
+      .leftJoin('orderItems.product', 'product')
       .addSelect('product.id')
-      .addSelect('product.type')
+      .addSelect('product.name')
       .where({ id });
 
     builder.andWhere({ customerId });
