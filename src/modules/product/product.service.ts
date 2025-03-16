@@ -664,13 +664,11 @@ export class ProductService {
           tryToRial *
           (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice);
         pav.incredibleOfferExpire = pav.incredibleOffers?.[0]?.toDate || null;
+        pav.price = tryToRial * pav.price;
         delete pav.incredibleOffers;
         return pav;
       },
     );
-
-    product.price *= tryToRial;
-    product.discountedPrice *= tryToRial;
 
     delete product.incredibleOffers;
 
@@ -691,7 +689,10 @@ export class ProductService {
       })
       .getMany();
 
-    return product;
+    return {
+      ...product,
+      price: product.price * tryToRial,
+    };
 
     // if (product.coverId && product.productGalleries?.length === 1) {
     //   return product;
