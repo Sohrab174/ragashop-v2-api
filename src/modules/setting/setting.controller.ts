@@ -48,4 +48,14 @@ export class SettingController {
     const data = await this.settingService.get();
     return successfulResult([], data);
   }
+
+  /**
+   * -------------------------------------------------------
+   * Get /settings/try-to-rial
+   */
+  @Put('try-to-rial')
+  async getTryToRial() {
+    const data = await this.settingService.getTryToRial();
+    return successfulResult([], data);
+  }
 }
