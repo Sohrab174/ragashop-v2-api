@@ -649,8 +649,6 @@ export class ProductService {
     }
 
     const { tryToRial } = await this.settingService.get(['tryToRial']);
-    product.price *= tryToRial;
-    product.discountedPrice *= tryToRial;
 
     product.discountedPrice =
       tryToRial *
@@ -670,6 +668,9 @@ export class ProductService {
         return pav;
       },
     );
+
+    product.price *= tryToRial;
+    product.discountedPrice *= tryToRial;
 
     delete product.incredibleOffers;
 
@@ -1340,6 +1341,8 @@ export class ProductService {
       await this.getProductIdByCrawler(productId, false);
     }
 
+    const { tryToRial } = await this.settingService.get(['tryToRial']);
+
     const products = await this.productRepository
       .createQueryBuilder('product')
 
@@ -1376,14 +1379,18 @@ export class ProductService {
     return products.map((product) => ({
       ...product,
 
+      price: tryToRial * product.price,
       discountedPrice:
-        product.incredibleOffers?.[0]?.discountedPrice ||
-        product.discountedPrice,
+        tryToRial *
+        (product.incredibleOffers?.[0]?.discountedPrice ||
+          product.discountedPrice),
 
       productAttributeValues: product.productAttributeValues.map((pav) => ({
         ...pav,
+        price: tryToRial * pav.price,
         discountedPrice:
-          pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice,
+          tryToRial *
+          (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice),
       })),
     }));
   }
