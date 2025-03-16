@@ -289,3 +289,22 @@ export const prettyText = (value) => {
       .replace(/{{ENTER}}/g, '\n'),
   );
 };
+
+export const retryOperation = async (
+  operation,
+  maxRetries = 3,
+  retryCount = 0,
+  delayMs = 300,
+) => {
+  try {
+    return { success: true, result: await operation() };
+  } catch (error) {
+    if (retryCount < maxRetries) {
+      await sleep(delayMs); // Delay before retrying
+
+      // Retry the operation with an incremented retry count.
+      return await retryOperation(operation, maxRetries, retryCount + 1);
+    }
+    return { success: false, result: error };
+  }
+};

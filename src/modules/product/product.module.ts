@@ -10,6 +10,7 @@ import { ProductAttributeValueEntity } from './entities/product-attribute-value.
 import { CrawlerModule } from '../../thirdParty/crawler/crawler.module';
 import { ProductDescriptionEntity } from './entities/product-description.entity';
 import { BrandModule } from '../brand/brand.module';
+import { SettingModule } from '../setting/setting.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { BrandModule } from '../brand/brand.module';
     AttributeModule,
     CrawlerModule,
     BrandModule,
+    SettingModule,
   ],
   controllers: [ProductController],
   providers: [ProductService],

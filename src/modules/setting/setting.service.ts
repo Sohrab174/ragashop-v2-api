@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UpdateSettingDto } from './dto/update-setting.dto';
 import { SettingEntity } from './entities/setting.entity';
+import { retryOperation } from '../../utils';
+import axios from 'axios';
 
 @Injectable()
 export class SettingService {
@@ -26,8 +28,11 @@ export class SettingService {
    * -------------------------------------------------------
    * Get /settings
    */
-  async get() {
-    const setting = await this.settingRepository.findOne(1);
+  async get(select = null) {
+    const setting = await this.settingRepository.findOne({
+      where: { id: 1 },
+      ...(select && { select }),
+    });
 
     return { ...setting, time: new Date() };
   }
@@ -43,5 +48,36 @@ export class SettingService {
       .set(dto)
       .where({ id: 1 })
       .execute();
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getTryToRial() {
+    const res = await retryOperation(
+      async () => {
+        try {
+          const { data } = await axios.get('https://call1.tgju.org/ajax.json');
+
+          return +(data?.current?.price_try?.p || '').replace(/\,/g, '');
+        } catch (e) {
+          return null;
+        }
+      },
+      3,
+      0,
+      5000,
+    );
+
+    if (res.result && res.result > 0) {
+      console.log('new exchange TRY/IRR', new Date(), res.result);
+
+      await this.settingRepository
+        .createQueryBuilder()
+        .update()
+        .set({ tryToRial: res.result })
+        .where({ id: 1 })
+        .execute();
+    }
   }
 }

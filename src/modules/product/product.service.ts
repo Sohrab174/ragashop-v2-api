@@ -39,6 +39,7 @@ import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
 import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
 import { ProductDescriptionEntity } from './entities/product-description.entity';
 import { BrandService } from '../brand/brand.service';
+import { SettingService } from '../setting/setting.service';
 
 @Injectable()
 export class ProductService {
@@ -59,6 +60,7 @@ export class ProductService {
     private categoryService: CategoryService,
     private attributeService: AttributeService,
     private brandService: BrandService,
+    private settingService: SettingService,
 
     private crawlerService: CrawlerService,
   ) {}
@@ -646,8 +648,14 @@ export class ProductService {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
+    const { tryToRial } = await this.settingService.get(['tryToRial']);
+    product.price *= tryToRial;
+    product.discountedPrice *= tryToRial;
+
     product.discountedPrice =
-      product.incredibleOffers?.[0]?.discountedPrice || product.discountedPrice;
+      tryToRial *
+      (product.incredibleOffers?.[0]?.discountedPrice ||
+        product.discountedPrice);
 
     product.incredibleOfferExpire =
       product.incredibleOffers?.[0]?.toDate || null;
@@ -655,7 +663,8 @@ export class ProductService {
     product.productAttributeValues = product.productAttributeValues.map(
       (pav) => {
         pav.discountedPrice =
-          pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice;
+          tryToRial *
+          (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice);
         pav.incredibleOfferExpire = pav.incredibleOffers?.[0]?.toDate || null;
         delete pav.incredibleOffers;
         return pav;
@@ -839,8 +848,10 @@ export class ProductService {
       .skip((page - 1) * limit)
       .getManyAndCount();
 
+    const { tryToRial } = await this.settingService.get(['tryToRial']);
+
     return {
-      items: items.map(this.mappingProduct),
+      items: items.map((item) => this.mappingProduct(item, tryToRial)),
       pagination: paginationResult(page, limit, totalItems),
     };
   }
@@ -938,7 +949,9 @@ export class ProductService {
       .orderBy('product.displayOrder', 'ASC')
       .getMany();
 
-    return productList.map(this.mappingProduct);
+    const { tryToRial } = await this.settingService.get(['tryToRial']);
+
+    return productList.map((item) => this.mappingProduct(item, tryToRial));
   }
 
   /**
@@ -1566,14 +1579,15 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  private mappingProduct(item) {
+  private mappingProduct(item, tryToRial: number) {
     const offer = item.incredibleOffers?.[0];
     delete item.incredibleOffers;
 
     return {
       ...item,
-      price: item.price,
-      discountedPrice: offer?.discountedPrice || item.discountedPrice,
+      price: tryToRial * item.price,
+      discountedPrice:
+        tryToRial * (offer?.discountedPrice || item.discountedPrice),
       incredibleOfferExpire: offer?.toDate || null,
       productAttributeValues: item.productAttributeValues
         .filter(
@@ -1584,9 +1598,11 @@ export class ProductService {
         .map((attr) => ({
           id: attr.id,
           color: attr.attributeValue?.extraValue || null,
-          price: attr.price,
+          price: tryToRial * attr.price,
           discountedPrice:
-            attr.incredibleOffers?.[0]?.discountedPrice || attr.discountedPrice,
+            tryToRial *
+            (attr.incredibleOffers?.[0]?.discountedPrice ||
+              attr.discountedPrice),
           quantity: item.quantity,
           incredibleOfferExpire: attr.incredibleOffers?.[0]?.toDate || null,
         })),

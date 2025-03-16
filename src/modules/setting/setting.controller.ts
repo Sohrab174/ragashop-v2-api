@@ -45,6 +45,7 @@ export class SettingController {
    */
   @Get()
   async get() {
+    await this.settingService.getTryToRial();
     const data = await this.settingService.get();
     return successfulResult([], data);
   }

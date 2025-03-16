@@ -227,8 +227,6 @@ export class OrderService {
         createdAt: new Date(),
       };
 
-      console.log({ address, value });
-
       // Inserting into order
       const { identifiers } = await this.orderRepository
         .createQueryBuilder()

@@ -162,6 +162,10 @@ ADD CONSTRAINT \`fk_order_city1\`
   REFERENCES \`city\` (\`id\`)
   ON DELETE NO ACTION
   ON UPDATE NO ACTION;`);
+
+    await queryRunner.query(
+      `ALTER TABLE \`setting\` ADD \`tryToRial\` DECIMAL(20,2) NOT NULL DEFAULT '0' AFTER \`maxDeliveryDay\`;`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

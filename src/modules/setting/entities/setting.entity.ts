@@ -62,4 +62,13 @@ export class SettingEntity extends BaseEntity {
 
   @Column('int', { name: 'maxDeliveryDay', default: () => "'15'" })
   maxDeliveryDay: number;
+
+  @Column('decimal', {
+    name: 'tryToRial',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  tryToRial: number;
 }
