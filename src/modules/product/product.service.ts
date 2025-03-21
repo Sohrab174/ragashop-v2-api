@@ -838,34 +838,48 @@ export class ProductService {
 
     await product.save();
 
-    const existDescriptionIds = dto.descriptions
-      .filter((d) => !!d?.id)
-      .map((d) => d.id);
-    const deleteDescriptionIds = product.productDescriptions
-      .filter((pd) => !existDescriptionIds.includes(pd.id))
-      .map((d) => d.id);
+    if (dto.descriptions !== undefined) {
+      const existDescriptionIds = dto.descriptions
+        .filter((d) => !!d?.id)
+        .map((d) => d.id);
 
-    if (deleteDescriptionIds.length > 0) {
-      await this.productDescriptionRepository
-        .createQueryBuilder()
-        .update()
-        .set({ isDeleted: true })
-        .where('id IN (:...ids)', { ids: deleteDescriptionIds })
-        .execute();
-    }
+      const deleteDescriptionIds = product.productDescriptions
+        .filter((pd) => !existDescriptionIds.includes(pd.id))
+        .map((d) => d.id);
+      if (deleteDescriptionIds.length > 0) {
+        await this.productDescriptionRepository
+          .createQueryBuilder()
+          .update()
+          .set({ isDeleted: true })
+          .where('id IN (:...ids)', { ids: deleteDescriptionIds })
+          .execute();
+      }
 
-    const newDescriptions = dto.descriptions.filter((d) => !d?.id);
-    if (newDescriptions.length > 0) {
-      await this.productDescriptionRepository
-        .createQueryBuilder()
-        .insert()
-        .values(
-          newDescriptions.map((d) => ({
-            content: d.content,
-            productId: product.id,
-          })),
-        )
-        .execute();
+      const updateDescriptions = product.productDescriptions.filter((pd) =>
+        existDescriptionIds.includes(pd.id),
+      );
+      for (const desc of updateDescriptions) {
+        await this.productDescriptionRepository
+          .createQueryBuilder()
+          .update()
+          .set({ content: desc.content })
+          .where({ id: desc.id })
+          .execute();
+      }
+
+      const newDescriptions = dto.descriptions.filter((d) => !d?.id);
+      if (newDescriptions.length > 0) {
+        await this.productDescriptionRepository
+          .createQueryBuilder()
+          .insert()
+          .values(
+            newDescriptions.map((d) => ({
+              content: d.content,
+              productId: product.id,
+            })),
+          )
+          .execute();
+      }
     }
 
     return true;
