@@ -21,17 +21,12 @@ import { ProductDescriptionEntity } from './product-description.entity';
 export enum ProductStatus {
   active = 'active',
   inactive = 'inactive',
+  draft = 'draft',
 }
 
 export enum ProductGender {
   male = 'male',
   female = 'female',
-}
-
-export enum ProductType {
-  physical = 'physical',
-  file = 'file',
-  service = 'service',
 }
 
 export enum ProductCurrency {

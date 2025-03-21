@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { ProductEntity } from './product.entity';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
 @Index('fk_product_description_product1_idx', ['productId'], {})
 @Entity('product_description')
@@ -29,6 +30,13 @@ export class ProductDescriptionEntity extends BaseEntity {
 
   @Column('int', { name: 'displayOrder', default: () => "'1'" })
   displayOrder: number;
+
+  @Column('tinyint', {
+    name: 'isDeleted',
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isDeleted: boolean;
 
   /**
    * Relations

@@ -50,6 +50,9 @@ export class ProductService {
     @InjectRepository(ProductAttributeValueEntity)
     private productAttributeValueRepository: Repository<ProductAttributeValueEntity>,
 
+    @InjectRepository(ProductDescriptionEntity)
+    private productDescriptionRepository: Repository<ProductDescriptionEntity>,
+
     @InjectRepository(ProductGalleryEntity)
     private galleryRepository: Repository<ProductGalleryEntity>,
 
@@ -64,327 +67,6 @@ export class ProductService {
 
     private crawlerService: CrawlerService,
   ) {}
-
-  /**
-   * -------------------------------------------------------
-   * POST /products/import/excel/admin
-   */
-  async importExcel(
-    file: Express.Multer.File,
-    dto: ProductImportExcelDto,
-    user: UserEntity,
-  ) {
-    const workbook = xlsx.readFile(file.path);
-
-    const sheet_name = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheet_name];
-
-    const range = 'A1:K1000000';
-    const data = xlsx.utils.sheet_to_json(sheet, { range, defval: null });
-
-    let lastProductId;
-    let lastProductName;
-
-    const results = [];
-
-    let lastDisplayOrder = await getLastDisplayOrder(ProductEntity.name);
-
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i];
-      const [
-        number,
-        productName,
-        categoryName,
-        price,
-        discountedPrice,
-        unit, // don't remove me
-        quantity,
-        shortDescription,
-        description,
-        attributeName,
-        attributeValue,
-      ]: any = Object.values(row);
-
-      try {
-        const categoryId = await this.categoryService.getRecordByName(
-          categoryName,
-        );
-
-        if (!categoryId) {
-          results.push({
-            index: i,
-            number,
-            name: productName,
-            success: false,
-            message: 'دسته بندی مورد نظر یافت نشد',
-          });
-          continue;
-        }
-
-        if (productName !== lastProductName) {
-          let foundProduct;
-
-          // Finding the product by product number field
-          if (number) {
-            foundProduct = await this.productRepository.findOne({
-              number,
-            });
-          }
-          // Finding the product by product name field, if the product number is not exist
-          // else {
-          //   const foundProductLocale = await this.productLocaleRepository
-          //     .createQueryBuilder('productLocale')
-          //     .where('TRIM(LOWER(productLocale.name)) = :name', {
-          //       name: `${productName}`.toLowerCase().trim(),
-          //     })
-          //     .andWhere('productLocale.language = :lang', { lang: i18n.lang })
-          //     .innerJoinAndSelect(
-          //       'productLocale.product',
-          //       'product',
-          //       'product.companyId = :companyId',
-          //       { companyId: user.companyId },
-          //     )
-          //     .getOne();
-
-          //   foundProduct = foundProductLocale?.product || null;
-          // }
-
-          // Product found, so should be updated
-          if (foundProduct) {
-            lastProductId = foundProduct.id;
-            lastProductName = productName;
-
-            foundProduct.categoryId = categoryId;
-            foundProduct.price = price;
-            foundProduct.discountedPrice = discountedPrice || null;
-            foundProduct.quantity = quantity || -1;
-            foundProduct.updatedAt = new Date();
-            await foundProduct.save();
-
-            results.push({
-              index: i,
-              number,
-              name: productName,
-              success: true,
-              message: ['محصول مورد نظر با موفقیت آپدیت شد'],
-            });
-          }
-          // Product does not found, so should be added
-          else {
-            const { identifiers } = await this.productRepository
-              .createQueryBuilder()
-              .insert()
-              .values({
-                categoryId,
-                number: number || null,
-                price,
-                discountedPrice: discountedPrice || null,
-                quantity: quantity || -1,
-                status: ProductStatus.active,
-                displayOrder: lastDisplayOrder++,
-                createdAt: new Date(),
-              })
-              .execute();
-
-            lastProductId = identifiers[0].id;
-            lastProductName = productName;
-
-            results.push({
-              index: i,
-              number,
-              name: productName,
-              success: true,
-              message: ['محصول جدید با موفقیت ایجاد شد'],
-            });
-          }
-
-          // Adding the product photo
-          await this._importExcelPhoto(number, dto.photos, lastProductId);
-
-          // Adding the product attribute
-          if (attributeName) {
-            await this._importExcelAttribute(
-              lastProductId,
-              attributeName,
-              attributeValue,
-              {
-                name: productName,
-                shortDescription,
-                description,
-                number: number || null,
-                price: price || null,
-                discountedPrice: discountedPrice || null,
-                quantity: quantity || -1,
-              },
-              results,
-            );
-          }
-        } else {
-          // Adding the product attribute for the last excel record
-          await this._importExcelAttribute(
-            lastProductId,
-            attributeName,
-            attributeValue,
-            {
-              name: productName,
-              shortDescription,
-              description,
-              number: number || null,
-              price: price || null,
-              discountedPrice: discountedPrice || null,
-              quantity: quantity || -1,
-            },
-            results,
-          );
-
-          // Adding the product photo for the last excel record
-          await this._importExcelPhoto(number, dto.photos, lastProductId);
-        }
-      } catch (e) {
-        console.log(e);
-
-        results.push({
-          index: i,
-          number,
-          name: productName,
-          success: false,
-          message: ['خطای غیرمنتظره ای رخ داده است'],
-        });
-      }
-    }
-
-    // delete the photos without productId
-    for (const photo of dto.photos) {
-      if (photo.isAdded) continue;
-
-      const foundPhoto = await this.galleryRepository.findOne({
-        where: {
-          id: photo.galleryId,
-          productId: IsNull(),
-        },
-      });
-      fs.unlink(
-        path.join(__dirname, '../../..', 'uploads', foundPhoto.pathFile),
-        (e) => console.log(e),
-      );
-
-      foundPhoto.remove();
-    }
-
-    fs.unlink(file.path, (e) => console.log(e));
-
-    return results;
-  }
-
-  /**
-   * -------------------------------------------------------
-   */
-  private async _importExcelAttribute(
-    productId,
-    attributeName,
-    attributeValue,
-    fields: any = {},
-    results,
-  ) {
-    const attributeValueId = await this.attributeService.getRecordByName(
-      attributeName,
-      attributeValue,
-    );
-
-    if (!attributeValueId) {
-      results.push({
-        number: fields.number,
-        name: fields.name,
-        attributeName,
-        attributeValue,
-        success: false,
-        message: 'ویژگی مورد نظر یافت نشد',
-      });
-      return;
-    }
-
-    const foundProductAttributeValue =
-      await this.productAttributeValueRepository.findOne({
-        number: `${fields.number}`.trim(),
-        isDeleted: false,
-      });
-
-    if (foundProductAttributeValue) {
-      foundProductAttributeValue.attributeValueId = attributeValueId;
-      foundProductAttributeValue.price = fields.price || null;
-      foundProductAttributeValue.discountedPrice =
-        fields.discountedPrice || null;
-      foundProductAttributeValue.quantity = fields.quantity || -1;
-      await foundProductAttributeValue.save();
-
-      results.push({
-        number: fields.number,
-        name: fields.name,
-        attributeName,
-        attributeValue,
-        success: true,
-        message: 'ویژگی با موفقیت به روز شد',
-      });
-      return;
-    }
-
-    await this.productAttributeValueRepository
-      .createQueryBuilder()
-      .insert()
-      .values({
-        ...fields,
-        productId,
-        attributeValueId,
-        isDeleted: false,
-      })
-      .execute();
-
-    results.push({
-      number: fields.number,
-      name: fields.name,
-      attributeName,
-      attributeValue,
-      success: true,
-      message: ['ویژگی با موفقیت ایجاد شد'],
-    });
-  }
-
-  /**
-   * -------------------------------------------------------
-   */
-  private async _importExcelPhoto(number, photos, productId) {
-    if (!number) return;
-
-    const product = await this.productRepository.findOne(productId);
-    let hasCover = product?.coverId ? true : false;
-
-    // linking the product to photos
-    for (const photo of photos.filter((p) => !p.isAdded)) {
-      if (
-        photo.originalPhotoName.split('.')?.[0]?.split(' ')?.[0] === `${number}`
-      ) {
-        await this.galleryRepository
-          .createQueryBuilder()
-          .update()
-          .set({ productId })
-          .where({
-            id: photo.galleryId,
-            productId: IsNull(),
-          })
-          .execute();
-
-        photo.isAdded = true;
-
-        // linking the photo cover (first photo) to product
-        if (!hasCover) {
-          product.coverId = photo.galleryId;
-          await product.save();
-
-          hasCover = true;
-        }
-      }
-    }
-  }
 
   /**
    * -------------------------------------------------------
@@ -1102,6 +784,19 @@ export class ProductService {
 
     const newProductId = identifiers[0].id;
 
+    if (dto.descriptions.length > 0) {
+      await this.productDescriptionRepository
+        .createQueryBuilder()
+        .insert()
+        .values(
+          dto.descriptions.map((d) => ({
+            content: d.content,
+            productId: newProductId,
+          })),
+        )
+        .execute();
+    }
+
     return { id: newProductId };
   }
 
@@ -1112,6 +807,7 @@ export class ProductService {
   async update(dto: UpdateProductDto, user: UserEntity) {
     const product = await this.productRepository.findOne({
       where: { id: dto.id },
+      relations: ['productDescriptions'],
     });
 
     if (!product) {
@@ -1141,6 +837,36 @@ export class ProductService {
     if (dto.description !== undefined) product.description = dto.description;
 
     await product.save();
+
+    const existDescriptionIds = dto.descriptions
+      .filter((d) => !!d?.id)
+      .map((d) => d.id);
+    const deleteDescriptionIds = product.productDescriptions
+      .filter((pd) => !existDescriptionIds.includes(pd.id))
+      .map((d) => d.id);
+
+    if (deleteDescriptionIds.length > 0) {
+      await this.productDescriptionRepository
+        .createQueryBuilder()
+        .update()
+        .set({ isDeleted: true })
+        .where('id IN (:...ids)', { ids: deleteDescriptionIds })
+        .execute();
+    }
+
+    const newDescriptions = dto.descriptions.filter((d) => !d?.id);
+    if (newDescriptions.length > 0) {
+      await this.productDescriptionRepository
+        .createQueryBuilder()
+        .insert()
+        .values(
+          newDescriptions.map((d) => ({
+            content: d.content,
+            productId: product.id,
+          })),
+        )
+        .execute();
+    }
 
     return true;
   }
@@ -2103,5 +1829,323 @@ export class ProductService {
   async getProductSourceIdByCrawler(sourceId) {
     const crawledProduct = await this.crawlerService.getProductById(sourceId);
     return crawledProduct;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * POST /products/import/excel/admin
+   */
+  async importExcel(
+    file: Express.Multer.File,
+    dto: ProductImportExcelDto,
+    user: UserEntity,
+  ) {
+    const workbook = xlsx.readFile(file.path);
+
+    const sheet_name = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheet_name];
+
+    const range = 'A1:K1000000';
+    const data = xlsx.utils.sheet_to_json(sheet, { range, defval: null });
+
+    let lastProductId;
+    let lastProductName;
+
+    const results = [];
+
+    let lastDisplayOrder = await getLastDisplayOrder(ProductEntity.name);
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const [
+        number,
+        productName,
+        categoryName,
+        price,
+        discountedPrice,
+        unit, // don't remove me
+        quantity,
+        description,
+        attributeName,
+        attributeValue,
+      ]: any = Object.values(row);
+
+      try {
+        const categoryId = await this.categoryService.getRecordByName(
+          categoryName,
+        );
+
+        if (!categoryId) {
+          results.push({
+            index: i,
+            number,
+            name: productName,
+            success: false,
+            message: 'دسته بندی مورد نظر یافت نشد',
+          });
+          continue;
+        }
+
+        if (productName !== lastProductName) {
+          let foundProduct;
+
+          // Finding the product by product number field
+          if (number) {
+            foundProduct = await this.productRepository.findOne({
+              number,
+            });
+          }
+          // Finding the product by product name field, if the product number is not exist
+          // else {
+          //   const foundProductLocale = await this.productLocaleRepository
+          //     .createQueryBuilder('productLocale')
+          //     .where('TRIM(LOWER(productLocale.name)) = :name', {
+          //       name: `${productName}`.toLowerCase().trim(),
+          //     })
+          //     .andWhere('productLocale.language = :lang', { lang: i18n.lang })
+          //     .innerJoinAndSelect(
+          //       'productLocale.product',
+          //       'product',
+          //       'product.companyId = :companyId',
+          //       { companyId: user.companyId },
+          //     )
+          //     .getOne();
+
+          //   foundProduct = foundProductLocale?.product || null;
+          // }
+
+          // Product found, so should be updated
+          if (foundProduct) {
+            lastProductId = foundProduct.id;
+            lastProductName = productName;
+
+            foundProduct.categoryId = categoryId;
+            foundProduct.price = price;
+            foundProduct.discountedPrice = discountedPrice || null;
+            foundProduct.quantity = quantity || -1;
+            foundProduct.updatedAt = new Date();
+            await foundProduct.save();
+
+            results.push({
+              index: i,
+              number,
+              name: productName,
+              success: true,
+              message: ['محصول مورد نظر با موفقیت آپدیت شد'],
+            });
+          }
+          // Product does not found, so should be added
+          else {
+            const { identifiers } = await this.productRepository
+              .createQueryBuilder()
+              .insert()
+              .values({
+                categoryId,
+                number: number || null,
+                price,
+                discountedPrice: discountedPrice || null,
+                quantity: quantity || -1,
+                status: ProductStatus.active,
+                displayOrder: lastDisplayOrder++,
+                createdAt: new Date(),
+              })
+              .execute();
+
+            lastProductId = identifiers[0].id;
+            lastProductName = productName;
+
+            results.push({
+              index: i,
+              number,
+              name: productName,
+              success: true,
+              message: ['محصول جدید با موفقیت ایجاد شد'],
+            });
+          }
+
+          // Adding the product photo
+          await this._importExcelPhoto(number, dto.photos, lastProductId);
+
+          // Adding the product attribute
+          if (attributeName) {
+            await this._importExcelAttribute(
+              lastProductId,
+              attributeName,
+              attributeValue,
+              {
+                name: productName,
+                description,
+                number: number || null,
+                price: price || null,
+                discountedPrice: discountedPrice || null,
+                quantity: quantity || -1,
+              },
+              results,
+            );
+          }
+        } else {
+          // Adding the product attribute for the last excel record
+          await this._importExcelAttribute(
+            lastProductId,
+            attributeName,
+            attributeValue,
+            {
+              name: productName,
+              description,
+              number: number || null,
+              price: price || null,
+              discountedPrice: discountedPrice || null,
+              quantity: quantity || -1,
+            },
+            results,
+          );
+
+          // Adding the product photo for the last excel record
+          await this._importExcelPhoto(number, dto.photos, lastProductId);
+        }
+      } catch (e) {
+        console.log(e);
+
+        results.push({
+          index: i,
+          number,
+          name: productName,
+          success: false,
+          message: ['خطای غیرمنتظره ای رخ داده است'],
+        });
+      }
+    }
+
+    // delete the photos without productId
+    for (const photo of dto.photos) {
+      if (photo.isAdded) continue;
+
+      const foundPhoto = await this.galleryRepository.findOne({
+        where: {
+          id: photo.galleryId,
+          productId: IsNull(),
+        },
+      });
+      fs.unlink(
+        path.join(__dirname, '../../..', 'uploads', foundPhoto.pathFile),
+        (e) => console.log(e),
+      );
+
+      foundPhoto.remove();
+    }
+
+    fs.unlink(file.path, (e) => console.log(e));
+
+    return results;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _importExcelAttribute(
+    productId,
+    attributeName,
+    attributeValue,
+    fields: any = {},
+    results,
+  ) {
+    const attributeValueId = await this.attributeService.getRecordByName(
+      attributeName,
+      attributeValue,
+    );
+
+    if (!attributeValueId) {
+      results.push({
+        number: fields.number,
+        name: fields.name,
+        attributeName,
+        attributeValue,
+        success: false,
+        message: 'ویژگی مورد نظر یافت نشد',
+      });
+      return;
+    }
+
+    const foundProductAttributeValue =
+      await this.productAttributeValueRepository.findOne({
+        number: `${fields.number}`.trim(),
+        isDeleted: false,
+      });
+
+    if (foundProductAttributeValue) {
+      foundProductAttributeValue.attributeValueId = attributeValueId;
+      foundProductAttributeValue.price = fields.price || null;
+      foundProductAttributeValue.discountedPrice =
+        fields.discountedPrice || null;
+      foundProductAttributeValue.quantity = fields.quantity || -1;
+      await foundProductAttributeValue.save();
+
+      results.push({
+        number: fields.number,
+        name: fields.name,
+        attributeName,
+        attributeValue,
+        success: true,
+        message: 'ویژگی با موفقیت به روز شد',
+      });
+      return;
+    }
+
+    await this.productAttributeValueRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        ...fields,
+        productId,
+        attributeValueId,
+        isDeleted: false,
+      })
+      .execute();
+
+    results.push({
+      number: fields.number,
+      name: fields.name,
+      attributeName,
+      attributeValue,
+      success: true,
+      message: ['ویژگی با موفقیت ایجاد شد'],
+    });
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _importExcelPhoto(number, photos, productId) {
+    if (!number) return;
+
+    const product = await this.productRepository.findOne(productId);
+    let hasCover = product?.coverId ? true : false;
+
+    // linking the product to photos
+    for (const photo of photos.filter((p) => !p.isAdded)) {
+      if (
+        photo.originalPhotoName.split('.')?.[0]?.split(' ')?.[0] === `${number}`
+      ) {
+        await this.galleryRepository
+          .createQueryBuilder()
+          .update()
+          .set({ productId })
+          .where({
+            id: photo.galleryId,
+            productId: IsNull(),
+          })
+          .execute();
+
+        photo.isAdded = true;
+
+        // linking the photo cover (first photo) to product
+        if (!hasCover) {
+          product.coverId = photo.galleryId;
+          await product.save();
+
+          hasCover = true;
+        }
+      }
+    }
   }
 }

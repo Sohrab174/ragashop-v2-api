@@ -1,6 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, ValidateIf } from 'class-validator';
-import { ProductStatus, ProductType } from '../entities/product.entity';
+import { IsIn, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
+import { ProductStatus } from '../entities/product.entity';
+import { Type } from 'class-transformer';
+
+class ProductDescription {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  id: number;
+
+  @ApiProperty({ required: true })
+  @IsNotEmpty({ message: 'متن توضیح را وارد نمایید.' })
+  content: string;
+}
 
 export class CreateProductDto {
   @ApiProperty()
@@ -9,11 +20,13 @@ export class CreateProductDto {
 
   @ApiProperty()
   @IsOptional()
-  shortDescription: string;
-
-  @ApiProperty()
-  @IsOptional()
   description: string;
+
+  @ApiProperty({ type: [ProductDescription] })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => ProductDescription)
+  descriptions: ProductDescription[];
 
   @ApiProperty({ required: true })
   @IsNotEmpty()
@@ -35,26 +48,8 @@ export class CreateProductDto {
   @IsOptional()
   discountedPrice: number;
 
-  @ApiProperty({ required: true })
-  @IsNotEmpty()
-  showPrice: boolean;
-
   @ApiProperty({ required: true, enum: ProductStatus })
   @IsNotEmpty()
   @IsIn(Object.values(ProductStatus))
   status: ProductStatus;
-
-  @ApiProperty({ required: true, enum: ProductType })
-  @IsNotEmpty()
-  @IsIn(Object.values(ProductType))
-  type: ProductType;
-
-  @ApiProperty({ required: true })
-  @ValidateIf((p) => p.type === ProductType.service)
-  @IsNotEmpty()
-  serviceId: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  serviceToken: string;
 }
