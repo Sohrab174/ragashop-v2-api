@@ -37,13 +37,76 @@ export class SettingEntity extends BaseEntity {
   whatsapp: string | null;
 
   @Column('decimal', {
-    name: 'shippingCost',
+    name: 'maxShippingCost',
     precision: 20,
     scale: 2,
     default: () => "'0.00'",
     transformer: new DecimalTransformer(),
   })
-  shippingCost: number;
+  maxShippingCost: number;
+
+  @Column('decimal', {
+    name: 'shippingPercent',
+    precision: 10,
+    scale: 2,
+    default: () => "'5.00'",
+    transformer: new DecimalTransformer(),
+  })
+  shippingPercent: number;
+
+  @Column('decimal', {
+    name: 'invitedByReferrerCreditUSD',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  invitedByReferrerCreditUSD: number;
+
+  @Column('decimal', {
+    name: 'invitedByReferrerCreditIRT',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  invitedByReferrerCreditIRT: number;
+
+  @Column('decimal', {
+    name: 'invitedByReferrerCreditTRY',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  invitedByReferrerCreditTRY: number;
+
+  @Column('decimal', {
+    name: 'buyPercentToReferrerCreditUSD',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  buyPercentToReferrerCreditUSD: number;
+
+  @Column('decimal', {
+    name: 'buyPercentToReferrerCreditIRT',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  buyPercentToReferrerCreditIRT: number;
+
+  @Column('decimal', {
+    name: 'buyPercentToReferrerCreditTRY',
+    precision: 20,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  buyPercentToReferrerCreditTRY: number;
 
   @Column('decimal', {
     name: 'vat',

@@ -44,7 +44,11 @@ export class UpdateSettingDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  shippingCost: number;
+  maxShippingCost: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  shippingPercent: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -61,4 +65,30 @@ export class UpdateSettingDto {
   @ApiProperty({ required: false })
   @IsOptional()
   maxDeliveryDay: number;
+
+  // -------------------------
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  invitedByReferrerCreditUSD: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  invitedByReferrerCreditIRT: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  invitedByReferrerCreditTRY: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditUSD: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditIRT: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditTRY: number;
 }

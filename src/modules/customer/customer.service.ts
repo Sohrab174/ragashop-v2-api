@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import {
   applyFiltersToBuilder,
   applySortingToBuilder,
+  generateRandomAlphaDigitCode,
   paginationResult,
 } from '../../utils';
 import { ErrorService } from '../../error/error.service';
@@ -27,6 +28,11 @@ import { CustomerResendOtpDto } from './dto/customer-resend-otp.dto';
 import { CustomerLoginMobileDto } from './dto/customer-login-mobile.dto';
 import { CustomerLoginVerifyDto } from './dto/customer-login-verify.dto';
 import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
+import { SettingService } from '../setting/setting.service';
+import {
+  WalletHistoryEntity,
+  WalletHistoryType,
+} from './entities/wallet-history.entity';
 
 @Injectable()
 export class CustomerService {
@@ -34,11 +40,15 @@ export class CustomerService {
     @InjectRepository(CustomerEntity)
     private customerRepository: Repository<CustomerEntity>,
 
+    @InjectRepository(WalletHistoryEntity)
+    private walletHistoryRepository: Repository<WalletHistoryEntity>,
+
     private config: ConfigurationService,
     private jwtService: JwtService,
     private error: ErrorService,
     private mail: MailService,
     private amootsmsService: AmootsmsService,
+    private settingService: SettingService,
     // private kavenegarService: KavenegarService,
 
     @Inject(forwardRef(() => OrderService))
@@ -109,6 +119,10 @@ export class CustomerService {
       customer.mobile = dto.mobile;
       customer.status = CustomerStatus.inactive;
       customer.createdAt = new Date();
+      customer.inviteCode = await this._generateReferrerCode(6, dto.mobile);
+      customer.walletUSD = 0;
+      customer.walletIRT = 0;
+      customer.walletTRY = 0;
     }
 
     const randomHash =
@@ -152,6 +166,71 @@ export class CustomerService {
       } else {
         customer.firstName = dto.firstName;
         customer.lastName = dto.lastName;
+      }
+    }
+
+    if (!customer.inviteCode && dto.inviteCode) {
+      const referrerUser = await this.findByReferrerCode(
+        dto.inviteCode,
+        customer.id,
+        true,
+      );
+      if (referrerUser) {
+        customer.inviteCode = dto.inviteCode;
+
+        const setting = await this.settingService.getByAdmin([
+          'invitedByReferrerCreditUSD',
+          'invitedByReferrerCreditIRT',
+          'invitedByReferrerCreditTRY',
+        ]);
+
+        if (setting.invitedByReferrerCreditUSD > 0) {
+          customer.walletUSD += setting.invitedByReferrerCreditUSD;
+          await this.walletHistoryRepository
+            .createQueryBuilder()
+            .insert()
+            .values({
+              walletUSD: setting.invitedByReferrerCreditUSD,
+              walletIRT: 0,
+              walletTRY: 0,
+              customerId: customer.id,
+              type: WalletHistoryType.invite,
+              createdAt: new Date(),
+            })
+            .execute();
+        }
+
+        if (setting.invitedByReferrerCreditIRT > 0) {
+          customer.walletIRT += setting.invitedByReferrerCreditIRT;
+          await this.walletHistoryRepository
+            .createQueryBuilder()
+            .insert()
+            .values({
+              walletUSD: 0,
+              walletIRT: setting.invitedByReferrerCreditIRT,
+              walletTRY: 0,
+              customerId: customer.id,
+              type: WalletHistoryType.invite,
+              createdAt: new Date(),
+            })
+            .execute();
+        }
+
+        if (setting.invitedByReferrerCreditTRY > 0) {
+          customer.walletTRY += setting.invitedByReferrerCreditTRY;
+          await this.walletHistoryRepository
+            .createQueryBuilder()
+            .insert()
+            .values({
+              walletUSD: 0,
+              walletIRT: 0,
+              walletTRY: setting.invitedByReferrerCreditTRY,
+              customerId: customer.id,
+              type: WalletHistoryType.invite,
+              createdAt: new Date(),
+            })
+            .execute();
+        }
       }
     }
 
@@ -752,5 +831,46 @@ export class CustomerService {
       active: +active,
       inactive: +inactive,
     };
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async findByReferrerCode(
+    referrerCode: string,
+    selfUserId = null,
+    forceActive = false,
+  ) {
+    return await this.customerRepository.findOne({
+      referrerCode: referrerCode.trim().toUpperCase(),
+      ...(selfUserId && { id: Not(selfUserId) }),
+      ...(forceActive && { status: CustomerStatus.active }),
+    });
+  }
+
+  /**
+   * --------------------------------------------------------
+   */
+  private async _generateReferrerCode(length = 6, mobile = '') {
+    let code = null;
+
+    if (mobile.length >= 7) {
+      for (let i = -4; i >= -7; i--) {
+        code = mobile.slice(i);
+        const user = await this.findByReferrerCode(code);
+        if (!user) {
+          return code;
+        }
+      }
+    }
+
+    while (true) {
+      code = generateRandomAlphaDigitCode(length);
+
+      const user = await this.findByReferrerCode(code);
+      if (!user) {
+        return code;
+      }
+    }
   }
 }

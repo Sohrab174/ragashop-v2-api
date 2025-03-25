@@ -330,10 +330,11 @@ export class ProductService {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
-    const { tryToRial } = await this.settingService.get(['tryToRial']);
+    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
+    const tryToToman = tryToRial / 10;
 
     product.discountedPrice =
-      tryToRial *
+      tryToToman *
       (product.incredibleOffers?.[0]?.discountedPrice ||
         product.discountedPrice);
 
@@ -343,10 +344,10 @@ export class ProductService {
     product.productAttributeValues = product.productAttributeValues.map(
       (pav) => {
         pav.discountedPrice =
-          tryToRial *
+          tryToToman *
           (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice);
         pav.incredibleOfferExpire = pav.incredibleOffers?.[0]?.toDate || null;
-        pav.price = tryToRial * pav.price;
+        pav.price = tryToToman * pav.price;
         delete pav.incredibleOffers;
         return pav;
       },
@@ -373,7 +374,7 @@ export class ProductService {
 
     return {
       ...product,
-      price: product.price * tryToRial,
+      price: product.price * tryToToman,
     };
 
     // if (product.coverId && product.productGalleries?.length === 1) {
@@ -532,10 +533,11 @@ export class ProductService {
       .skip((page - 1) * limit)
       .getManyAndCount();
 
-    const { tryToRial } = await this.settingService.get(['tryToRial']);
+    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
+    const tryToToman = tryToRial / 10;
 
     return {
-      items: items.map((item) => this.mappingProduct(item, tryToRial)),
+      items: items.map((item) => this.mappingProduct(item, tryToToman)),
       pagination: paginationResult(page, limit, totalItems),
     };
   }
@@ -633,9 +635,10 @@ export class ProductService {
       .orderBy('product.displayOrder', 'ASC')
       .getMany();
 
-    const { tryToRial } = await this.settingService.get(['tryToRial']);
+    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
+    const tryToToman = tryToRial / 10;
 
-    return productList.map((item) => this.mappingProduct(item, tryToRial));
+    return productList.map((item) => this.mappingProduct(item, tryToToman));
   }
 
   /**
@@ -1082,7 +1085,8 @@ export class ProductService {
       await this.getProductIdByCrawler(productId, false);
     }
 
-    const { tryToRial } = await this.settingService.get(['tryToRial']);
+    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
+    const tryToToman = tryToRial / 10;
 
     const products = await this.productRepository
       .createQueryBuilder('product')
@@ -1120,17 +1124,17 @@ export class ProductService {
     return products.map((product) => ({
       ...product,
 
-      price: tryToRial * product.price,
+      price: tryToToman * product.price,
       discountedPrice:
-        tryToRial *
+        tryToToman *
         (product.incredibleOffers?.[0]?.discountedPrice ||
           product.discountedPrice),
 
       productAttributeValues: product.productAttributeValues.map((pav) => ({
         ...pav,
-        price: tryToRial * pav.price,
+        price: tryToToman * pav.price,
         discountedPrice:
-          tryToRial *
+          tryToToman *
           (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice),
       })),
     }));
@@ -1327,15 +1331,15 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  private mappingProduct(item, tryToRial: number) {
+  private mappingProduct(item, tryToToman: number) {
     const offer = item.incredibleOffers?.[0];
     delete item.incredibleOffers;
 
     return {
       ...item,
-      price: tryToRial * item.price,
+      price: tryToToman * item.price,
       discountedPrice:
-        tryToRial * (offer?.discountedPrice || item.discountedPrice),
+        tryToToman * (offer?.discountedPrice || item.discountedPrice),
       incredibleOfferExpire: offer?.toDate || null,
       productAttributeValues: item.productAttributeValues
         .filter(
@@ -1346,9 +1350,9 @@ export class ProductService {
         .map((attr) => ({
           id: attr.id,
           color: attr.attributeValue?.extraValue || null,
-          price: tryToRial * attr.price,
+          price: tryToToman * attr.price,
           discountedPrice:
-            tryToRial *
+            tryToToman *
             (attr.incredibleOffers?.[0]?.discountedPrice ||
               attr.discountedPrice),
           quantity: item.quantity,

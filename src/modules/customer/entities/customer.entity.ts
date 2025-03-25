@@ -13,6 +13,8 @@ import { BeforeUpdate } from 'typeorm/decorator/listeners/BeforeUpdate';
 import * as bcrypt from 'bcryptjs';
 import { TransactionEntity } from '../../transaction/entities/transaction.entity';
 import { AddressEntity } from '../../address/entities/address.entity';
+import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
+import { WalletHistoryEntity } from './wallet-history.entity';
 
 export enum CustomerStatus {
   active = 'active',
@@ -53,6 +55,39 @@ export class CustomerEntity extends BaseEntity {
   @Column('datetime', { name: 'expireRandomHash', nullable: true })
   expireRandomHash: Date | null;
 
+  @Column('varchar', { name: 'referrerCode', nullable: true, length: 45 })
+  referrerCode: string | null;
+
+  @Column('varchar', { name: 'inviteCode', nullable: true, length: 45 })
+  inviteCode: string | null;
+
+  @Column('decimal', {
+    name: 'walletUSD',
+    precision: 10,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletUSD: number;
+
+  @Column('decimal', {
+    name: 'walletIRT',
+    precision: 10,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletIRT: number;
+
+  @Column('decimal', {
+    name: 'walletTRY',
+    precision: 10,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletTRY: number;
+
   @Column('enum', {
     name: 'status',
     enum: CustomerStatus,
@@ -66,7 +101,6 @@ export class CustomerEntity extends BaseEntity {
   /**
    * Relations
    */
-
   @OneToMany(() => OrderEntity, (order) => order.customer)
   orders: OrderEntity[];
 
@@ -75,6 +109,18 @@ export class CustomerEntity extends BaseEntity {
 
   @OneToMany(() => AddressEntity, (address) => address.customer)
   addresses: AddressEntity[];
+
+  @OneToMany(
+    () => WalletHistoryEntity,
+    (walletHistory) => walletHistory.customer,
+  )
+  walletHistories: WalletHistoryEntity[];
+
+  @OneToMany(
+    () => WalletHistoryEntity,
+    (walletHistory) => walletHistory.relatedCustomer,
+  )
+  relatedWalletHistories: WalletHistoryEntity[];
 
   /**
    * Entity Listeners

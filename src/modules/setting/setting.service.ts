@@ -28,10 +28,28 @@ export class SettingService {
    * -------------------------------------------------------
    * Get /settings
    */
-  async get(select = null) {
+  async get() {
     const setting = await this.settingRepository.findOne({
       where: { id: 1 },
-      ...(select && { select }),
+      select: [
+        'phone',
+        'email',
+        'address',
+        'location',
+        'instagram',
+        'linkedin',
+        'telegram',
+        'twitter',
+        'facebook',
+        'whatsapp',
+        'maxShippingCost',
+        'shippingPercent',
+        'vat',
+        'noticeBeforeOrdering',
+        'minDeliveryDay',
+        'maxDeliveryDay',
+        'tryToRial',
+      ],
     });
 
     return { ...setting, time: new Date() };

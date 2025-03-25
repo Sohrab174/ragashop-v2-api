@@ -27,4 +27,9 @@ export class CustomerLoginVerifyDto {
   @Transform(({ value }) => value.trim())
   @IsOptional()
   lastName: string;
+
+  @ApiProperty({ required: false })
+  @Transform(({ value }) => convertPersianToEnglishDigit((value || '').trim()))
+  @IsOptional()
+  inviteCode: string;
 }

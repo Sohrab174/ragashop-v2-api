@@ -14,6 +14,7 @@ import { TransactionEntity } from '../../transaction/entities/transaction.entity
 import { OrderItemEntity } from './order-item.entity';
 import { CityEntity } from '../../city/entities/city.entity';
 import { OrderStatusEntity } from './order-status.entity';
+import { WalletHistoryEntity } from '../../customer/entities/wallet-history.entity';
 
 export enum OrderStatus {
   pending = 'pending',
@@ -152,4 +153,10 @@ export class OrderEntity extends BaseEntity {
 
   @OneToMany(() => OrderStatusEntity, (orderStatus) => orderStatus.order)
   orderStatuses: OrderStatusEntity[];
+
+  @OneToMany(
+    () => WalletHistoryEntity,
+    (walletHistory) => walletHistory.relatedOrder,
+  )
+  walletHistories: WalletHistoryEntity[];
 }

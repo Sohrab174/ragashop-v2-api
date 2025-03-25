@@ -13,14 +13,17 @@ import { CustomerService } from './customer.service';
 import { CustomerEntity } from './entities/customer.entity';
 import { CustomerJwtStrategy } from './jwt/jwt.strategy';
 import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { SettingModule } from '../setting/setting.module';
+import { WalletHistoryEntity } from './entities/wallet-history.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CustomerEntity]),
+    TypeOrmModule.forFeature([CustomerEntity, WalletHistoryEntity]),
     UserModule,
     ErrorModule,
     MailModule,
     AmootsmsModule,
+    SettingModule,
     // KavenegarModule,
     PassportModule,
     forwardRef(() => OrderModule),
