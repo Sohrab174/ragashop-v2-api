@@ -111,7 +111,7 @@ export class CustomerService {
           .subtract(2, 'minutes')
           .isAfter(moment())
       ) {
-        return { mobile: customer.mobile };
+        return { mobile: customer.mobile, isNewUser };
       }
     } else {
       isNewUser = true;
