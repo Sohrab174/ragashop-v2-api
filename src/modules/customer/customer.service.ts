@@ -372,6 +372,11 @@ export class CustomerService {
         firstName: customer.firstName,
         lastName: customer.lastName,
         addresses: customer.addresses.filter((a) => !a.isDeleted),
+
+        walletUSD: customer.walletUSD,
+        walletIRT: customer.walletIRT,
+        walletTRY: customer.walletTRY,
+        referrerCode: customer.referrerCode,
       },
       accessToken,
     };
