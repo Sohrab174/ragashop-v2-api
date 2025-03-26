@@ -121,9 +121,7 @@ export class TransactionService {
    * POST /transactions
    */
   async add(dto: CreateTransactionDto, customer: CustomerEntity, ip: string) {
-    const order = await this.orderService.getRecordById(dto.orderId, [
-      'customer',
-    ]);
+    const order = await this.orderService.getRecordById(dto.orderId);
     if (!order) {
       this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
@@ -145,28 +143,28 @@ export class TransactionService {
     let status = TransactionStatus.pending;
 
     // used wallet
-    if (dto.usedWalletTRY && order.customer.walletTRY > 0) {
+    if (dto.usedWalletTRY && customer.walletTRY > 0) {
       const tryToToman = await this.settingService.getTryToToman();
-      const wallet = order.customer.walletTRY * tryToToman;
+      const wallet = customer.walletTRY * tryToToman;
 
       if (wallet >= payAmount) {
         walletTRY = payAmount / tryToToman;
         walletAmount += payAmount;
         payAmount = 0;
       } else {
-        walletTRY = order.customer.walletTRY;
+        walletTRY = customer.walletTRY;
         walletAmount += wallet;
         payAmount -= wallet;
       }
     }
 
-    if (payAmount > 0 && dto.usedWalletIRT && order.customer.walletIRT > 0) {
-      if (order.customer.walletIRT >= payAmount) {
+    if (payAmount > 0 && dto.usedWalletIRT && customer.walletIRT > 0) {
+      if (customer.walletIRT >= payAmount) {
         walletIRT = payAmount;
         walletAmount += payAmount;
         payAmount = 0;
       } else {
-        walletIRT = order.customer.walletIRT;
+        walletIRT = customer.walletIRT;
         walletAmount += walletIRT;
         payAmount -= walletIRT;
       }
@@ -174,13 +172,13 @@ export class TransactionService {
 
     // update customer wallet
     if (payAmount === 0) {
-      order.customer.walletTRY -= walletTRY;
-      order.customer.walletIRT -= walletIRT;
-      await order.customer.save();
+      customer.walletTRY -= walletTRY;
+      customer.walletIRT -= walletIRT;
+      await customer.save();
 
       if (walletTRY > 0) {
         await this.customerService.addWalletHistory({
-          customerId: order.customerId,
+          customerId: customer.id,
           walletTRY: -1 * walletTRY,
           type: WalletHistoryType.buy,
           relatedOrderId: order.id,
@@ -188,7 +186,7 @@ export class TransactionService {
       }
       if (walletIRT > 0) {
         await this.customerService.addWalletHistory({
-          customerId: order.customerId,
+          customerId: customer.id,
           walletIRT: -1 * walletIRT,
           type: WalletHistoryType.buy,
           relatedOrderId: order.id,
