@@ -109,13 +109,13 @@ export class SettingEntity extends BaseEntity {
   buyPercentToReferrerCreditTRY: number;
 
   @Column('decimal', {
-    name: 'vat',
-    precision: 20,
+    name: 'taxPercent',
+    precision: 10,
     scale: 2,
     default: () => "'0.00'",
     transformer: new DecimalTransformer(),
   })
-  vat: number;
+  taxPercent: number;
 
   @Column('text', { name: 'noticeBeforeOrdering', nullable: true })
   noticeBeforeOrdering: string | null;
@@ -134,4 +134,13 @@ export class SettingEntity extends BaseEntity {
     transformer: new DecimalTransformer(),
   })
   tryToRial: number;
+
+  @Column('decimal', {
+    name: 'changePercentTryToRial',
+    precision: 10,
+    scale: 2,
+    default: () => "'0.00'",
+    transformer: new DecimalTransformer(),
+  })
+  changePercentTryToRial: number;
 }

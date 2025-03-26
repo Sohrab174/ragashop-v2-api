@@ -330,8 +330,7 @@ export class ProductService {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
-    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
-    const tryToToman = tryToRial / 10;
+    const tryToToman = await this.settingService.getTryToToman();
 
     product.discountedPrice =
       tryToToman *
@@ -533,8 +532,7 @@ export class ProductService {
       .skip((page - 1) * limit)
       .getManyAndCount();
 
-    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
-    const tryToToman = tryToRial / 10;
+    const tryToToman = await this.settingService.getTryToToman();
 
     return {
       items: items.map((item) => this.mappingProduct(item, tryToToman)),
@@ -635,8 +633,7 @@ export class ProductService {
       .orderBy('product.displayOrder', 'ASC')
       .getMany();
 
-    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
-    const tryToToman = tryToRial / 10;
+    const tryToToman = await this.settingService.getTryToToman();
 
     return productList.map((item) => this.mappingProduct(item, tryToToman));
   }
@@ -1085,8 +1082,7 @@ export class ProductService {
       await this.getProductIdByCrawler(productId, false);
     }
 
-    const { tryToRial } = await this.settingService.getByAdmin(['tryToRial']);
-    const tryToToman = tryToRial / 10;
+    const tryToToman = await this.settingService.getTryToToman();
 
     const products = await this.productRepository
       .createQueryBuilder('product')

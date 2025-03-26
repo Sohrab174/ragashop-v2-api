@@ -7,6 +7,8 @@ import { OrderEntity } from '../order/entities/order.entity';
 import { PaypingModule } from '../../gateway/payping/payping.module';
 import { OrderModule } from '../order/order.module';
 import { GatewayModule } from '../gateway/gateway.module';
+import { SettingModule } from '../setting/setting.module';
+import { CustomerModule } from '../customer/customer.module';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { GatewayModule } from '../gateway/gateway.module';
     OrderModule,
     GatewayModule,
     PaypingModule,
+    SettingModule,
+    CustomerModule,
   ],
   controllers: [TransactionController],
   providers: [TransactionService],

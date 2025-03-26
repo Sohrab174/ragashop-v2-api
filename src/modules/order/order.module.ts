@@ -6,11 +6,10 @@ import { OrderEntity } from './entities/order.entity';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import { MailModule } from '../../mail/mail.module';
-import { KavenegarModule } from '../../sms/kavenegar/kavenegar.module';
-import { DiscountCouponModule } from '../discount-coupon/discount-coupon.module';
 import { CustomerModule } from '../customer/customer.module';
 import { OrderStatusEntity } from './entities/order-status.entity';
 import { AddressModule } from '../address/address.module';
+import { SettingModule } from '../setting/setting.module';
 // import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
 
 @Module({
@@ -18,10 +17,10 @@ import { AddressModule } from '../address/address.module';
     TypeOrmModule.forFeature([OrderEntity, OrderItemEntity, OrderStatusEntity]),
     ProductModule,
     MailModule,
-    KavenegarModule,
-    DiscountCouponModule,
     CustomerModule,
     AddressModule,
+    SettingModule,
+    // DiscountCouponModule,
     // AmootsmsModule,
   ],
   controllers: [OrderController],

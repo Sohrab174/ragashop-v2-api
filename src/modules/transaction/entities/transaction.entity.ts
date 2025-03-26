@@ -43,6 +43,42 @@ export class TransactionEntity extends BaseEntity {
   })
   amount: number;
 
+  @Column('decimal', {
+    name: 'walletAmount',
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletAmount: number;
+
+  @Column('decimal', {
+    name: 'walletUSD',
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletUSD: number;
+
+  @Column('decimal', {
+    name: 'walletIRT',
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletIRT: number;
+
+  @Column('decimal', {
+    name: 'walletTRY',
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+    default: () => "'0.00'",
+  })
+  walletTRY: number;
+
   @Column('varchar', { name: 'referenceNumber', nullable: true, length: 128 })
   referenceNumber: string | null;
 

@@ -14,16 +14,12 @@ import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity, OrderStatus } from './entities/order.entity';
 import { MailService } from '../../mail/mail.service';
-// import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
-// import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
 import { ConfigurationService } from '../../config/configuration.service';
-import { KavenegarService } from '../../sms/kavenegar/kavenegar.service';
-import { DiscountCouponService } from '../discount-coupon/discount-coupon.service';
 import { CustomerService } from '../customer/customer.service';
 import { OrderStatusEntity } from './entities/order-status.entity';
 import { AddressService } from '../address/address.service';
-// import { CreateOrderDto } from './dto/create-order.dto';
-// import { CreateOrderByAdminDto } from './dto/create-order-by-admin.dto';
+import { SettingService } from '../setting/setting.service';
+import { WalletHistoryType } from '../customer/entities/wallet-history.entity';
 
 @Injectable()
 export class OrderService {
@@ -41,11 +37,11 @@ export class OrderService {
     private mail: MailService,
     private productService: ProductService,
     // private amootsmsService: AmootsmsService,
-    private kavenegarService: KavenegarService,
     private error: ErrorService,
-    private discountCouponService: DiscountCouponService,
+    // private discountCouponService: DiscountCouponService,
     private customerService: CustomerService,
     private addressService: AddressService,
+    private settingService: SettingService,
   ) {}
 
   /**
@@ -160,29 +156,46 @@ export class OrderService {
     );
 
     // Calculating amount after doing discount
-    let itemsAmount = amount - discount;
+    const itemsAmount = amount - discount;
 
-    // discount coupon on amount
-    let coupon = null;
-    if (customerId && dto.discountCouponCode) {
-      coupon = await this.discountCouponService.calculateDiscountByCouponCode(
-        dto.discountCouponCode,
-        itemsAmount,
-        customerId,
-        true,
-      );
-    }
-    itemsAmount -= coupon?.discountAmount || 0;
-
-    // // Calculating tax by vat
-    // let tax = 0;
-    // if (company.vat) {
-    //   tax = (company.vat * itemsAmount) / 100;
+    // // discount coupon on amount
+    // let coupon = null;
+    // if (customerId && dto.discountCouponCode) {
+    //   coupon = await this.discountCouponService.calculateDiscountByCouponCode(
+    //     dto.discountCouponCode,
+    //     itemsAmount,
+    //     customerId,
+    //     true,
+    //   );
     // }
-    const tax = 0;
+    // itemsAmount -= coupon?.discountAmount || 0;
 
-    // Calculating final amount
-    const shipping = dto.shipping !== undefined ? dto.shipping || 0 : 0;
+    const setting = await this.settingService.getByAdmin([
+      'maxShippingCost',
+      'shippingPercent',
+      'taxPercent',
+    ]);
+
+    // Calculating tax
+    let tax = 0;
+    if (setting.vat) {
+      tax = (setting.taxPercent * itemsAmount) / 100;
+    }
+
+    // Calculating shipping
+    let shipping = 0;
+    // admin
+    if (dto.shipping !== undefined) {
+      shipping = dto.shipping || 0;
+    }
+    // setting
+    else if (setting.shippingPercent) {
+      shipping = (setting.shippingPercent * itemsAmount) / 100;
+
+      if (setting.maxShippingCost && shipping > setting.maxShippingCost) {
+        shipping = setting.maxShippingCost;
+      }
+    }
 
     const finalAmount = itemsAmount + shipping + tax;
 
@@ -583,6 +596,65 @@ export class OrderService {
     order.status = OrderStatus.paid;
     await order.save();
 
+    // point to referrer
+    if (order.customer.referrerCode) {
+      const referrerCustomer = await this.customerService.findByReferrerCode(
+        order.customer.referrerCode,
+      );
+
+      if (referrerCustomer) {
+        const setting = await this.settingService.getByAdmin([
+          'buyPercentToReferrerCreditUSD',
+          'buyPercentToReferrerCreditIRT',
+          'buyPercentToReferrerCreditTRY',
+        ]);
+
+        const orderAmount = order.amount - order.discount;
+
+        if (setting.buyPercentToReferrerCreditUSD > 0) {
+          referrerCustomer.walletUSD +=
+            (setting.buyPercentToReferrerCreditUSD * orderAmount) / 100;
+          await referrerCustomer.save();
+
+          await this.customerService.addWalletHistory({
+            walletUSD: setting.buyPercentToReferrerCreditUSD,
+            customerId: referrerCustomer.id,
+            type: WalletHistoryType.buy,
+            relatedCustomerId: order.customerId,
+            relatedOrderId: order.id,
+          });
+        }
+
+        if (setting.buyPercentToReferrerCreditIRT > 0) {
+          referrerCustomer.walletIRT +=
+            (setting.buyPercentToReferrerCreditIRT * orderAmount) / 100;
+          await referrerCustomer.save();
+
+          await this.customerService.addWalletHistory({
+            walletIRT: setting.buyPercentToReferrerCreditIRT,
+            customerId: referrerCustomer.id,
+            type: WalletHistoryType.buy,
+            relatedCustomerId: order.customerId,
+            relatedOrderId: order.id,
+          });
+        }
+
+        if (setting.buyPercentToReferrerCreditTRY > 0) {
+          referrerCustomer.walletTRY +=
+            (setting.buyPercentToReferrerCreditTRY * orderAmount) / 100;
+          await referrerCustomer.save();
+
+          await this.customerService.addWalletHistory({
+            walletTRY: setting.buyPercentToReferrerCreditTRY,
+            customerId: referrerCustomer.id,
+            type: WalletHistoryType.buy,
+            relatedCustomerId: order.customerId,
+            relatedOrderId: order.id,
+          });
+        }
+      }
+    }
+
     // if (email) {
     //   try {
     //     const resultMail = await this.mail.sendNewOrderToAdmin({
@@ -789,8 +861,11 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    */
-  async getRecordById(id: number) {
-    return await this.orderRepository.findOne({ id });
+  async getRecordById(id: number, relation = null) {
+    return await this.orderRepository.findOne({
+      where: { id },
+      ...(relation && relation),
+    });
   }
 
   /**

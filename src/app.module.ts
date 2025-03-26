@@ -61,11 +61,11 @@ import { CityModule } from './modules/city/city.module';
     PageModule,
     TasksModule,
     IncredibleOfferModule,
-    DiscountCouponModule,
     BrandModule,
     AddressModule,
     SettingModule,
     CityModule,
+    // DiscountCouponModule,
   ],
   providers: [
     {

@@ -63,7 +63,7 @@ export class CustomerEntity extends BaseEntity {
 
   @Column('decimal', {
     name: 'walletUSD',
-    precision: 10,
+    precision: 20,
     scale: 2,
     transformer: new DecimalTransformer(),
     default: () => "'0.00'",
@@ -72,7 +72,7 @@ export class CustomerEntity extends BaseEntity {
 
   @Column('decimal', {
     name: 'walletIRT',
-    precision: 10,
+    precision: 20,
     scale: 2,
     transformer: new DecimalTransformer(),
     default: () => "'0.00'",
@@ -81,7 +81,7 @@ export class CustomerEntity extends BaseEntity {
 
   @Column('decimal', {
     name: 'walletTRY',
-    precision: 10,
+    precision: 20,
     scale: 2,
     transformer: new DecimalTransformer(),
     default: () => "'0.00'",

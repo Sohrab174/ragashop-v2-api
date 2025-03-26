@@ -63,6 +63,20 @@ COLLATE = utf8mb4_unicode_ci;`);
     await queryRunner.query(
       `ALTER TABLE \`wallet_history\` ADD \`createdAt\` DATETIME NOT NULL AFTER \`type\`;`,
     );
+
+    await queryRunner.query(
+      `ALTER TABLE \`setting\` CHANGE \`vat\` \`taxPercent\` DECIMAL(10,2) NOT NULL DEFAULT '0.00';`,
+    );
+
+    await queryRunner.query(
+      `ALTER TABLE \`setting\` ADD \`changePercentTryToRial\` DECIMAL(10,2) NOT NULL DEFAULT '0' AFTER \`tryToRial\`;`,
+    );
+
+    await queryRunner.query(`ALTER TABLE \`transaction\`
+    ADD \`walletAmount\` DECIMAL(20,2) NOT NULL DEFAULT '0' AFTER \`amount\`,
+    ADD \`walletUSD\` DECIMAL(20,2) NOT NULL DEFAULT '0' AFTER \`walletAmount\`,
+    ADD \`walletIRT\` DECIMAL(20,2) NOT NULL DEFAULT '0' AFTER \`walletUSD\`,
+    ADD \`walletTRY\` DECIMAL(20,2) NOT NULL DEFAULT '0' AFTER \`walletIRT\`;`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

@@ -186,50 +186,32 @@ export class CustomerService {
 
         if (setting.invitedByReferrerCreditUSD > 0) {
           customer.walletUSD += setting.invitedByReferrerCreditUSD;
-          await this.walletHistoryRepository
-            .createQueryBuilder()
-            .insert()
-            .values({
-              walletUSD: setting.invitedByReferrerCreditUSD,
-              walletIRT: 0,
-              walletTRY: 0,
-              customerId: customer.id,
-              type: WalletHistoryType.invite,
-              createdAt: new Date(),
-            })
-            .execute();
+
+          await this.addWalletHistory({
+            walletUSD: setting.invitedByReferrerCreditUSD,
+            customerId: customer.id,
+            type: WalletHistoryType.invite,
+          });
         }
 
         if (setting.invitedByReferrerCreditIRT > 0) {
           customer.walletIRT += setting.invitedByReferrerCreditIRT;
-          await this.walletHistoryRepository
-            .createQueryBuilder()
-            .insert()
-            .values({
-              walletUSD: 0,
-              walletIRT: setting.invitedByReferrerCreditIRT,
-              walletTRY: 0,
-              customerId: customer.id,
-              type: WalletHistoryType.invite,
-              createdAt: new Date(),
-            })
-            .execute();
+
+          await this.addWalletHistory({
+            walletIRT: setting.invitedByReferrerCreditIRT,
+            customerId: customer.id,
+            type: WalletHistoryType.invite,
+          });
         }
 
         if (setting.invitedByReferrerCreditTRY > 0) {
           customer.walletTRY += setting.invitedByReferrerCreditTRY;
-          await this.walletHistoryRepository
-            .createQueryBuilder()
-            .insert()
-            .values({
-              walletUSD: 0,
-              walletIRT: 0,
-              walletTRY: setting.invitedByReferrerCreditTRY,
-              customerId: customer.id,
-              type: WalletHistoryType.invite,
-              createdAt: new Date(),
-            })
-            .execute();
+
+          await this.addWalletHistory({
+            walletTRY: setting.invitedByReferrerCreditTRY,
+            customerId: customer.id,
+            type: WalletHistoryType.invite,
+          });
         }
       }
     }
@@ -872,5 +854,60 @@ export class CustomerService {
         return code;
       }
     }
+  }
+
+  /**
+   * --------------------------------------------------------
+   */
+  async addWalletHistory({
+    customerId,
+    walletUSD = 0,
+    walletIRT = 0,
+    walletTRY = 0,
+    type = WalletHistoryType.invite,
+    relatedOrderId = null,
+    relatedCustomerId = null,
+  }) {
+    await this.walletHistoryRepository
+      .createQueryBuilder()
+      .insert()
+      .values({
+        walletUSD,
+        walletIRT,
+        walletTRY,
+        customerId,
+        type,
+        relatedOrderId,
+        relatedCustomerId,
+        createdAt: new Date(),
+      })
+      .execute();
+  }
+
+  /**
+   * --------------------------------------------------------
+   */
+  async updateWallet({
+    customerId,
+    changeWalletUSD = 0,
+    changeWalletIRT = 0,
+    changeWalletTRY = 0,
+  }) {
+    await this.customerRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        ...(changeWalletUSD !== 0 && {
+          walletUSD: () => `walletUSD + ${changeWalletUSD}`,
+        }),
+        ...(changeWalletIRT !== 0 && {
+          walletIRT: () => `walletIRT + ${changeWalletIRT}`,
+        }),
+        ...(changeWalletTRY !== 0 && {
+          walletTRY: () => `walletTRY + ${changeWalletTRY}`,
+        }),
+      })
+      .where({ id: customerId })
+      .execute();
   }
 }

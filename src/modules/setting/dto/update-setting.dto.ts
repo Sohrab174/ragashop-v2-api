@@ -52,7 +52,7 @@ export class UpdateSettingDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  vat: number;
+  taxPercent: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -65,6 +65,10 @@ export class UpdateSettingDto {
   @ApiProperty({ required: false })
   @IsOptional()
   maxDeliveryDay: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  changePercentTryToRial: number;
 
   // -------------------------
 

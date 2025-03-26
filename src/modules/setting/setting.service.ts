@@ -18,10 +18,25 @@ export class SettingService {
    * Get /settings/admin
    */
   async getByAdmin(select = null) {
-    return await this.settingRepository.findOne({
+    const setting = await this.settingRepository.findOne({
       where: { id: 1 },
       ...(select && select),
     });
+
+    const serializedSettings: any = {
+      ...setting,
+      ...(setting.changePercentTryToRial != 0 && {
+        tryToRial:
+          setting.tryToRial +
+          (setting.tryToRial * setting.changePercentTryToRial) / 100,
+      }),
+    };
+
+    serializedSettings.trytoToman = Math.round(
+      serializedSettings.tryToRial / 10,
+    );
+
+    return serializedSettings;
   }
 
   /**
@@ -44,15 +59,30 @@ export class SettingService {
         'whatsapp',
         'maxShippingCost',
         'shippingPercent',
-        'vat',
+        'taxPercent',
         'noticeBeforeOrdering',
         'minDeliveryDay',
         'maxDeliveryDay',
         'tryToRial',
+        'changePercentTryToRial',
       ],
     });
 
-    return { ...setting, time: new Date() };
+    const serializedSettings: any = {
+      ...setting,
+      ...(setting.changePercentTryToRial != 0 && {
+        tryToRial:
+          setting.tryToRial +
+          (setting.tryToRial * setting.changePercentTryToRial) / 100,
+      }),
+    };
+
+    delete serializedSettings.changePercentTryToRial;
+    serializedSettings.trytoToman = Math.round(
+      serializedSettings.tryToRial / 10,
+    );
+
+    return serializedSettings;
   }
 
   /**
@@ -104,5 +134,17 @@ export class SettingService {
     }
 
     return null;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getTryToToman() {
+    const setting = await this.getByAdmin([
+      'id',
+      'tryToRial',
+      'changePercentTryToRial',
+    ]);
+    return setting.tryToToman;
   }
 }

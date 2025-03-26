@@ -40,10 +40,10 @@ export class CreateOrderDto {
   @IsOptional()
   description: string;
 
-  @ApiProperty({ example: 'ABC123', required: false })
-  @Transform(({ value }) =>
-    value ? convertPersianToEnglishDigit(value.trim().toUpperCase()) : null,
-  )
-  @IsOptional()
-  discountCouponCode: string;
+  // @ApiProperty({ example: 'ABC123', required: false })
+  // @Transform(({ value }) =>
+  //   value ? convertPersianToEnglishDigit(value.trim().toUpperCase()) : null,
+  // )
+  // @IsOptional()
+  // discountCouponCode: string;
 }
