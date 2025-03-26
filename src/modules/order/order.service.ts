@@ -861,10 +861,10 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    */
-  async getRecordById(id: number, relation = null) {
+  async getRecordById(id: number, relations = null) {
     return await this.orderRepository.findOne({
       where: { id },
-      ...(relation && relation),
+      ...(relations !== null && relations),
     });
   }
 
