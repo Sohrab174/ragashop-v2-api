@@ -119,7 +119,7 @@ export class CustomerService {
       customer.mobile = dto.mobile;
       customer.status = CustomerStatus.inactive;
       customer.createdAt = new Date();
-      customer.referrerCode = dto.mobile.slice(-4);
+      customer.referrerCode = await this._generateReferrerCode(6, dto.mobile);
       customer.walletUSD = 0;
       customer.walletIRT = 0;
       customer.walletTRY = 0;
@@ -835,31 +835,31 @@ export class CustomerService {
     });
   }
 
-  // /**
-  //  * --------------------------------------------------------
-  //  */
-  // private async _generateReferrerCode(length = 6, mobile = '') {
-  //   let code = null;
+  /**
+   * --------------------------------------------------------
+   */
+  private async _generateReferrerCode(length = 6, mobile = '') {
+    let code = null;
 
-  //   if (mobile.length >= 7) {
-  //     for (let i = -4; i >= -7; i--) {
-  //       code = mobile.slice(i);
-  //       const user = await this.findByReferrerCode(code);
-  //       if (!user) {
-  //         return code;
-  //       }
-  //     }
-  //   }
+    if (mobile.length >= 7) {
+      for (let i = -4; i >= -7; i--) {
+        code = mobile.slice(i);
+        const user = await this.findByReferrerCode(code);
+        if (!user) {
+          return code;
+        }
+      }
+    }
 
-  //   while (true) {
-  //     code = generateRandomAlphaDigitCode(length);
+    while (true) {
+      code = generateRandomAlphaDigitCode(length);
 
-  //     const user = await this.findByReferrerCode(code);
-  //     if (!user) {
-  //       return code;
-  //     }
-  //   }
-  // }
+      const user = await this.findByReferrerCode(code);
+      if (!user) {
+        return code;
+      }
+    }
+  }
 
   /**
    * --------------------------------------------------------
