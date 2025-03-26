@@ -32,7 +32,7 @@ export class SettingService {
       }),
     };
 
-    serializedSettings.trytoToman = Math.round(
+    serializedSettings.tryToToman = Math.round(
       serializedSettings.tryToRial / 10,
     );
 
@@ -78,7 +78,7 @@ export class SettingService {
     };
 
     delete serializedSettings.changePercentTryToRial;
-    serializedSettings.trytoToman = Math.round(
+    serializedSettings.tryToToman = Math.round(
       serializedSettings.tryToRial / 10,
     );
 
