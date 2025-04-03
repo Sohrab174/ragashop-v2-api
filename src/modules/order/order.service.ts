@@ -178,7 +178,7 @@ export class OrderService {
 
     // Calculating tax
     let tax = 0;
-    if (setting.vat) {
+    if (setting.taxPercent) {
       tax = (setting.taxPercent * itemsAmount) / 100;
     }
 
