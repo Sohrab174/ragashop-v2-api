@@ -20,7 +20,7 @@ export class SettingController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async getByAdmin() {
     const data = await this.settingService.getByAdmin();
     return successfulResult([], data);
@@ -33,7 +33,7 @@ export class SettingController {
   @Put('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async update(@Body() dto: UpdateSettingDto) {
     await this.settingService.update(dto);
     return successfulResult(['تنظیمات سایت با موفقیت بروز شد']);
