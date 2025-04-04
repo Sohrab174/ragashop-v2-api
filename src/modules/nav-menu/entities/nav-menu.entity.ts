@@ -9,6 +9,13 @@ import {
 } from 'typeorm';
 import { CategoryEntity } from '../../category/entities/category.entity';
 import { PageEntity } from '../../page/entities/page.entity';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
+
+export enum NavMenuPosition {
+  header = 'header',
+  footer1 = 'footer1',
+  footer2 = 'footer2',
+}
 
 @Index('fk_nav_menu_category1_idx', ['categoryId'], {})
 @Index('fk_nav_menu_page1_idx', ['pageId'], {})
@@ -34,12 +41,15 @@ export class NavMenuEntity extends BaseEntity {
 
   @Column('enum', {
     name: 'position',
-    enum: ['header', 'footer1', 'footer2'],
-    default: () => "'header'",
+    enum: NavMenuPosition,
+    default: () => NavMenuPosition.header,
   })
-  position: 'header' | 'footer1' | 'footer2';
+  position: NavMenuPosition;
 
-  @Column('int', { name: 'displayOrder', default: () => "'1'" })
+  @Column('int', {
+    name: 'displayOrder',
+    default: () => "'1'",
+  })
   displayOrder: number;
 
   @Column('tinyint', { name: 'isDeleted', width: 1, default: () => "'0'" })

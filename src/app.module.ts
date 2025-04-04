@@ -26,11 +26,11 @@ import { PageModule } from './modules/page/page.module';
 import { TasksModule } from './tasks/tasks.module';
 import { IncredibleOfferModule } from './modules/incredible-offer/Incredible-offer.module';
 import { TelegramApiModule } from './thirdParty/telegram-api/telegram-api.module';
-import { DiscountCouponModule } from './modules/discount-coupon/discount-coupon.module';
 import { BrandModule } from './modules/brand/brand.module';
 import { AddressModule } from './modules/address/address.module';
 import { SettingModule } from './modules/setting/setting.module';
 import { CityModule } from './modules/city/city.module';
+import { NavMenuModule } from './modules/nav-menu/nav-menu.module';
 
 @Module({
   imports: [
@@ -65,6 +65,7 @@ import { CityModule } from './modules/city/city.module';
     AddressModule,
     SettingModule,
     CityModule,
+    NavMenuModule,
     // DiscountCouponModule,
   ],
   providers: [
