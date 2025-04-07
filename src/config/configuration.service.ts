@@ -36,6 +36,8 @@ type Sms = {
   amootsmsUsername: string;
   amootsmsPassword: string;
   countAlert: number;
+  vatansmsApiId: string;
+  vatansmsApiKey: string;
 };
 type Gateway = {
   mode: string; // live or sandbox
@@ -97,6 +99,8 @@ export class ConfigurationService {
       amootsmsUsername: env.AMOOTSMS_USERNAME,
       amootsmsPassword: env.AMOOTSMS_PASSWORD,
       countAlert: parseInt(env.SMS_COUNT_ALERT, 10),
+      vatansmsApiId: env.VATANSMS_API_ID,
+      vatansmsApiKey: env.VATANSMS_API_KEY,
     };
 
     this.gateway = {

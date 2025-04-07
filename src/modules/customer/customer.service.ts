@@ -33,6 +33,7 @@ import {
   WalletHistoryEntity,
   WalletHistoryType,
 } from './entities/wallet-history.entity';
+import { VatansmsService } from '../../sms/vatansms/vatansms.service';
 
 @Injectable()
 export class CustomerService {
@@ -48,6 +49,7 @@ export class CustomerService {
     private error: ErrorService,
     private mail: MailService,
     private amootsmsService: AmootsmsService,
+    private vatansmsService: VatansmsService,
     private settingService: SettingService,
     // private kavenegarService: KavenegarService,
 
@@ -135,7 +137,13 @@ export class CustomerService {
     await customer.save();
 
     // Sending SMS
-    await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
+    if (dto.mobile.substring(0, 3) === '+98') {
+      await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
+    }
+    // Sending SMS To Turk Number
+    else if (dto.mobile.substring(0, 3) === '+90') {
+      await this.vatansmsService.sendOTP(dto.mobile, customer.randomHash);
+    }
 
     return { mobile: dto.mobile, isNewUser };
   }
@@ -464,7 +472,13 @@ export class CustomerService {
       .execute();
 
     // Sending SMS
-    await this.amootsmsService.sendOTP(dto.mobile, newCustomer.randomHash);
+    if (dto.mobile.substring(0, 3) === '+98') {
+      await this.amootsmsService.sendOTP(dto.mobile, newCustomer.randomHash);
+    }
+    // Sending SMS To Turk Number
+    else if (dto.mobile.substring(0, 3) === '+90') {
+      await this.vatansmsService.sendOTP(dto.mobile, newCustomer.randomHash);
+    }
 
     const newCustomerId = identifiers[0].id;
     return { id: newCustomerId };
@@ -515,7 +529,13 @@ export class CustomerService {
     await customer.save();
 
     // Sending SMS
-    await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
+    if (dto.mobile.substring(0, 3) === '+98') {
+      await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
+    }
+    // Sending SMS To Turk Number
+    else if (dto.mobile.substring(0, 3) === '+90') {
+      await this.vatansmsService.sendOTP(dto.mobile, customer.randomHash);
+    }
 
     return true;
   }

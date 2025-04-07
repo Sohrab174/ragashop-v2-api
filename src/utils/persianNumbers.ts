@@ -41,7 +41,24 @@ export const convertPersianToEnglishDigit = (
   return number;
 };
 
-export const convertToStandardMobileFormat = (num: string) =>
-  convertPersianToEnglishDigit(num)
-    .replace(/[^0-9+]/g, '')
-    .replace(/^(?:\+98|0098)/, '0');
+export const convertToStandardMobileFormat = (mobile: string) => {
+  mobile = convertPersianToEnglishDigit(mobile);
+
+  if (mobile.substring(0, 5) === '+9809') {
+    return `+98${mobile.substring(4)}`;
+  }
+
+  if (mobile.substring(0, 2) === '00') {
+    return `+${mobile.substring(2)}`;
+  }
+
+  if (mobile.substring(0, 2) === '09') {
+    return `+98${mobile.substring(1)}`;
+  }
+
+  if (mobile.substring(0, 1) !== '+') {
+    return `+98${mobile}`;
+  }
+
+  return mobile;
+};

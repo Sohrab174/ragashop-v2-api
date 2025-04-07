@@ -15,6 +15,7 @@ import { CustomerJwtStrategy } from './jwt/jwt.strategy';
 import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
 import { SettingModule } from '../setting/setting.module';
 import { WalletHistoryEntity } from './entities/wallet-history.entity';
+import { VatansmsModule } from '../../sms/vatansms/vatansms.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WalletHistoryEntity } from './entities/wallet-history.entity';
     ErrorModule,
     MailModule,
     AmootsmsModule,
+    VatansmsModule,
     SettingModule,
     // KavenegarModule,
     PassportModule,

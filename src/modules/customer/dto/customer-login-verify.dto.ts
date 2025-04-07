@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, Matches } from 'class-validator';
+import { IsNotEmpty, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
 import {
   convertPersianToEnglishDigit,
@@ -9,7 +9,7 @@ import {
 export class CustomerLoginVerifyDto {
   @ApiProperty()
   @Transform(({ value }) => convertToStandardMobileFormat(value))
-  @Matches(/^09\d{9}$/, { message: 'لطفا یک شماره موبایل معتبر وارد نمایید' })
+  // @Matches(/^09\d{9}$/, { message: 'لطفا یک شماره موبایل معتبر وارد نمایید' })
   @IsNotEmpty()
   mobile: string;
 
