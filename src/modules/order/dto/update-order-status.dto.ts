@@ -15,4 +15,8 @@ export class UpdateOrderStatusDto {
   @ApiProperty({ required: false })
   @IsOptional()
   reasonRejected: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  postTrackingCode: string;
 }

@@ -513,6 +513,9 @@ export class OrderService {
     if (dto.reasonRejected !== undefined) {
       order.reasonRejected = dto.reasonRejected;
     }
+    if (dto.postTrackingCode !== undefined) {
+      order.postTrackingCode = dto.postTrackingCode;
+    }
     return await order.save();
   }
 
