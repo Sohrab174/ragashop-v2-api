@@ -107,7 +107,7 @@ export class SettingService {
         try {
           // const { data } = await axios.get('https://call1.tgju.org/ajax.json');
           const { data } = await axios.get(
-            'http://5.34.202.72:1070/https://call1.tgju.org/ajax.json',
+            'http://188.121.113.58:1070/https://call1.tgju.org/ajax.json',
           );
 
           return +(data?.current?.price_try?.p || '').replace(/\,/g, '');
