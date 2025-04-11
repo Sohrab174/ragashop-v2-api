@@ -29,7 +29,7 @@ export class TranslatorService {
           {
             role: 'system',
             content:
-              'You are a professional translator. Translate Turkish clothing product descriptions into Persian, suitable for use in an online fashion store.',
+              'You are a professional translator. Please translate only the exact content of the Turkish product description into Persian, without adding any extra details or explanations. Keep it concise and direct, suitable for an online fashion store.',
           },
           {
             role: 'user',
