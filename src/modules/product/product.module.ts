@@ -11,6 +11,7 @@ import { CrawlerModule } from '../../thirdParty/crawler/crawler.module';
 import { ProductDescriptionEntity } from './entities/product-description.entity';
 import { BrandModule } from '../brand/brand.module';
 import { SettingModule } from '../setting/setting.module';
+import { TranslatorModule } from '../../thirdParty/translator/translator.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SettingModule } from '../setting/setting.module';
     CrawlerModule,
     BrandModule,
     SettingModule,
+    TranslatorModule,
   ],
   controllers: [ProductController],
   providers: [ProductService],

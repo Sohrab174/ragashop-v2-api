@@ -45,6 +45,9 @@ type Gateway = {
 type PasswordCrypto = {
   file: string;
 };
+type AI = {
+  deepseekToken: string;
+};
 
 @Injectable()
 export class ConfigurationService {
@@ -54,6 +57,7 @@ export class ConfigurationService {
   public sms: Sms;
   public gateway: Gateway;
   public passwordCrypto: PasswordCrypto;
+  public AI: AI;
 
   constructor() {
     this.getEnv();
@@ -109,6 +113,10 @@ export class ConfigurationService {
 
     this.passwordCrypto = {
       file: env.PASSWORD_CRYPTO_FILE,
+    };
+
+    this.AI = {
+      deepseekToken: env.AI_DEEPSEEK_TOKEN,
     };
   }
 }

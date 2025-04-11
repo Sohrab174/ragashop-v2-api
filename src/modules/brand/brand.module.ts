@@ -3,9 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BrandEntity } from './entities/brand.entity';
 import { BrandController } from './brand.controller';
 import { BrandService } from './brand.service';
+import { TranslatorModule } from '../../thirdParty/translator/translator.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([BrandEntity])],
+  imports: [TypeOrmModule.forFeature([BrandEntity]), TranslatorModule],
   controllers: [BrandController],
   providers: [BrandService],
   exports: [BrandService],

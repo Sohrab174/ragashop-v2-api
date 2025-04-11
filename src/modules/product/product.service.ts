@@ -40,6 +40,7 @@ import { CrawlerService } from '../../thirdParty/crawler/crawler.service';
 import { ProductDescriptionEntity } from './entities/product-description.entity';
 import { BrandService } from '../brand/brand.service';
 import { SettingService } from '../setting/setting.service';
+import { TranslatorService } from '../../thirdParty/translator/translator.service';
 
 @Injectable()
 export class ProductService {
@@ -51,13 +52,10 @@ export class ProductService {
     private productAttributeValueRepository: Repository<ProductAttributeValueEntity>,
 
     @InjectRepository(ProductDescriptionEntity)
-    private productDescriptionRepository: Repository<ProductDescriptionEntity>,
+    private descriptionRepository: Repository<ProductDescriptionEntity>,
 
     @InjectRepository(ProductGalleryEntity)
     private galleryRepository: Repository<ProductGalleryEntity>,
-
-    @InjectRepository(ProductDescriptionEntity)
-    private descriptionRepository: Repository<ProductDescriptionEntity>,
 
     private error: ErrorService,
     private categoryService: CategoryService,
@@ -66,6 +64,7 @@ export class ProductService {
     private settingService: SettingService,
 
     private crawlerService: CrawlerService,
+    private translatorService: TranslatorService,
   ) {}
 
   /**
@@ -785,7 +784,7 @@ export class ProductService {
     const newProductId = identifiers[0].id;
 
     if (dto.descriptions.length > 0) {
-      await this.productDescriptionRepository
+      await this.descriptionRepository
         .createQueryBuilder()
         .insert()
         .values(
@@ -847,7 +846,7 @@ export class ProductService {
         .filter((pd) => !existDescriptionIds.includes(pd.id))
         .map((d) => d.id);
       if (deleteDescriptionIds.length > 0) {
-        await this.productDescriptionRepository
+        await this.descriptionRepository
           .createQueryBuilder()
           .update()
           .set({ isDeleted: true })
@@ -859,7 +858,7 @@ export class ProductService {
         existDescriptionIds.includes(pd.id),
       );
       for (const desc of updateDescriptions) {
-        await this.productDescriptionRepository
+        await this.descriptionRepository
           .createQueryBuilder()
           .update()
           .set({ content: desc.content })
@@ -869,7 +868,7 @@ export class ProductService {
 
       const newDescriptions = dto.descriptions.filter((d) => !d?.id);
       if (newDescriptions.length > 0) {
-        await this.productDescriptionRepository
+        await this.descriptionRepository
           .createQueryBuilder()
           .insert()
           .values(
@@ -1511,8 +1510,10 @@ export class ProductService {
           }
         }
 
-        existingProduct.name = product.sourceName;
         existingProduct.sourceName = product.sourceName;
+        existingProduct.name = await this._findOrTranslateProduct(
+          product.sourceName,
+        );
         existingProduct.sourceUrl = product.sourceUrl;
         existingProduct.price = product.price;
         existingProduct.discountedPrice = product.discountedPrice;
@@ -1532,7 +1533,7 @@ export class ProductService {
             source: product.source,
             sourceId: product.sourceId,
             sourceName: product.sourceName,
-            name: product.sourceName,
+            name: await this._findOrTranslateProduct(product.sourceName),
             sourceUrl: product.sourceUrl,
             sourceGroupId: product.sourceGroupId,
             price: product.price,
@@ -1742,15 +1743,19 @@ export class ProductService {
     );
 
     // Identify descriptions to add and remove
-    const descriptionsToAdd = crawlerProduct.descriptions
-      .filter((desc) => !existingDescriptionContents.has(desc.content))
-      .map((desc) => ({
+    const descriptionsToAdd = [];
+    for (const desc of crawlerProduct.descriptions.filter(
+      (desc) => !existingDescriptionContents.has(desc.content),
+    )) {
+      descriptionsToAdd.push({
         productId: product.id,
         source: product.source,
-        content: desc.content,
         sourceContent: desc.content,
+        content: await this._findOrTranslateDescription(desc.content),
         displayOrder: desc.displayOrder,
-      }));
+      });
+    }
+
     const descriptionsToRemove = product.productDescriptions
       .filter((desc) => !newDescriptionContents.has(desc.sourceContent))
       .map((desc) => desc.id);
@@ -1804,6 +1809,15 @@ export class ProductService {
     }
 
     // Update product details --------------------------------------
+    if (
+      !product.name ||
+      (product.name && !/[\u0600-\u06FF]/.test(product.name))
+    ) {
+      product.name = await this._findOrTranslateProduct(
+        crawlerProduct.sourceName,
+      );
+    }
+
     await this.productRepository
       .createQueryBuilder()
       .update()
@@ -1811,7 +1825,7 @@ export class ProductService {
         brandId: product.brandId,
         categoryId: product.categoryId,
         sourceName: crawlerProduct.sourceName,
-        name: product.name || crawlerProduct.sourceName,
+        name: product.name,
         price: crawlerProduct.price,
         discountedPrice: crawlerProduct.discountedPrice,
         discountPercent: crawlerProduct.discountedPrice
@@ -2161,5 +2175,45 @@ export class ProductService {
         }
       }
     }
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _findOrTranslateProduct(sourceName) {
+    const exist = await this.productRepository
+      .createQueryBuilder('product')
+      .select(['product.id', 'product.name'])
+      .where('product.sourceName = :sourceName', { sourceName })
+      .andWhere('product.name REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]',
+      })
+      .getOne();
+
+    if (exist) {
+      return exist.name;
+    }
+
+    return (await this.translatorService.text(sourceName)) || sourceName;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _findOrTranslateDescription(sourceContent) {
+    const exist = await this.descriptionRepository
+      .createQueryBuilder('description')
+      .select(['description.id', 'description.content'])
+      .where('description.sourceContent = :sourceContent', { sourceContent })
+      .andWhere('description.content REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]',
+      })
+      .getOne();
+
+    if (exist) {
+      return exist.content;
+    }
+
+    return (await this.translatorService.text(sourceContent)) || sourceContent;
   }
 }

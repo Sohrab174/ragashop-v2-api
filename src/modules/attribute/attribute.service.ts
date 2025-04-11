@@ -8,13 +8,13 @@ import {
   applyFiltersToBuilder,
   applySortingToBuilder,
   paginationResult,
-  removeDuplicateByKey,
 } from '../../utils';
 import { CreateAttributeDto } from './dto/create-attribute.dto';
 import { UpdateAttributeDto } from './dto/update-attribute.dto';
 import { AttributeValueEntity } from './entities/attribute-value.entity';
 import { CreateAttributeValueDto } from './dto/create-attribute-value.dto';
 import { UpdateAttributeValueDto } from './dto/update-attribute-value.dto';
+import { TranslatorService } from '../../thirdParty/translator/translator.service';
 
 @Injectable()
 export class AttributeService {
@@ -26,6 +26,7 @@ export class AttributeService {
     private attributeValueRepository: Repository<AttributeValueEntity>,
 
     private error: ErrorService,
+    private translatorService: TranslatorService,
   ) {}
 
   /**
@@ -355,7 +356,7 @@ export class AttributeService {
           source,
           sourceId: attribute.id,
           sourceName: attribute.name,
-          name: attribute.name,
+          name: await this._findOrTranslateAttr(attribute.name),
         });
         await this.attributeRepository.save(foundAttribute);
       } else {
@@ -382,7 +383,7 @@ export class AttributeService {
           source,
           sourceId: attribute.value.id,
           sourceName: attribute.value.name,
-          name: attribute.value.name,
+          name: await this._findOrTranslateAttrValue(attribute.value.name),
         });
         await this.attributeValueRepository.save(foundAttributeValue);
       }
@@ -394,5 +395,45 @@ export class AttributeService {
     }
 
     return attributeValues;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _findOrTranslateAttr(sourceName) {
+    const exist = await this.attributeRepository
+      .createQueryBuilder('attr')
+      .select(['attr.id', 'attr.name'])
+      .where('attr.sourceName = :sourceName', { sourceName })
+      .andWhere('attr.name REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]',
+      })
+      .getOne();
+
+    if (exist) {
+      return exist.name;
+    }
+
+    return (await this.translatorService.text(sourceName)) || sourceName;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _findOrTranslateAttrValue(sourceName) {
+    const exist = await this.attributeValueRepository
+      .createQueryBuilder('attrValue')
+      .select(['attrValue.id', 'attrValue.name'])
+      .where('attrValue.sourceName = :sourceName', { sourceName })
+      .andWhere('attrValue.name REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]',
+      })
+      .getOne();
+
+    if (exist) {
+      return exist.name;
+    }
+
+    return (await this.translatorService.text(sourceName)) || sourceName;
   }
 }

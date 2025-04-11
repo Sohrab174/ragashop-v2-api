@@ -25,6 +25,7 @@ import {
   generateThumbnail,
   squareSizeImage,
 } from '../../utils/sharp';
+import { TranslatorService } from '../../thirdParty/translator/translator.service';
 
 @Injectable()
 export class CategoryService {
@@ -33,6 +34,7 @@ export class CategoryService {
     private categoryRepository: Repository<CategoryEntity>,
 
     private error: ErrorService,
+    private translatorService: TranslatorService,
   ) {}
 
   /**
@@ -632,6 +634,7 @@ export class CategoryService {
     if (category) {
       if (category.sourceName !== sourceName) {
         category.sourceName = sourceName;
+        category.name = await this._findOrTranslate(sourceName);
         category.hierarchy = hierarchy;
         await category.save();
       }
@@ -656,7 +659,7 @@ export class CategoryService {
               source,
               sourceId: node.id,
               sourceName: node.name,
-              name: node.name,
+              name: await this._findOrTranslate(node.name),
               displayOrder: await getLastDisplayOrder(CategoryEntity.name),
               createdAt: new Date(),
             });
@@ -673,7 +676,7 @@ export class CategoryService {
         source,
         sourceId,
         sourceName,
-        name: sourceName,
+        name: await this._findOrTranslate(sourceName),
         hierarchy,
         bankTypeId,
         bankTypeName,
@@ -684,5 +687,25 @@ export class CategoryService {
     }
 
     return category.id;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _findOrTranslate(sourceName) {
+    const exist = await this.categoryRepository
+      .createQueryBuilder('category')
+      .select(['category.id', 'category.name'])
+      .where('category.sourceName = :sourceName', { sourceName })
+      .andWhere('category.name REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]',
+      })
+      .getOne();
+
+    if (exist) {
+      return exist.name;
+    }
+
+    return (await this.translatorService.text(sourceName)) || sourceName;
   }
 }

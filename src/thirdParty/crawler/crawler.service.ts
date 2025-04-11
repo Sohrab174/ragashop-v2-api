@@ -1,29 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
-// import * as cheerio from 'cheerio';
-// import { Translate } from '@google-cloud/translate/build/src/v2';
-// import OpenAI from 'openai';
 
 @Injectable()
 export class CrawlerService {
   private axios;
-  // private translate: Translate;
-  // private openai: OpenAI;
 
   constructor() {
     this.axios = axios.create({
       baseURL: 'https://apigw.trendyol.com',
       timeout: 60000,
     });
-
-    // this.translate = new Translate({
-    //   key: 'AIzaSyBHGqx0yujSMl5r0dQfTjdTQ5JjB4fl9eo',
-    // });
-
-    // this.openai = new OpenAI({
-    //   apiKey:
-    //     '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',
-    // });
   }
 
   /**
@@ -105,7 +91,7 @@ export class CrawlerService {
         source: 'trendyol',
         sourceId: product.id,
         sourceName: product.name,
-        name: product.name, // translatedName,
+        name: product.name, // should translate this to persian
         color: product?.color || null,
         number: product.productCode,
         sourceUrl: product.url,
@@ -222,28 +208,5 @@ export class CrawlerService {
       console.error('Error crawling Trendyol by id:', id, error);
       throw new Error(`Failed to crawl Trendyol by ID: ${id}`);
     }
-  }
-
-  /**
-   * -----------------------------------------
-   * translator
-   */
-  async translateText(text: string) {
-    // const [translatedText] = await this.translate.translate(text, 'fa');
-    // return translatedText;
-    // const res = await this.openai.chat.completions.create({
-    //   model: 'gpt-3.5-turbo',
-    //   messages: [
-    //     {
-    //       role: 'system',
-    //       content: 'You are a professional clothing store translator.',
-    //     },
-    //     {
-    //       role: 'user',
-    //       content: `Translate Turkish to Persian, my site is a cloth store:\n\n${text}`,
-    //     },
-    //   ],
-    //   temperature: 0.3,
-    // });
   }
 }

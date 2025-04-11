@@ -1,25 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { getConnection } from 'typeorm/globals';
-import * as path from 'path';
-import * as fs from 'fs';
 import { ErrorService } from '../../error/error.service';
 import {
   applyFiltersToBuilder,
   applySortingToBuilder,
-  findCategoryParentsByChildId,
   paginationResult,
 } from '../../utils';
-
-import { getLastDisplayOrder } from '../../utils/last-display-order';
-import { UserEntity } from '../user/entities/user.entity';
-import {
-  applyPathToThumbPath,
-  generateThumbnail,
-  squareSizeImage,
-} from '../../utils/sharp';
 import { BrandEntity } from './entities/brand.entity';
+import { TranslatorService } from '../../thirdParty/translator/translator.service';
 
 @Injectable()
 export class BrandService {
@@ -28,6 +17,7 @@ export class BrandService {
     private brandRepository: Repository<BrandEntity>,
 
     private error: ErrorService,
+    private translatorService: TranslatorService,
   ) {}
 
   /**
@@ -127,6 +117,7 @@ export class BrandService {
     if (brand) {
       if (brand.sourceName !== sourceName) {
         brand.sourceName = sourceName;
+        brand.name = await this._findOrTranslate(sourceName);
         await brand.save();
       }
     } else {
@@ -134,7 +125,7 @@ export class BrandService {
         source,
         sourceId,
         sourceName,
-        name: sourceName,
+        name: await this._findOrTranslate(sourceName),
         description,
         isVirtual,
       });
@@ -143,5 +134,25 @@ export class BrandService {
     }
 
     return brand.id;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  private async _findOrTranslate(sourceName) {
+    const exist = await this.brandRepository
+      .createQueryBuilder('brand')
+      .select(['brand.id', 'brand.name'])
+      .where('brand.sourceName = :sourceName', { sourceName })
+      .andWhere('brand.name REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]',
+      })
+      .getOne();
+
+    if (exist) {
+      return exist.name;
+    }
+
+    return (await this.translatorService.text(sourceName)) || sourceName;
   }
 }
