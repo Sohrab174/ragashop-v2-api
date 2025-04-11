@@ -9,7 +9,6 @@ import {
   applySortingToBuilder,
   getDuplicateItems,
   paginationResult,
-  removeDuplicate,
   sleep,
 } from '../../utils';
 import { CategoryService } from '../category/category.service';
@@ -1483,11 +1482,8 @@ export class ProductService {
   async getProductsByCrawler() {
     const results = [];
 
-    const allGroups = removeDuplicate(GROUP_IDS);
-    for (let i = 0; i < allGroups.length; i += 30) {
-      const groupIds = allGroups.slice(i, i + 30);
-
-      const crawledProducts = await this.crawlerService.getProducts(groupIds);
+    for (const groupId of GROUP_IDS) {
+      const crawledProducts = await this.crawlerService.getProducts(groupId);
 
       const existingProducts = await this.productRepository.find({
         where: { source: 'trendyol' },
