@@ -48,6 +48,17 @@ export class ProductController {
     private error: ErrorService,
   ) {}
 
+  // /**
+  //  * -------------------------------------------------------
+  //  * POST /products/crawler-groups/admin
+  //  */
+  // @Post('/crawler-groups/admin')
+  // async crawlerGroups() {
+  //   await this.productService.getProductGroupsByCralwer();
+
+  //   return successfulResult([]);
+  // }
+
   /**
    * -------------------------------------------------------
    * POST /products/crawler/admin

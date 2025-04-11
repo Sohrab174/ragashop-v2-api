@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
+import { MENU } from './sources/menu';
+import { GROUP_IDS } from './sources/groupIds';
+import { sleep } from '../../utils';
 
 @Injectable()
 export class CrawlerService {
@@ -15,7 +20,49 @@ export class CrawlerService {
   /**
    * -----------------------------------------
    */
-  async getProducts() {
+  async getProductGroups() {
+    const filePath = path.resolve('productGroupIds.txt');
+
+    const urls: string[] = [];
+
+    const list = [MENU.items[0], MENU.items[1]];
+
+    list.forEach((item) => {
+      item.children?.forEach((child) => {
+        child.children?.forEach((child2) => {
+          if (child2.webUrl) {
+            urls.push(`https://www.trendyol.com/${child2.webUrl}`);
+          }
+        });
+      });
+    });
+
+    for (const url of urls) {
+      try {
+        const res = await axios.get(url);
+        const matches = [...res.data.matchAll(/"productGroupId":(\d+)/g)];
+
+        matches.forEach((match) => {
+          const id = parseInt(match[1], 10);
+          // Append each ID to file immediately
+          fs.appendFileSync(filePath, id + '\n');
+        });
+
+        console.log(`Fetched from ${url}, found ${matches.length} IDs.`);
+      } catch (error) {
+        console.error(`Failed to fetch or parse ${url}`, error);
+      }
+    }
+
+    console.log(
+      `All productGroupIds have been saved (possibly with duplicates).`,
+    );
+  }
+
+  /**
+   * -----------------------------------------
+   */
+  async getProducts(targetGroupId) {
     const final = [];
 
     // delivery
@@ -23,7 +70,7 @@ export class CrawlerService {
 
     try {
       const response = await this.axios.get(
-        '/discovery-web-websfxproductgroups-santral/api/v2/product-groups?productGroupIds=27641323&productGroupIds=325807872&productGroupIds=577308862&productGroupIds=324108132&productGroupIds=508647057&productGroupIds=4969769&productGroupIds=658127160&productGroupIds=140481374&productGroupIds=28732784&productGroupIds=609662952&productGroupIds=673799755&productGroupIds=597144284&productGroupIds=319068711&productGroupIds=29688038&productGroupIds=589291867&productGroupIds=324108132&productGroupIds=29688038&productGroupIds=504068732&productGroupIds=297093877&productGroupIds=319394894&productGroupIds=661989543&productGroupIds=151337933&productGroupIds=27641323&productGroupIds=578639901&searchAbDecider=SearchFETestV1_B,BMSA_B,DsNlp_2,AdvertSlotPeriod_2,LBB_B,RRIn_B,SCB_B,SuggestionHighlight_B,BP_B,CatTR_B,CA_B,SuggestionTermActive_B,AZSmartlisting_62,BH2_B,MB_B,FRA_2,MRF_1,ARR_B,MA_B,SP_B,PastSearches_B,SuggestionJFYProducts_B,SuggestionQF_B,BSA_D,BadgeBoost_A,Relevancy_1,FilterRelevancy_1,Smartlisting_65,SuggestionBadges_B,ProductGroupTopPerformer_B,OpenFilterToggle_2,RR_2,BS_2,SuggestionPopularCTR_B&channelId=1',
+        `/discovery-web-websfxproductgroups-santral/api/v2/product-groups?productGroupIds=${targetGroupId}&searchAbDecider=SearchFETestV1_B,BMSA_B,DsNlp_2,AdvertSlotPeriod_2,LBB_B,RRIn_B,SCB_B,SuggestionHighlight_B,BP_B,CatTR_B,CA_B,SuggestionTermActive_B,AZSmartlisting_62,BH2_B,MB_B,FRA_2,MRF_1,ARR_B,MA_B,SP_B,PastSearches_B,SuggestionJFYProducts_B,SuggestionQF_B,BSA_D,BadgeBoost_A,Relevancy_1,FilterRelevancy_1,Smartlisting_65,SuggestionBadges_B,ProductGroupTopPerformer_B,OpenFilterToggle_2,RR_2,BS_2,SuggestionPopularCTR_B&channelId=1`,
       );
 
       const json = response.data;

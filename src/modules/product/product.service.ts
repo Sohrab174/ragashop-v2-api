@@ -41,6 +41,7 @@ import { ProductDescriptionEntity } from './entities/product-description.entity'
 import { BrandService } from '../brand/brand.service';
 import { SettingService } from '../setting/setting.service';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
+import { GROUP_IDS } from '../../thirdParty/crawler/sources/groupIds';
 
 @Injectable()
 export class ProductService {
@@ -1468,113 +1469,124 @@ export class ProductService {
     }
   }
 
+  // /**
+  //  * -------------------------------------------------------
+  //  */
+  // async getProductGroupsByCralwer() {
+  //   await this.crawlerService.getProductGroups();
+  // }
+
   /**
    * -------------------------------------------------------
    */
   async getProductsByCrawler() {
-    const crawledProducts = await this.crawlerService.getProducts();
-
     const results = [];
 
-    const existingProducts = await this.productRepository.find({
-      where: { source: 'trendyol' },
-      relations: ['productGalleries'],
-    });
+    for (const groupId of GROUP_IDS) {
+      const crawledProducts = await this.crawlerService.getProducts(groupId);
 
-    for (const product of crawledProducts) {
-      const existingProduct = existingProducts.find(
-        (p) => p.sourceId == product.sourceId,
-      );
+      const existingProducts = await this.productRepository.find({
+        where: { source: 'trendyol' },
+        relations: ['productGalleries'],
+      });
 
-      if (existingProduct) {
-        if (product.coverPath) {
-          const existCover = existingProduct.productGalleries.find(
-            (pg) => pg.pathFile === product.coverPath,
+      for (const product of crawledProducts) {
+        const existingProduct = existingProducts.find(
+          (p) => p.sourceId == product.sourceId,
+        );
+
+        if (existingProduct) {
+          if (product.coverPath) {
+            const existCover = existingProduct.productGalleries.find(
+              (pg) => pg.pathFile === product.coverPath,
+            );
+
+            if (!existCover) {
+              const { identifiers } = await this.galleryRepository
+                .createQueryBuilder()
+                .insert()
+                .values({
+                  productId: existingProduct.id,
+                  type: ProductGalleryType.photo,
+                  source: existingProduct.source,
+                  pathFile: product.coverPath,
+                  createdAt: new Date(),
+                })
+                .execute();
+              existingProduct.coverId = identifiers[0].id;
+            } else {
+              existingProduct.coverId = existCover.id;
+            }
+          }
+
+          existingProduct.sourceName = product.sourceName;
+          existingProduct.name = await this._findOrTranslateProduct(
+            product.sourceName,
           );
+          existingProduct.sourceUrl = product.sourceUrl;
+          existingProduct.price = product.price;
+          existingProduct.discountedPrice = product.discountedPrice;
+          existingProduct.currency = product.currency;
+          existingProduct.isDeleted = false;
+          existingProduct.lastCrawlingAt = new Date();
 
-          if (!existCover) {
+          await existingProduct.save();
+
+          results.push({ action: 'updated', productId: existingProduct.id });
+        } else {
+          const { identifiers } = await this.productRepository
+            .createQueryBuilder()
+            .insert()
+            .values({
+              categoryId: 1,
+              source: product.source,
+              sourceId: product.sourceId,
+              sourceName: product.sourceName,
+              name: await this._findOrTranslateProduct(product.sourceName),
+              sourceUrl: product.sourceUrl,
+              sourceGroupId: product.sourceGroupId,
+              price: product.price,
+              discountedPrice: product.discountedPrice,
+              discountPercent: 0,
+              tax: 0,
+              currency: product.currency,
+              quantity: -1,
+              star: 0,
+              starCountPerson: 0,
+              lastCrawlingAt: new Date(),
+              createdAt: new Date(),
+            })
+            .execute();
+
+          const productId = identifiers[0].id;
+
+          if (product.coverPath) {
             const { identifiers } = await this.galleryRepository
               .createQueryBuilder()
               .insert()
               .values({
-                productId: existingProduct.id,
+                productId,
                 type: ProductGalleryType.photo,
-                source: existingProduct.source,
+                source: product.source,
                 pathFile: product.coverPath,
                 createdAt: new Date(),
               })
               .execute();
-            existingProduct.coverId = identifiers[0].id;
-          } else {
-            existingProduct.coverId = existCover.id;
+            const coverId = identifiers[0].id;
+
+            await this.productRepository
+              .createQueryBuilder()
+              .update()
+              .set({ coverId })
+              .where({ id: productId })
+              .execute();
           }
+
+          results.push({ action: 'created', productId });
         }
-
-        existingProduct.sourceName = product.sourceName;
-        existingProduct.name = await this._findOrTranslateProduct(
-          product.sourceName,
-        );
-        existingProduct.sourceUrl = product.sourceUrl;
-        existingProduct.price = product.price;
-        existingProduct.discountedPrice = product.discountedPrice;
-        existingProduct.currency = product.currency;
-        existingProduct.isDeleted = false;
-        existingProduct.lastCrawlingAt = new Date();
-
-        await existingProduct.save();
-
-        results.push({ action: 'updated', productId: existingProduct.id });
-      } else {
-        const { identifiers } = await this.productRepository
-          .createQueryBuilder()
-          .insert()
-          .values({
-            categoryId: 1,
-            source: product.source,
-            sourceId: product.sourceId,
-            sourceName: product.sourceName,
-            name: await this._findOrTranslateProduct(product.sourceName),
-            sourceUrl: product.sourceUrl,
-            sourceGroupId: product.sourceGroupId,
-            price: product.price,
-            discountedPrice: product.discountedPrice,
-            discountPercent: 0,
-            tax: 0,
-            currency: product.currency,
-            quantity: -1,
-            star: 0,
-            starCountPerson: 0,
-            lastCrawlingAt: new Date(),
-            createdAt: new Date(),
-          })
-          .execute();
-
-        const productId = identifiers[0].id;
-
-        if (product.coverPath) {
-          const { identifiers } = await this.galleryRepository
-            .createQueryBuilder()
-            .insert()
-            .values({
-              productId,
-              type: ProductGalleryType.photo,
-              source: product.source,
-              pathFile: product.coverPath,
-              createdAt: new Date(),
-            })
-            .execute();
-          const coverId = identifiers[0].id;
-
-          await this.productRepository
-            .createQueryBuilder()
-            .update()
-            .set({ coverId })
-            .where({ id: productId })
-            .execute();
-        }
-
-        results.push({ action: 'created', productId });
       }
+
+      await sleep(100);
     }
 
     return results;
