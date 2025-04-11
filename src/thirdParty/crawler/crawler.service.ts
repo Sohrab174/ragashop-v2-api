@@ -72,7 +72,7 @@ export class CrawlerService {
       const response = await this.axios.get(
         `/discovery-web-websfxproductgroups-santral/api/v2/product-groups?${targetGroupIds
           .filter((id) => !!id)
-          .map((id) => `productGroupIds=${id.trim()}`)
+          .map((id) => `productGroupIds=${`${id}`.trim()}`)
           .join(
             '&',
           )}&searchAbDecider=SearchFETestV1_B,BMSA_B,DsNlp_2,AdvertSlotPeriod_2,LBB_B,RRIn_B,SCB_B,SuggestionHighlight_B,BP_B,CatTR_B,CA_B,SuggestionTermActive_B,AZSmartlisting_62,BH2_B,MB_B,FRA_2,MRF_1,ARR_B,MA_B,SP_B,PastSearches_B,SuggestionJFYProducts_B,SuggestionQF_B,BSA_D,BadgeBoost_A,Relevancy_1,FilterRelevancy_1,Smartlisting_65,SuggestionBadges_B,ProductGroupTopPerformer_B,OpenFilterToggle_2,RR_2,BS_2,SuggestionPopularCTR_B&channelId=1`,
