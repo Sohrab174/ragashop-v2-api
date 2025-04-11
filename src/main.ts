@@ -31,17 +31,17 @@ async function bootstrap() {
 
   app.use(requestIp.mw());
 
-  if (config.app.nodeEnv !== 'production') {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('API')
-      .setDescription('API docs')
-      .setVersion('1.0')
-      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
-      .build();
+  // if (config.app.nodeEnv !== 'production') {
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('API')
+    .setDescription('API docs')
+    .setVersion('1.0')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
+    .build();
 
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('docs', app, document);
-  }
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
+  // }
 
   // const salt = await bcrypt.genSalt();
   // console.log(await bcrypt.hash('123', salt));
