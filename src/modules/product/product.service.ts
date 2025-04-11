@@ -9,6 +9,7 @@ import {
   applySortingToBuilder,
   getDuplicateItems,
   paginationResult,
+  removeDuplicate,
   sleep,
 } from '../../utils';
 import { CategoryService } from '../category/category.service';
@@ -1482,8 +1483,9 @@ export class ProductService {
   async getProductsByCrawler() {
     const results = [];
 
-    for (let i = 0; i < GROUP_IDS.length; i += 100) {
-      const groupIds = GROUP_IDS.slice(i, i + 100);
+    const allGroups = removeDuplicate(GROUP_IDS);
+    for (let i = 0; i < allGroups.length; i += 30) {
+      const groupIds = allGroups.slice(i, i + 30);
 
       const crawledProducts = await this.crawlerService.getProducts(groupIds);
 
