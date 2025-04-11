@@ -1482,8 +1482,10 @@ export class ProductService {
   async getProductsByCrawler() {
     const results = [];
 
-    for (const groupId of GROUP_IDS) {
-      const crawledProducts = await this.crawlerService.getProducts(groupId);
+    for (let i = 0; i < GROUP_IDS.length; i += 100) {
+      const groupIds = GROUP_IDS.slice(i, i + 100);
+
+      const crawledProducts = await this.crawlerService.getProducts(groupIds);
 
       const existingProducts = await this.productRepository.find({
         where: { source: 'trendyol' },
