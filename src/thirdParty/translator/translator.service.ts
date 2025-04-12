@@ -65,7 +65,7 @@ export class TranslatorService {
           {
             role: 'system',
             content:
-              'You are a professional translator. Please translate only the exact content of the Turkish product description into Persian, without adding any extra details or explanations. Keep it concise and direct, suitable for an online fashion store. Return standard JSON format',
+              'You are a professional translator. Please translate only the exact content of the Turkish product description into Persian, without adding any extra details or explanations. Keep it concise and direct, suitable for an online fashion store. Return the translations as a valid JSON array of strings, like: ["translation1", "translation2", "translation3", ...]. Do not include any extra formatting or metadata.',
           },
           {
             role: 'user',
