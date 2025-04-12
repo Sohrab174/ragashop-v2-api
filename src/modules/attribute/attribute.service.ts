@@ -355,8 +355,8 @@ export class AttributeService {
         foundAttribute = this.attributeRepository.create({
           source,
           sourceId: attribute.id,
-          sourceName: attribute.name,
-          name: await this._findOrTranslateAttr(attribute.name),
+          sourceName: attribute.name.slice(0, 128),
+          name: (await this._findOrTranslateAttr(attribute.name)).slice(0, 128),
         });
         await this.attributeRepository.save(foundAttribute);
       } else {
@@ -382,8 +382,10 @@ export class AttributeService {
           attributeId: foundAttribute.id,
           source,
           sourceId: attribute.value.id,
-          sourceName: attribute.value.name,
-          name: await this._findOrTranslateAttrValue(attribute.value.name),
+          sourceName: attribute.value.name.slice(0, 128),
+          name: (
+            await this._findOrTranslateAttrValue(attribute.value.name)
+          ).slice(0, 128),
         });
         await this.attributeValueRepository.save(foundAttributeValue);
       }
