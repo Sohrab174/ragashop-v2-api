@@ -1756,14 +1756,21 @@ export class ProductService {
 
     // Identify descriptions to add and remove
     const descriptionsToAdd = [];
-    for (const desc of crawlerProduct.descriptions.filter(
+    const filteredDescriptions = crawlerProduct.descriptions.filter(
       (desc) => !existingDescriptionContents.has(desc.content),
-    )) {
+    );
+
+    const descriptionTranslateds = await this._findOrTranslateDescriptions(
+      filteredDescriptions.map((desc) => desc.content),
+    );
+
+    let index = 0;
+    for (const desc of filteredDescriptions) {
       descriptionsToAdd.push({
         productId: product.id,
         source: product.source,
         sourceContent: desc.content,
-        content: await this._findOrTranslateDescription(desc.content),
+        content: descriptionTranslateds[index++],
         displayOrder: desc.displayOrder,
       });
     }
@@ -2212,20 +2219,61 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  private async _findOrTranslateDescription(sourceContent) {
-    const exist = await this.descriptionRepository
-      .createQueryBuilder('description')
-      .select(['description.id', 'description.content'])
-      .where('description.sourceContent = :sourceContent', { sourceContent })
-      .andWhere('description.content REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]',
-      })
-      .getOne();
+  private async _findOrTranslateDescriptions(sourceContents) {
+    if (!sourceContents.length) return [];
 
-    if (exist) {
-      return exist.content;
+    const existing = await this.descriptionRepository
+      .createQueryBuilder('description')
+      .select(['description.sourceContent', 'description.content'])
+      .where('description.sourceContent IN (:...sourceContents)', {
+        sourceContents,
+      })
+      .andWhere('description.content REGEXP :persianPattern', {
+        persianPattern: '[\\u0600-\\u06FF]', // Persian characters
+      })
+      .getMany();
+
+    const existingMap = new Map<string, string>();
+    for (const item of existing) {
+      existingMap.set(item.sourceContent, item.content);
     }
 
-    return (await this.translatorService.text(sourceContent)) || sourceContent;
+    const untranslated: string[] = [];
+    const result: string[] = [];
+
+    for (const content of sourceContents) {
+      if (existingMap.has(content)) {
+        const translated = existingMap.get(content);
+        if (translated) {
+          result.push(translated);
+        } else {
+          untranslated.push(content);
+        }
+      } else {
+        untranslated.push(content);
+      }
+    }
+
+    const translatedData = untranslated.length
+      ? await this.translatorService.array(untranslated)
+      : [];
+
+    const translatedMap = new Map<string, string>();
+    translatedData.forEach(({ text, translated }) => {
+      translatedMap.set(text, translated);
+    });
+
+    return sourceContents.map((content) => {
+      const contentTranslation = existingMap.get(content);
+      if (contentTranslation) {
+        return contentTranslation;
+      } else {
+        const translated = translatedMap.get(content);
+        if (translated) {
+          return translated;
+        }
+      }
+      return content;
+    });
   }
 }
