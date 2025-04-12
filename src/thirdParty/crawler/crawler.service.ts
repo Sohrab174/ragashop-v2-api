@@ -3,8 +3,6 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MENU } from './sources/menu';
-import { GROUP_IDS } from './sources/groupIds';
-import { sleep } from '../../utils';
 
 @Injectable()
 export class CrawlerService {
@@ -246,6 +244,8 @@ export class CrawlerService {
           },
         })),
       ];
+
+      console.log({ sourceName: result.sourceName });
 
       return result;
     } catch (error) {
