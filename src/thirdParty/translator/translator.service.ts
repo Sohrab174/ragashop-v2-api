@@ -75,6 +75,8 @@ export class TranslatorService {
         stream: false,
       });
 
+      console.log(response.data.choices);
+
       // Return the translated text from the response
       const translateds = JSON.parse(
         response.data.choices[0].message.content || '',
