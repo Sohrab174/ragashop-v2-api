@@ -91,7 +91,7 @@ export class TranslatorService {
         'Translation failed:',
         error?.response?.data || error.message,
       );
-      return null;
+      return [];
     }
   }
 }
