@@ -40,7 +40,10 @@ export class TranslatorService {
       });
 
       // Return the translated text from the response
-      return response.data.choices[0].message.content;
+      const translated = response.data.choices[0].message.content;
+
+      console.log({ text, translated });
+      return translated;
     } catch (error: any) {
       console.error(
         'Translation failed:',
