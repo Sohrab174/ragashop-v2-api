@@ -1626,7 +1626,7 @@ export class ProductService {
       .andWhere(
         '(DATE(product.lastCrawlingAt) < CURDATE() OR product.categoryId = 1)',
       )
-      // .take(1)
+      .take(100)
       .getMany();
 
     for (const product of existingProducts) {
