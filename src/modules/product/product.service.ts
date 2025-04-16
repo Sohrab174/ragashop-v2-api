@@ -1702,7 +1702,7 @@ export class ProductService {
       product.brandId = await this.brandService.addOrUpdate(
         product.source,
         crawlerProduct.brandId,
-        { sourceName: crawlerProduct.brandName },
+        { sourceName: (crawlerProduct.brandName || '').slice(0, 128) },
       );
     }
 
@@ -1712,7 +1712,7 @@ export class ProductService {
         product.source,
         crawlerProduct.categoryId,
         {
-          sourceName: crawlerProduct.categoryName,
+          sourceName: (crawlerProduct.categoryName || '').slice(0, 128),
           bankTypeId: crawlerProduct.categoryBankTypeId,
           bankTypeName: crawlerProduct.categoryBankTypeName,
           hierarchy: crawlerProduct.categoryHierarchy,
