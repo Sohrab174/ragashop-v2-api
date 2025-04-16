@@ -1692,6 +1692,11 @@ export class ProductService {
       return;
     }
 
+    console.log({
+      crawlerCategoryId: crawlerProduct.categoryId,
+      crawlerCategoryName: crawlerProduct.categoryName,
+    });
+
     // Update or insert brand if missing --------------------------------------
     if (!product.brandId) {
       product.brandId = await this.brandService.addOrUpdate(
@@ -1835,7 +1840,7 @@ export class ProductService {
       );
     }
 
-    await this.productRepository
+    const result = await this.productRepository
       .createQueryBuilder()
       .update()
       .set({
@@ -1866,6 +1871,12 @@ export class ProductService {
       })
       .where({ id: product.id })
       .execute();
+
+    if (result.affected && result.affected > 0) {
+      console.log('Row updated successfully', { id: product.id });
+    } else {
+      console.log('No rows were updated.', { id: product.id });
+    }
   }
 
   /**
