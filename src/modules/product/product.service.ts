@@ -1482,7 +1482,7 @@ export class ProductService {
   async getProductsByCrawler() {
     const results = [];
 
-    for (const groupId of GROUP_IDS) {
+    for (const groupId of GROUP_IDS.reverse()) {
       const crawledProducts = await this.crawlerService.getProducts(groupId);
 
       const existingProducts = await this.productRepository.find({
@@ -1491,48 +1491,52 @@ export class ProductService {
       });
 
       for (const product of crawledProducts) {
+        console.log('CRAWLER source product id', product.sourceId);
+
         const existingProduct = existingProducts.find(
           (p) => p.sourceId == product.sourceId,
         );
 
         if (existingProduct) {
-          if (product.coverPath) {
-            const existCover = existingProduct.productGalleries.find(
-              (pg) => pg.pathFile === product.coverPath,
-            );
+          continue;
 
-            if (!existCover) {
-              const { identifiers } = await this.galleryRepository
-                .createQueryBuilder()
-                .insert()
-                .values({
-                  productId: existingProduct.id,
-                  type: ProductGalleryType.photo,
-                  source: existingProduct.source,
-                  pathFile: product.coverPath,
-                  createdAt: new Date(),
-                })
-                .execute();
-              existingProduct.coverId = identifiers[0].id;
-            } else {
-              existingProduct.coverId = existCover.id;
-            }
-          }
+          // if (product.coverPath) {
+          //   const existCover = existingProduct.productGalleries.find(
+          //     (pg) => pg.pathFile === product.coverPath,
+          //   );
 
-          existingProduct.sourceName = product.sourceName;
-          existingProduct.name = await this._findOrTranslateProduct(
-            product.sourceName,
-          );
-          existingProduct.sourceUrl = product.sourceUrl;
-          existingProduct.price = product.price;
-          existingProduct.discountedPrice = product.discountedPrice;
-          existingProduct.currency = product.currency;
-          existingProduct.isDeleted = false;
-          existingProduct.lastCrawlingAt = new Date();
+          //   if (!existCover) {
+          //     const { identifiers } = await this.galleryRepository
+          //       .createQueryBuilder()
+          //       .insert()
+          //       .values({
+          //         productId: existingProduct.id,
+          //         type: ProductGalleryType.photo,
+          //         source: existingProduct.source,
+          //         pathFile: product.coverPath,
+          //         createdAt: new Date(),
+          //       })
+          //       .execute();
+          //     existingProduct.coverId = identifiers[0].id;
+          //   } else {
+          //     existingProduct.coverId = existCover.id;
+          //   }
+          // }
 
-          await existingProduct.save();
+          // existingProduct.sourceName = product.sourceName;
+          // existingProduct.name = await this._findOrTranslateProduct(
+          //   product.sourceName,
+          // );
+          // existingProduct.sourceUrl = product.sourceUrl;
+          // existingProduct.price = product.price;
+          // existingProduct.discountedPrice = product.discountedPrice;
+          // existingProduct.currency = product.currency;
+          // existingProduct.isDeleted = false;
+          // existingProduct.lastCrawlingAt = new Date();
 
-          results.push({ action: 'updated', productId: existingProduct.id });
+          // await existingProduct.save();
+
+          // results.push({ action: 'updated', productId: existingProduct.id });
         } else {
           const { identifiers } = await this.productRepository
             .createQueryBuilder()
@@ -1582,6 +1586,7 @@ export class ProductService {
               .execute();
           }
 
+          console.log('INSERT product id', productId);
           results.push({ action: 'created', productId });
         }
       }
