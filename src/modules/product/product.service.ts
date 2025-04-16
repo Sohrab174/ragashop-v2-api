@@ -1607,12 +1607,7 @@ export class ProductService {
       .leftJoin('product.productDescriptions', 'productDescriptions')
       .leftJoin('product.productAttributeValues', 'productAttributeValues')
       .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
-      .select([
-        'product.id',
-        'product.source',
-        'product.sourceId',
-        'product.categoryId',
-        'product.brandId',
+      .addSelect([
         'productGalleries.id',
         'productGalleries.pathFile',
         'productDescriptions.id',
