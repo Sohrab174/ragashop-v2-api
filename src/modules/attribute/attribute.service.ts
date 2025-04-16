@@ -352,6 +352,8 @@ export class AttributeService {
 
       let foundAttributeValue = null;
       if (!foundAttribute) {
+        if (!attribute.name) continue;
+
         foundAttribute = this.attributeRepository.create({
           source,
           sourceId: attribute.id,
