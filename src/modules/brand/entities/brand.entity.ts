@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 import { ProductEntity } from '../../product/entities/product.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
+import { PageSectionItemEntity } from '../../page/entities/page-section-item.entity';
 
 @Entity('brand')
 export class BrandEntity extends BaseEntity {
@@ -49,4 +50,10 @@ export class BrandEntity extends BaseEntity {
    */
   @OneToMany(() => ProductEntity, (product) => product.brand)
   products: ProductEntity[];
+
+  @OneToMany(
+    () => PageSectionItemEntity,
+    (pageSectionItem) => pageSectionItem.brand,
+  )
+  pageSectionItems: PageSectionItemEntity[];
 }

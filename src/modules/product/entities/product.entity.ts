@@ -17,6 +17,7 @@ import { BrandEntity } from '../../brand/entities/brand.entity';
 import { OrderItemEntity } from '../../order/entities/order-item.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 import { ProductDescriptionEntity } from './product-description.entity';
+import { PageSectionItemEntity } from '../../page/entities/page-section-item.entity';
 
 export enum ProductStatus {
   active = 'active',
@@ -284,4 +285,10 @@ export class ProductEntity extends BaseEntity {
     (productDescription) => productDescription.product,
   )
   productDescriptions: ProductDescriptionEntity[];
+
+  @OneToMany(
+    () => PageSectionItemEntity,
+    (pageSectionItem) => pageSectionItem.product,
+  )
+  pageSectionItems: PageSectionItemEntity[];
 }

@@ -6,15 +6,11 @@ export class UpdatePageDto {
   @IsNotEmpty()
   id: number;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  code: string;
-
   @ApiProperty()
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   content: string;
 }

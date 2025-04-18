@@ -1,16 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsOptional } from 'class-validator';
 
 export class CreatePageDto {
-  @ApiProperty({ required: true })
-  @IsNotEmpty()
-  code: string;
-
   @ApiProperty()
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   content: string;
 }

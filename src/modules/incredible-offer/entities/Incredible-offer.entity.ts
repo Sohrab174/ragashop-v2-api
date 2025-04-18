@@ -5,11 +5,13 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
 import { ProductEntity } from '../../product/entities/product.entity';
 import { ProductAttributeValueEntity } from '../../product/entities/product-attribute-value.entity';
+import { PageSectionItemEntity } from '../../page/entities/page-section-item.entity';
 
 @Index('fk_incredible_offer_product1_idx', ['productId'], {})
 @Index(
@@ -70,4 +72,10 @@ export class IncredibleOfferEntity extends BaseEntity {
   )
   @JoinColumn([{ name: 'productAttributeValueId', referencedColumnName: 'id' }])
   productAttributeValue: ProductAttributeValueEntity;
+
+  @OneToMany(
+    () => PageSectionItemEntity,
+    (pageSectionItem) => pageSectionItem.incredibleOffer,
+  )
+  pageSectionItems: PageSectionItemEntity[];
 }
