@@ -284,17 +284,16 @@ export class ProductService {
       .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
       .innerJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.brand', 'brand')
-
       // Product incredible offers
-      // .leftJoin(
-      //   'product.incredibleOffers',
-      //   'productIncredibleOffers',
-      //   'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
-      //   { now: new Date() },
-      // )
-      // .addSelect('productIncredibleOffers.id')
-      // .addSelect('productIncredibleOffers.discountedPrice')
-      // .addSelect('productIncredibleOffers.toDate')
+      .leftJoin(
+        'product.incredibleOffers',
+        'productIncredibleOffers',
+        'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
+        { now: new Date() },
+      )
+      .addSelect('productIncredibleOffers.id')
+      .addSelect('productIncredibleOffers.discountedPrice')
+      .addSelect('productIncredibleOffers.toDate')
 
       .leftJoinAndSelect(
         'product.productAttributeValues',
@@ -410,15 +409,15 @@ export class ProductService {
       .andWhere({ isDeleted: false })
 
       // Product incredible offers
-      // .leftJoin(
-      //   'product.incredibleOffers',
-      //   'productIncredibleOffers',
-      //   'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
-      //   { now: new Date() },
-      // )
-      // .addSelect('productIncredibleOffers.id')
-      // .addSelect('productIncredibleOffers.discountedPrice')
-      // .addSelect('productIncredibleOffers.toDate')
+      .leftJoin(
+        'product.incredibleOffers',
+        'productIncredibleOffers',
+        'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
+        { now: new Date() },
+      )
+      .addSelect('productIncredibleOffers.id')
+      .addSelect('productIncredibleOffers.discountedPrice')
+      .addSelect('productIncredibleOffers.toDate')
 
       // Product attribute value
       .leftJoin(
@@ -1089,14 +1088,14 @@ export class ProductService {
       .createQueryBuilder('product')
 
       // Product incredible offers
-      // .leftJoin(
-      //   'product.incredibleOffers',
-      //   'productIncredibleOffers',
-      //   'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
-      //   { now: new Date() },
-      // )
-      // .addSelect('productIncredibleOffers.id')
-      // .addSelect('productIncredibleOffers.discountedPrice')
+      .leftJoin(
+        'product.incredibleOffers',
+        'productIncredibleOffers',
+        'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
+        { now: new Date() },
+      )
+      .addSelect('productIncredibleOffers.id')
+      .addSelect('productIncredibleOffers.discountedPrice')
 
       .leftJoinAndSelect(
         'product.productAttributeValues',
