@@ -115,7 +115,7 @@ export class PageService {
       .leftJoin(
         'items.product',
         'product',
-        'product.idDeleted = 0 AND product.status = :productActive',
+        'product.isDeleted = 0 AND product.status = :productActive',
         { productActive: ProductStatus.active },
       )
       .leftJoin('product.cover', 'productCover')
@@ -126,7 +126,7 @@ export class PageService {
         { categoryActive: CategoryStatus.active },
       )
       .leftJoin('items.brand', 'brand')
-      .leftJoin('items.page', 'page')
+      .leftJoin('items.page', 'itemPage')
       .addSelect([
         'product.id',
         'product.name',
@@ -147,8 +147,8 @@ export class PageService {
         'brand.id',
         'brand.name',
         'brand.isSelection',
-        'page.id',
-        'page.title',
+        'itemPage.id',
+        'itemPage.title',
       ])
       .andWhere({ id, isDeleted: false })
       // .andWhere(

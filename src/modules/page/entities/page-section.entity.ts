@@ -42,6 +42,9 @@ export class PageSectionEntity extends BaseEntity {
   @Column('text', { name: 'primaryContent', nullable: true })
   primaryContent: string | null;
 
+  @Column('text', { name: 'link', nullable: true })
+  link: string | null;
+
   @Column('int', { name: 'displayOrder', default: () => "'1'" })
   displayOrder: number;
 

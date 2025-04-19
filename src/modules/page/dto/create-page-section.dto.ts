@@ -16,6 +16,10 @@ export class CreatePageSectionDto {
   @IsOptional()
   primaryContent: string;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  link: string;
+
   @ApiProperty({ required: true })
   @IsNotEmpty()
   isPublished: boolean;

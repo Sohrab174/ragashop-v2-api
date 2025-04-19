@@ -12,5 +12,9 @@ export class UpdatePageSectionDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  link: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   isPublished: boolean;
 }

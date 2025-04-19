@@ -98,6 +98,10 @@ ADD CONSTRAINT \`fk_page_section_item_product1\`
       `ALTER TABLE \`page_section\` ADD \`primaryContent\` TEXT NULL DEFAULT NULL AFTER \`position\`;`,
     );
 
+    await queryRunner.query(
+      `ALTER TABLE \`page_section\` ADD \`link\` TEXT NULL DEFAULT NULL AFTER \`primaryContent\`;`,
+    );
+
     // ------------------------------
     await queryRunner.query(
       `SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;`,
