@@ -1280,7 +1280,14 @@ export class ProductService {
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);
-    return await builder.getRawOne();
+    const prices = await builder.getRawOne();
+
+    const tryToToman = await this.settingService.getTryToToman();
+
+    return {
+      minPrice: Math.round(prices.minPrice * tryToToman),
+      maxPrice: Math.round(prices.maxPrice * tryToToman),
+    };
   }
 
   /**

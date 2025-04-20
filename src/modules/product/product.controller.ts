@@ -200,6 +200,7 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'category_id', required: false })
+  @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'number', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ProductStatus })
@@ -210,7 +211,12 @@ export class ProductController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status', ['category_id', 'categoryId'], 'name'])
+    @Filter([
+      'status',
+      ['category_id', 'categoryId'],
+      ['brand_id', 'brandId'],
+      'name',
+    ])
     filters,
     @Query('number') number,
   ) {
@@ -330,6 +336,7 @@ export class ProductController {
   @ApiQuery({ name: 'min_price', required: false })
   @ApiQuery({ name: 'max_price', required: false })
   @ApiQuery({ name: 'category_id', required: false })
+  @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'color', required: false })
   @ApiQuery({ name: 'number', required: false })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -341,6 +348,7 @@ export class ProductController {
     @Sort() sorts,
     @Filter([
       ['category_id', 'categoryId'],
+      ['brand_id', 'brandId'],
       ['color', 'attributeValue.extraValue'],
       'name',
       'number',
