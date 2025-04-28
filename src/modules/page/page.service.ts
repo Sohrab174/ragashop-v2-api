@@ -204,7 +204,7 @@ export class PageService {
       id: dto.id,
     });
 
-    if (page) {
+    if (!page) {
       this.error.unprocessableEntity(['صفحه یافت نشد']);
     }
 
