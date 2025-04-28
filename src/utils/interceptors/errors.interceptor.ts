@@ -29,48 +29,48 @@ export class ErrorsInterceptor implements NestInterceptor {
           error?.message ||
           '';
 
-        if (
-          process.env.NODE_ENV === 'production' &&
-          !['companies/domain', 'companies/code', 'blogs/wp-includes'].some(
-            (m) => url.indexOf(m) !== -1,
-          ) &&
-          errorMessage !== 'محصول مورد نظر یافت نشد!'
-        ) {
-          try {
-            if (body) {
-              for (const key in body) {
-                if (key.toLowerCase().includes('password')) {
-                  body[key] = '***';
-                }
-              }
-            }
+        // if (
+        //   process.env.NODE_ENV === 'production' &&
+        //   !['companies/domain', 'companies/code', 'blogs/wp-includes'].some(
+        //     (m) => url.indexOf(m) !== -1,
+        //   ) &&
+        //   errorMessage !== 'محصول مورد نظر یافت نشد!'
+        // ) {
+        //   try {
+        //     if (body) {
+        //       for (const key in body) {
+        //         if (key.toLowerCase().includes('password')) {
+        //           body[key] = '***';
+        //         }
+        //       }
+        //     }
 
-            let urlText = `${method || ''} ${url || ''}`.trim();
-            urlText = urlText ? `\`\`\`${urlText}\`\`\`\n` : '';
-            const userText = user
-              ? `کاربر: #${user.id} ${user?.firstName || ''} ${
-                  user?.lastName || ''
-                }\n`
-              : '';
-            let bodyText = body ? JSON.stringify(body) : '';
-            bodyText =
-              bodyText !== '{}'
-                ? `\`\`\`${sliceText(bodyText, 500)}\`\`\`\n`
-                : '';
-            const browser = headers?.['user-agent']
-              ? `\n\`${headers['user-agent']}\`\n`
-              : '';
-            const origin = headers?.origin ? `\`${headers.origin}\`\n` : '';
-            const sqlText = error?.sql ? `\n\`\`\`${error.sql}\`\`\`` : '';
+        //     let urlText = `${method || ''} ${url || ''}`.trim();
+        //     urlText = urlText ? `\`\`\`${urlText}\`\`\`\n` : '';
+        //     const userText = user
+        //       ? `کاربر: #${user.id} ${user?.firstName || ''} ${
+        //           user?.lastName || ''
+        //         }\n`
+        //       : '';
+        //     let bodyText = body ? JSON.stringify(body) : '';
+        //     bodyText =
+        //       bodyText !== '{}'
+        //         ? `\`\`\`${sliceText(bodyText, 500)}\`\`\`\n`
+        //         : '';
+        //     const browser = headers?.['user-agent']
+        //       ? `\n\`${headers['user-agent']}\`\n`
+        //       : '';
+        //     const origin = headers?.origin ? `\`${headers.origin}\`\n` : '';
+        //     const sqlText = error?.sql ? `\n\`\`\`${error.sql}\`\`\`` : '';
 
-            this.telegramApiService.sendErrorNotif(
-              `${errorMessage}\n\n${urlText}${bodyText}${userText}${browser}${origin}${sqlText}`,
-            );
-          } catch (e) {
-            console.error(e);
-            console.log('SEND NOTIF ERROR', e);
-          }
-        }
+        //     this.telegramApiService.sendErrorNotif(
+        //       `${errorMessage}\n\n${urlText}${bodyText}${userText}${browser}${origin}${sqlText}`,
+        //     );
+        //   } catch (e) {
+        //     console.error(e);
+        //     console.log('SEND NOTIF ERROR', e);
+        //   }
+        // }
 
         if (error?.response?.success === false) {
           throw error;
