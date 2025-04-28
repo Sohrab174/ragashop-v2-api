@@ -200,7 +200,11 @@ export class PageService {
    * PUT /pages/admin
    */
   async update(dto: UpdatePageDto) {
+    console.log({ id: dto.id });
+
     const page = await this.pageRepository.findOne(dto.id);
+
+    console.log({ page });
 
     if (!page) {
       this.error.unprocessableEntity(['صفحه یافت نشد']);
