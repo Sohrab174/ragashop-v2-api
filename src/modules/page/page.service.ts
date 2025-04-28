@@ -272,6 +272,7 @@ export class PageService {
         'category.iconPath',
         'brand.id',
         'brand.name',
+        'brand.sourceName',
         'brand.isSelection',
         'page.id',
         'page.title',
