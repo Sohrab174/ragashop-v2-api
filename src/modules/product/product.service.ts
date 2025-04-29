@@ -116,7 +116,8 @@ export class ProductService {
         'product.productAttributeValues',
         'productAttributeValues',
       )
-      .andWhere({ isDeleted: false });
+      .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1');
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -182,6 +183,7 @@ export class ProductService {
       .andWhere('product.status = :status', {
         product: ProductStatus.active,
       })
+      .andWhere('product.categoryId != 1')
       .andWhere({ isDeleted: false })
       .orderBy('product.displayOrder', 'ASC');
 
@@ -261,6 +263,7 @@ export class ProductService {
       .innerJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.brand', 'brand')
       .where({ id })
+      .andWhere('product.categoryId != 1')
       .andWhere({ isDeleted: false });
 
     const product = await builder.getOne();
@@ -317,6 +320,7 @@ export class ProductService {
       .addSelect('productAttributeIncredibleOffers.discountedPrice')
       .addSelect('productAttributeIncredibleOffers.toDate')
       .where({ id })
+      .andWhere('product.categoryId != 1')
       .andWhere({ isDeleted: false });
 
     builder.andWhere({ status: ProductStatus.active });
@@ -369,6 +373,7 @@ export class ProductService {
         sourceGroupId: product.sourceGroupId,
         id: Not(product.id),
       })
+      .andWhere('product.categoryId != 1')
       .getMany();
 
     return {
@@ -407,6 +412,7 @@ export class ProductService {
       .leftJoinAndSelect('product.cover', 'cover')
       .andWhere({ status: ProductStatus.active })
       .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1')
 
       // Product incredible offers
       .leftJoin(
@@ -603,6 +609,7 @@ export class ProductService {
         ids: targetProductList.map((p) => p.id),
       })
       .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1')
 
       // GPT SAYS: In general, when you use a subquery in MySQL, the subquery is executed for each row in the outer query.
       // .andWhere(
@@ -1115,6 +1122,7 @@ export class ProductService {
 
       .where('product.id IN (:...productIds) ', { productIds })
       .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1')
       .getMany();
 
     return products.map((product) => ({
@@ -1277,6 +1285,7 @@ export class ProductService {
         'productAttributeValues.isDeleted = 0',
       )
       .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1')
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);
@@ -1309,6 +1318,7 @@ export class ProductService {
       )
       .select(['DISTINCT attributeValue.extraValue AS color'])
       .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1')
       .andWhere({ status: ProductStatus.active });
 
     builder = applyFiltersToBuilder(builder, filters);

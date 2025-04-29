@@ -5,6 +5,7 @@ import { PageController } from './page.controller';
 import { PageService } from './page.service';
 import { PageSectionEntity } from './entities/page-section.entity';
 import { PageSectionItemEntity } from './entities/page-section-item.entity';
+import { SettingModule } from '../setting/setting.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { PageSectionItemEntity } from './entities/page-section-item.entity';
       PageSectionEntity,
       PageSectionItemEntity,
     ]),
+    SettingModule,
   ],
   controllers: [PageController],
   providers: [PageService],

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { Repository } from 'typeorm';
 import {
   applyFiltersToBuilder,
   applySortingToBuilder,
@@ -23,6 +23,7 @@ import { SortAction } from '../../utils/sort';
 import { PageSectionItemSortDto } from './dto/page-sort-item.dto';
 import { ProductStatus } from '../product/entities/product.entity';
 import { CategoryStatus } from '../category/entities/category.entity';
+import { SettingService } from '../setting/setting.service';
 
 @Injectable()
 export class PageService {
@@ -37,6 +38,7 @@ export class PageService {
     private pageSectionItemRepository: Repository<PageSectionItemEntity>,
 
     private error: ErrorService,
+    private settingService: SettingService,
   ) {}
 
   /**
@@ -172,7 +174,22 @@ export class PageService {
       this.error.unprocessableEntity(['صفحه پیدا نشد!']);
     }
 
-    return page;
+    const tryToToman = await this.settingService.getTryToToman();
+
+    return {
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        items: section.items.map((item) => ({
+          ...item,
+          product: {
+            ...item.product,
+            price: tryToToman * item.product.price,
+            discountedPrice: tryToToman * item.product.discountedPrice,
+          },
+        })),
+      })),
+    };
   }
 
   /**

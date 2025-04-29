@@ -279,8 +279,8 @@ export class CategoryService {
   ) {
     let builder = this.categoryRepository
       .createQueryBuilder('category')
-
-      .leftJoinAndSelect('category.parent', 'parent');
+      .leftJoinAndSelect('category.parent', 'parent')
+      .andWhere('category.id != 1');
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -315,6 +315,7 @@ export class CategoryService {
     const builder = this.categoryRepository
       .createQueryBuilder('category')
       .leftJoinAndSelect('category.parent', 'parent')
+      .andWhere('category.id != 1')
       .where({ id });
 
     const category = await builder.getOne();
@@ -347,7 +348,8 @@ export class CategoryService {
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .andWhere({ status: CategoryStatus.active });
+      .andWhere({ status: CategoryStatus.active })
+      .andWhere('category.id != 1');
 
     if (parentId) {
       builder.andWhere(
@@ -411,7 +413,8 @@ export class CategoryService {
       //   'products.status = :pStatus',
       //   { pStatus: ProductStatus.active },
       // )
-      .andWhere({ id: categoryId, status: CategoryStatus.active });
+      .andWhere({ id: categoryId, status: CategoryStatus.active })
+      .andWhere('category.id != 1');
 
     const category = await builder.getOne();
 
@@ -464,6 +467,7 @@ export class CategoryService {
       ])
       .where({ status: CategoryStatus.active })
       .orderBy('category.displayOrder', 'ASC')
+      .andWhere('category.id != 1')
       .getMany();
 
     const groupedCategories = this._applyCategoryToTree(categories);
