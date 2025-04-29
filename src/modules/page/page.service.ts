@@ -182,11 +182,13 @@ export class PageService {
         ...section,
         items: section.items.map((item) => ({
           ...item,
-          product: {
-            ...item.product,
-            price: tryToToman * item.product.price,
-            discountedPrice: tryToToman * item.product.discountedPrice,
-          },
+          ...(item.product && {
+            product: {
+              ...item.product,
+              price: tryToToman * item.product.price,
+              discountedPrice: tryToToman * item.product.discountedPrice,
+            },
+          }),
         })),
       })),
     };
