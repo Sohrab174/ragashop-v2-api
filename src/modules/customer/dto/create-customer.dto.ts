@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsNotEmpty, ValidateIf } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  ValidateIf,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 import { CustomerStatus } from '../entities/customer.entity';
@@ -44,8 +50,25 @@ export class CreateCustomerDto {
   @IsNotEmpty()
   password: string;
 
+  @ApiProperty({ required: false })
+  @Transform(({ value }) => (value || '').toLowerCase().trim())
+  @IsOptional()
+  referrerCode: string;
+
   @ApiProperty({ required: true, enum: CustomerStatus })
   @IsNotEmpty()
   @IsIn(Object.values(CustomerStatus))
   status: CustomerStatus;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditUSD: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditIRT: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditTRY: number;
 }

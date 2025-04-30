@@ -1,13 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional } from 'class-validator';
-import { PageSectionPosition } from '../entities/page-section.entity';
+import {
+  PageSectionDisplayMode,
+  PageSectionPosition,
+  PageSectionProductGender,
+} from '../entities/page-section.entity';
 
 export class CreatePageSectionDto {
   @ApiProperty({ required: true })
   @IsNotEmpty()
   pageId: number;
 
-  @ApiProperty({ required: false, enum: PageSectionPosition })
+  @ApiProperty({ required: true, enum: PageSectionPosition })
   @IsNotEmpty()
   @IsIn(Object.values(PageSectionPosition))
   position: PageSectionPosition;
@@ -19,6 +23,24 @@ export class CreatePageSectionDto {
   @ApiProperty({ required: false })
   @IsOptional()
   link: string;
+
+  @ApiProperty({ required: false, enum: PageSectionDisplayMode })
+  @IsOptional()
+  @IsIn(Object.values(PageSectionDisplayMode))
+  displayMode: PageSectionDisplayMode;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  selectedTags: any;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  selectedCategoryId: any;
+
+  @ApiProperty({ required: false, enum: PageSectionProductGender })
+  @IsOptional()
+  @IsIn(Object.values(PageSectionProductGender))
+  productGender: PageSectionProductGender;
 
   @ApiProperty({ required: true })
   @IsNotEmpty()

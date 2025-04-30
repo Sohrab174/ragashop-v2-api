@@ -88,6 +88,33 @@ export class CustomerEntity extends BaseEntity {
   })
   walletTRY: number;
 
+  @Column('decimal', {
+    name: 'buyPercentToReferrerCreditUSD',
+    precision: 20,
+    scale: 2,
+    nullable: true,
+    transformer: new DecimalTransformer(),
+  })
+  buyPercentToReferrerCreditUSD: number;
+
+  @Column('decimal', {
+    name: 'buyPercentToReferrerCreditIRT',
+    precision: 20,
+    scale: 2,
+    nullable: true,
+    transformer: new DecimalTransformer(),
+  })
+  buyPercentToReferrerCreditIRT: number;
+
+  @Column('decimal', {
+    name: 'buyPercentToReferrerCreditTRY',
+    precision: 20,
+    scale: 2,
+    nullable: true,
+    transformer: new DecimalTransformer(),
+  })
+  buyPercentToReferrerCreditTRY: number;
+
   @Column('enum', {
     name: 'status',
     enum: CustomerStatus,

@@ -12,6 +12,7 @@ import { ProductEntity } from '../../product/entities/product.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 import { NavMenuEntity } from '../../nav-menu/entities/nav-menu.entity';
 import { PageSectionItemEntity } from '../../page/entities/page-section-item.entity';
+import { PageSectionEntity } from '../../page/entities/page-section.entity';
 
 export enum CategoryStatus {
   active = 'active',
@@ -97,4 +98,10 @@ export class CategoryEntity extends BaseEntity {
     (pageSectionItem) => pageSectionItem.category,
   )
   pageSectionItems: PageSectionItemEntity[];
+
+  @OneToMany(
+    () => PageSectionEntity,
+    (pageSection) => pageSection.selectedCategory,
+  )
+  sections: PageSectionEntity[];
 }

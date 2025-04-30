@@ -115,6 +115,13 @@ export class OrderEntity extends BaseEntity {
   @Column('varchar', { name: 'postTrackingCode', nullable: true, length: 128 })
   postTrackingCode: string | null;
 
+  @Column('varchar', {
+    name: 'sourceTrackingCode',
+    nullable: true,
+    length: 128,
+  })
+  sourceTrackingCode: string | null;
+
   @Column('enum', {
     name: 'status',
     enum: OrderStatus,

@@ -402,8 +402,19 @@ export class ProductService {
     limit = 20,
     filters,
     sorts = null,
+    categoryId = null,
     priceRanges: any = {},
   ) {
+    let categoryIds = [];
+    if (categoryId) {
+      categoryIds = [
+        ...categoryId,
+        ...(await this.categoryService.getChildIds(categoryId)),
+      ]
+        .map((cId) => +cId)
+        .filter((cId) => cId > 1);
+    }
+
     let builder = this.productRepository
       .createQueryBuilder('product')
       .innerJoin('product.category', 'category', 'category.status = :status', {
@@ -412,9 +423,16 @@ export class ProductService {
       .leftJoinAndSelect('product.cover', 'cover')
       .andWhere({ status: ProductStatus.active })
       .andWhere({ isDeleted: false })
-      .andWhere('product.categoryId != 1')
+      .andWhere('product.categoryId != 1');
 
-      // Product incredible offers
+    if (categoryIds.length > 0) {
+      builder.andWhere('product.categoryId IN (:...categoryIds)', {
+        categoryIds,
+      });
+    }
+
+    // Product incredible offers
+    builder
       .leftJoin(
         'product.incredibleOffers',
         'productIncredibleOffers',

@@ -347,7 +347,6 @@ export class ProductController {
     @Limit() limit,
     @Sort() sorts,
     @Filter([
-      ['category_id', 'categoryId'],
       ['brand_id', 'brandId'],
       ['color', 'attributeValue.extraValue'],
       'name',
@@ -356,11 +355,19 @@ export class ProductController {
     filters,
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
+    @Query('category_id') categoryId,
   ) {
-    const list = await this.productService.getAll(page, limit, filters, sorts, {
-      minPrice,
-      maxPrice,
-    });
+    const list = await this.productService.getAll(
+      page,
+      limit,
+      filters,
+      sorts,
+      categoryId,
+      {
+        minPrice,
+        maxPrice,
+      },
+    );
 
     return successfulResult([], list);
   }

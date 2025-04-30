@@ -35,6 +35,7 @@ export class SettingService {
     serializedSettings.tryToToman = Math.round(
       serializedSettings.tryToRial / 10,
     );
+    serializedSettings.baseTryToToman = Math.round(setting.tryToRial / 10);
 
     return serializedSettings;
   }

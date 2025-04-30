@@ -125,6 +125,9 @@ export class CustomerService {
       customer.walletUSD = 0;
       customer.walletIRT = 0;
       customer.walletTRY = 0;
+      customer.buyPercentToReferrerCreditUSD = null;
+      customer.buyPercentToReferrerCreditIRT = null;
+      customer.buyPercentToReferrerCreditTRY = null;
     }
 
     const randomHash =
@@ -620,7 +623,7 @@ export class CustomerService {
    * POST /customers/admin
    */
   async add(dto: CreateCustomerDto) {
-    // Checking unique email in this company
+    // Checking unique email
     if (
       dto.email &&
       (await this.customerRepository.findOne({ email: dto.email }))
@@ -628,12 +631,22 @@ export class CustomerService {
       this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
     }
 
-    // Checking unique mobile number in this company
+    // Checking unique mobile number
     if (
       dto.mobile &&
       (await this.customerRepository.findOne({ mobile: dto.mobile }))
     ) {
       this.error.unprocessableEntity(['این شماره موبایل قبلا استفاده شده است']);
+    }
+
+    // Checking unique referrerCode
+    if (
+      dto.referrerCode &&
+      (await this.customerRepository.findOne({
+        referrerCode: dto.referrerCode,
+      }))
+    ) {
+      this.error.unprocessableEntity(['این کد معرف قبلا استفاده شده است']);
     }
 
     // Creating a new customer
@@ -642,6 +655,14 @@ export class CustomerService {
       .insert()
       .values({
         ...dto,
+        referrerCode:
+          dto.referrerCode || (await this._generateReferrerCode(6, dto.mobile)),
+        buyPercentToReferrerCreditUSD:
+          dto.buyPercentToReferrerCreditUSD || null,
+        buyPercentToReferrerCreditIRT:
+          dto.buyPercentToReferrerCreditIRT || null,
+        buyPercentToReferrerCreditTRY:
+          dto.buyPercentToReferrerCreditTRY || null,
         createdAt: new Date(),
       })
       .execute();
@@ -664,7 +685,7 @@ export class CustomerService {
       this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
 
-    // Checking unique email in this company
+    // Checking unique email
     if (
       dto.email &&
       (await this.customerRepository.findOne({
@@ -675,7 +696,7 @@ export class CustomerService {
       this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
     }
 
-    // Checking unique mobile number in this company
+    // Checking unique mobile number
     if (
       dto.mobile &&
       (await this.customerRepository.findOne({
@@ -686,12 +707,33 @@ export class CustomerService {
       this.error.unprocessableEntity(['این شماره موبایل قبلا استفاده شده است']);
     }
 
+    // Checking unique referrerCode
+    if (
+      dto.referrerCode &&
+      (await this.customerRepository.findOne({
+        referrerCode: dto.referrerCode,
+        id: Not(dto.id),
+      }))
+    ) {
+      this.error.unprocessableEntity(['این کد معرف قبلا استفاده شده است']);
+    }
+
     // Updating the customer
     customer.firstName = dto.firstName;
     customer.lastName = dto.lastName;
     customer.mobile = dto.mobile;
     customer.email = dto.email;
     customer.status = dto.status;
+    customer.referrerCode = dto.referrerCode;
+
+    customer.buyPercentToReferrerCreditUSD =
+      dto.buyPercentToReferrerCreditUSD || null;
+
+    customer.buyPercentToReferrerCreditIRT =
+      dto.buyPercentToReferrerCreditIRT || null;
+
+    customer.buyPercentToReferrerCreditTRY =
+      dto.buyPercentToReferrerCreditTRY || null;
 
     if (dto.password) {
       customer.password = dto.password;
@@ -849,7 +891,7 @@ export class CustomerService {
     forceActive = false,
   ) {
     return await this.customerRepository.findOne({
-      referrerCode: referrerCode.trim().toUpperCase(),
+      referrerCode: referrerCode.trim().toLowerCase(),
       ...(selfUserId && { id: Not(selfUserId) }),
       ...(forceActive && { status: CustomerStatus.active }),
     });

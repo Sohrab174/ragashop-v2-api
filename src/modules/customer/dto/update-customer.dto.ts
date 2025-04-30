@@ -58,4 +58,21 @@ export class UpdateCustomerDto {
   @IsNotEmpty()
   @IsIn(Object.values(CustomerStatus))
   status: CustomerStatus;
+
+  @ApiProperty({ required: false })
+  @Transform(({ value }) => (value || '').toLowerCase().trim())
+  @IsOptional()
+  referrerCode: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditUSD: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditIRT: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  buyPercentToReferrerCreditTRY: number;
 }

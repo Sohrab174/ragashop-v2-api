@@ -102,6 +102,38 @@ ADD CONSTRAINT \`fk_page_section_item_product1\`
       `ALTER TABLE \`page_section\` ADD \`link\` TEXT NULL DEFAULT NULL AFTER \`primaryContent\`;`,
     );
 
+    await queryRunner.query(
+      `ALTER TABLE \`page_section\` ADD \`displayMode\` ENUM('normal','slider') NOT NULL DEFAULT 'normal' AFTER \`link\`;`,
+    );
+
+    await queryRunner.query(
+      `ALTER TABLE \`page_section\` ADD \`selectedTags\` VARCHAR(128) NULL DEFAULT NULL AFTER \`displayMode\`;`,
+    );
+
+    await queryRunner.query(
+      `ALTER TABLE \`page_section\` ADD \`productGender\` ENUM('male','female') NULL DEFAULT NULL AFTER \`selectedTags\`;`,
+    );
+
+    await queryRunner.query(`ALTER TABLE \`customer\` 
+ADD COLUMN \`buyPercentToReferrerCreditUSD\` DECIMAL(10,2) NULL DEFAULT NULL AFTER \`walletTRY\`,
+ADD COLUMN \`buyPercentToReferrerCreditIRT\` DECIMAL(10,2) NULL DEFAULT NULL AFTER \`buyPercentToReferrerCreditUSD\`,
+ADD COLUMN \`buyPercentToReferrerCreditTRY\` DECIMAL(10,2) NULL DEFAULT NULL AFTER \`buyPercentToReferrerCreditIRT\`;`);
+
+    await queryRunner.query(`ALTER TABLE \`page_section\` 
+ADD COLUMN \`selectedCategoryId\` INT(11) NULL DEFAULT NULL AFTER \`selectedTags\`,
+ADD INDEX \`fk_page_section_category1_idx\` (\`selectedCategoryId\` ASC);`);
+
+    await queryRunner.query(`ALTER TABLE \`page_section\` 
+ADD CONSTRAINT \`fk_page_section_category1\`
+  FOREIGN KEY (\`selectedCategoryId\`)
+  REFERENCES \`category\` (\`id\`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION;`);
+
+    await queryRunner.query(
+      `ALTER TABLE \`order\` ADD \`sourceTrackingCode\` VARCHAR(128) NOT NULL AFTER \`description\`;`,
+    );
+
     // ------------------------------
     await queryRunner.query(
       `SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;`,

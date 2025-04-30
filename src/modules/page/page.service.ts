@@ -10,7 +10,11 @@ import { PageEntity } from './entities/page.entity';
 import { ErrorService } from '../../error/error.service';
 import { CreatePageDto } from './dto/create-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
-import { PageSectionEntity } from './entities/page-section.entity';
+import {
+  PageSectionDisplayMode,
+  PageSectionEntity,
+  PageSectionPosition,
+} from './entities/page-section.entity';
 import { PageSectionItemEntity } from './entities/page-section-item.entity';
 import { getLastDisplayOrder } from '../../utils/last-display-order';
 import { UpdatePageSectionDto } from './dto/update-page-section.dto';
@@ -267,6 +271,7 @@ export class PageService {
   async getSectionsByPageIdForAdmin(pageId: number) {
     return await this.pageSectionRepository
       .createQueryBuilder('section')
+      .leftJoin('section.selectedCategory', 'selectedCategory')
       .leftJoinAndSelect('section.items', 'items', 'items.isDeleted = 0')
       .leftJoin('items.product', 'product', 'product.isDeleted = 0')
       .leftJoin('product.cover', 'productCover')
@@ -295,6 +300,9 @@ export class PageService {
         'brand.isSelection',
         'page.id',
         'page.title',
+        'selectedCategory.id',
+        'selectedCategory.name',
+        'selectedCategory.iconPath',
       ])
       .where({ pageId })
       .andWhere({ isDeleted: false })
@@ -316,6 +324,15 @@ export class PageService {
         displayOrder: await getLastDisplayOrder(PageSectionEntity.name, {
           pageId: dto.pageId,
         }),
+        displayMode:
+          dto?.displayMode ||
+          ([
+            PageSectionPosition.product,
+            PageSectionPosition.faq,
+            PageSectionPosition.page,
+          ].includes(dto.position)
+            ? PageSectionDisplayMode.normal
+            : PageSectionDisplayMode.slider),
         createdAt: new Date(),
       })
       .execute();

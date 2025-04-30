@@ -516,6 +516,9 @@ export class OrderService {
     if (dto.postTrackingCode !== undefined) {
       order.postTrackingCode = dto.postTrackingCode;
     }
+    if (dto.sourceTrackingCode !== undefined) {
+      order.sourceTrackingCode = dto.sourceTrackingCode;
+    }
     return await order.save();
   }
 
@@ -614,13 +617,27 @@ export class OrderService {
 
         const orderAmount = order.amount - order.discount;
 
-        if (setting.buyPercentToReferrerCreditUSD > 0) {
+        // ------------------
+        const buyPercentToReferrerCreditUSD =
+          referrerCustomer.buyPercentToReferrerCreditUSD ||
+          setting.buyPercentToReferrerCreditUSD;
+
+        const buyPercentToReferrerCreditIRT =
+          referrerCustomer.buyPercentToReferrerCreditIRT ||
+          setting.buyPercentToReferrerCreditIRT;
+
+        const buyPercentToReferrerCreditTRY =
+          referrerCustomer.buyPercentToReferrerCreditTRY ||
+          setting.buyPercentToReferrerCreditTRY;
+
+        // -----------------
+        if (buyPercentToReferrerCreditUSD > 0) {
           referrerCustomer.walletUSD +=
-            (setting.buyPercentToReferrerCreditUSD * orderAmount) / 100;
+            (buyPercentToReferrerCreditUSD * orderAmount) / 100;
           await referrerCustomer.save();
 
           await this.customerService.addWalletHistory({
-            walletUSD: setting.buyPercentToReferrerCreditUSD,
+            walletUSD: buyPercentToReferrerCreditUSD,
             customerId: referrerCustomer.id,
             type: WalletHistoryType.buy,
             relatedCustomerId: order.customerId,
@@ -628,13 +645,13 @@ export class OrderService {
           });
         }
 
-        if (setting.buyPercentToReferrerCreditIRT > 0) {
+        if (buyPercentToReferrerCreditIRT > 0) {
           referrerCustomer.walletIRT +=
-            (setting.buyPercentToReferrerCreditIRT * orderAmount) / 100;
+            (buyPercentToReferrerCreditIRT * orderAmount) / 100;
           await referrerCustomer.save();
 
           await this.customerService.addWalletHistory({
-            walletIRT: setting.buyPercentToReferrerCreditIRT,
+            walletIRT: buyPercentToReferrerCreditIRT,
             customerId: referrerCustomer.id,
             type: WalletHistoryType.buy,
             relatedCustomerId: order.customerId,
@@ -642,13 +659,13 @@ export class OrderService {
           });
         }
 
-        if (setting.buyPercentToReferrerCreditTRY > 0) {
+        if (buyPercentToReferrerCreditTRY > 0) {
           referrerCustomer.walletTRY +=
-            (setting.buyPercentToReferrerCreditTRY * orderAmount) / 100;
+            (buyPercentToReferrerCreditTRY * orderAmount) / 100;
           await referrerCustomer.save();
 
           await this.customerService.addWalletHistory({
-            walletTRY: setting.buyPercentToReferrerCreditTRY,
+            walletTRY: buyPercentToReferrerCreditTRY,
             customerId: referrerCustomer.id,
             type: WalletHistoryType.buy,
             relatedCustomerId: order.customerId,

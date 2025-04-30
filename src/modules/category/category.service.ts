@@ -712,4 +712,23 @@ export class CategoryService {
 
     return (await this.translatorService.text(sourceName)) || sourceName;
   }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getChildIds(parentId) {
+    const subCategories = await this.categoryRepository
+      .createQueryBuilder('category')
+      .select(['category.id', 'category.parentId'])
+      .where({
+        status: CategoryStatus.active,
+      })
+      .getMany();
+
+    const groupedCategories = this._applyCategoryToTree(
+      subCategories,
+      +parentId,
+    );
+    return this._extractSubIds(groupedCategories || []);
+  }
 }

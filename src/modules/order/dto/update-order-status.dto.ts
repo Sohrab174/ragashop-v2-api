@@ -19,4 +19,8 @@ export class UpdateOrderStatusDto {
   @ApiProperty({ required: false })
   @IsOptional()
   postTrackingCode: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  sourceTrackingCode: string;
 }
