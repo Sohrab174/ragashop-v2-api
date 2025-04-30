@@ -3,6 +3,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MENU } from './sources/menu';
+import { ProductGender } from '../../modules/product/entities/product.entity';
 
 @Injectable()
 export class CrawlerService {
@@ -130,6 +131,7 @@ export class CrawlerService {
       const { data } = await this.axios.get(
         `https://apigw.trendyol.com/discovery-web-productgw-service/api/productDetail/${id}?storefrontId=1&culture=tr-TR&linearVariants=true&isLegalRequirementConfirmed=false&channelId=1`,
       );
+
       const product = data.result;
 
       const result = {
@@ -137,6 +139,10 @@ export class CrawlerService {
         sourceId: product.id,
         sourceName: product.name,
         name: product.name, // should translate this to persian
+        gender:
+          (product.gender?.id === 1 && ProductGender.female) ||
+          (product.gender?.id === 2 && ProductGender.male) ||
+          null,
         color: product?.color || null,
         number: product.productCode,
         sourceUrl: product.url,

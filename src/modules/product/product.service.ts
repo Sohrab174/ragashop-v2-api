@@ -1635,6 +1635,47 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
+  async getProductsGenderByCrawler() {
+    const existingProducts = await this.productRepository
+      .createQueryBuilder('product')
+      .where({ source: 'trendyol', isDeleted: false })
+      .andWhere('product.categoryId != 1')
+      .andWhere('product.gender IS NULL')
+      .take(1000)
+      .getMany();
+
+    for (const product of existingProducts) {
+      const crawlerProduct = await this.crawlerService.getProductById(
+        product.sourceId,
+      );
+      if (!crawlerProduct) {
+        await this.productRepository
+          .createQueryBuilder()
+          .update()
+          .set({ lastCrawlingAt: new Date(), isDeleted: true })
+          .where({ id: product.id })
+          .execute();
+        continue;
+      }
+
+      if (!crawlerProduct.gender) continue;
+
+      await this.productRepository
+        .createQueryBuilder()
+        .update()
+        .set({ gender: crawlerProduct.gender })
+        .where({ id: product.id })
+        .execute();
+
+      await sleep(500);
+    }
+
+    return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
   async getProductsDetailsByCrawler() {
     const existingProducts = await this.productRepository
       .createQueryBuilder('product')
@@ -1902,6 +1943,7 @@ export class ProductService {
         uxLayout: crawlerProduct.uxLayout,
         isDigitalGood: crawlerProduct.isDigitalGood,
         isArtWork: crawlerProduct.isArtWork,
+        gender: crawlerProduct.gender,
         lastCrawlingAt: new Date(),
       })
       .where({ id: product.id })

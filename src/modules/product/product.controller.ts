@@ -88,6 +88,19 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
+   * POST /products/crawler/gender/admin
+   */
+  @Post('/crawler/gender/admin')
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(UserRoles.admin, UserRoles.employee)
+  async getProductsGenderByCrawler() {
+    const result = await this.productService.getProductsGenderByCrawler();
+    return successfulResult(['Done'], result);
+  }
+
+  /**
+   * -------------------------------------------------------
    * GET /products/111111/crawler/admin
    */
   @Get('/:id/crawler/admin')
@@ -336,6 +349,7 @@ export class ProductController {
   @ApiQuery({ name: 'min_price', required: false })
   @ApiQuery({ name: 'max_price', required: false })
   @ApiQuery({ name: 'category_id', required: false })
+  @ApiQuery({ name: 'gender', required: false })
   @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'color', required: false })
   @ApiQuery({ name: 'number', required: false })
@@ -351,6 +365,7 @@ export class ProductController {
       ['color', 'attributeValue.extraValue'],
       'name',
       'number',
+      'gender',
     ])
     filters,
     @Query('min_price') minPrice,
