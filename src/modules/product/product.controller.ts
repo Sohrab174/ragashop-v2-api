@@ -88,9 +88,9 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
-   * POST /products/crawler/pages/admin
+   * POST /products/crawler/page-data/admin
    */
-  @Post('/crawler/pages/admin')
+  @Post('/crawler/page-data/admin')
   // @ApiBearerAuth()
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(UserRoles.admin, UserRoles.employee)
