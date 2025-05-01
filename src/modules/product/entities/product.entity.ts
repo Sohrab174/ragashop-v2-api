@@ -28,6 +28,7 @@ export enum ProductStatus {
 export enum ProductGender {
   male = 'male',
   female = 'female',
+  unisex = 'unisex',
 }
 
 export enum ProductCurrency {

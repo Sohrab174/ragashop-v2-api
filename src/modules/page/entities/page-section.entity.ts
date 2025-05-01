@@ -33,6 +33,7 @@ export enum PageSectionDisplayMode {
 export enum PageSectionProductGender {
   male = 'male',
   female = 'female',
+  unisex = 'unisex',
 }
 
 @Index('fk_page_section_page1_idx', ['pageId'], {})
