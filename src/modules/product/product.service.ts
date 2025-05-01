@@ -1641,6 +1641,7 @@ export class ProductService {
       .where({ source: 'trendyol', isDeleted: false })
       .andWhere('product.categoryId != 1')
       .andWhere('product.gender IS NULL')
+      .orderBy('gallery.lastCrawlingAt', 'ASC')
       .take(1000)
       .getMany();
 
@@ -1663,7 +1664,7 @@ export class ProductService {
       await this.productRepository
         .createQueryBuilder()
         .update()
-        .set({ gender: crawlerProduct.gender })
+        .set({ gender: crawlerProduct.gender, lastCrawlingAt: new Date() })
         .where({ id: product.id })
         .execute();
 
