@@ -42,6 +42,7 @@ import { BrandService } from '../brand/brand.service';
 import { SettingService } from '../setting/setting.service';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
 import { GROUP_IDS } from '../../thirdParty/crawler/sources/groupIds';
+import { FileStorageService } from '../../file-storage.service';
 
 @Injectable()
 export class ProductService {
@@ -66,6 +67,7 @@ export class ProductService {
 
     private crawlerService: CrawlerService,
     private translatorService: TranslatorService,
+    private readonly fileStorage: FileStorageService,
   ) {}
 
   /**
@@ -403,12 +405,13 @@ export class ProductService {
     filters,
     sorts = null,
     categoryId = null,
+    gender = null,
     priceRanges: any = {},
   ) {
     let categoryIds = [];
     if (categoryId) {
       categoryIds = [
-        ...categoryId,
+        categoryId,
         ...(await this.categoryService.getChildIds(categoryId)),
       ]
         .map((cId) => +cId)
@@ -429,6 +432,15 @@ export class ProductService {
       builder.andWhere('product.categoryId IN (:...categoryIds)', {
         categoryIds,
       });
+    }
+
+    if (gender) {
+      builder.andWhere(
+        `(product.gender = :gender OR product.gender = 'unisex')`,
+        {
+          gender,
+        },
+      );
     }
 
     // Product incredible offers
@@ -1630,6 +1642,89 @@ export class ProductService {
     }
 
     return results;
+  }
+
+  /**
+   * -------------------------------------------------------
+   */
+  async getProductsPagesByCrawler() {
+    const storage = this.fileStorage.load();
+    const categories = storage.trendyolCategories;
+    const keys = Object.keys(categories);
+    const category = keys[Math.floor(Math.random() * keys.length)];
+    const page = categories[category];
+
+    const crawledProducts = await this.crawlerService.getProductByPage(
+      page,
+      category,
+    );
+
+    if (crawledProducts.length === 0) return;
+
+    for (const product of crawledProducts) {
+      console.log('CRAWLER source product id', product.sourceId);
+
+      const existingProduct = await this.productRepository.count({
+        id: product.sourceId,
+        source: product.source,
+      });
+      if (existingProduct > 0) continue;
+
+      const { identifiers } = await this.productRepository
+        .createQueryBuilder()
+        .insert()
+        .values({
+          categoryId: 1,
+          source: product.source,
+          sourceId: product.sourceId,
+          sourceName: product.sourceName,
+          name: await this._findOrTranslateProduct(product.sourceName),
+          sourceUrl: product.sourceUrl,
+          sourceGroupId: product.sourceGroupId,
+          price: product.price,
+          discountedPrice: product.discountedPrice,
+          discountPercent: 0,
+          tax: 0,
+          currency: product.currency,
+          quantity: -1,
+          star: 0,
+          starCountPerson: 0,
+          lastCrawlingAt: new Date(),
+          createdAt: new Date(),
+        })
+        .execute();
+
+      const productId = identifiers[0].id;
+
+      if (product.coverPath) {
+        const { identifiers } = await this.galleryRepository
+          .createQueryBuilder()
+          .insert()
+          .values({
+            productId,
+            type: ProductGalleryType.photo,
+            source: product.source,
+            pathFile: product.coverPath,
+            createdAt: new Date(),
+          })
+          .execute();
+        const coverId = identifiers[0].id;
+
+        await this.productRepository
+          .createQueryBuilder()
+          .update()
+          .set({ coverId })
+          .where({ id: productId })
+          .execute();
+      }
+
+      console.log('INSERT product id', productId);
+
+      sleep(100);
+    }
+
+    categories[category] = +page + 1;
+    this.fileStorage.save(storage);
   }
 
   /**

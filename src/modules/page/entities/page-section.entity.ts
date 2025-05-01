@@ -33,6 +33,7 @@ export enum PageSectionDisplayMode {
 export enum PageSectionProductGender {
   male = 'male',
   female = 'female',
+  child = 'child',
   unisex = 'unisex',
 }
 

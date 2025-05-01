@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { MENU } from './sources/menu';
 import { ProductGender } from '../../modules/product/entities/product.entity';
+import { sleep } from '../../utils';
 
 @Injectable()
 export class CrawlerService {
@@ -56,6 +57,27 @@ export class CrawlerService {
     console.log(
       `All productGroupIds have been saved (possibly with duplicates).`,
     );
+  }
+
+  /**
+   * -----------------------------------------
+   */
+  async getProductByPage(page = 1, category = 'cocuk-x-g3') {
+    try {
+      const { data: json } = await this.axios.get(
+        `https://apigw.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll/${category}?pi=${page}&culture=tr-TR`,
+      );
+
+      let final = [];
+      for (const product of json.result.products) {
+        final = [...final, ...(await this.getProducts(product.productGroupId))];
+        await sleep(100);
+      }
+      return final;
+    } catch (error) {
+      console.error('Error crawling Trendyol:', error);
+      throw new Error('Failed to crawl Trendyol');
+    }
   }
 
   /**
@@ -140,8 +162,11 @@ export class CrawlerService {
         sourceName: product.name,
         name: product.name, // should translate this to persian
         gender:
-          (product.gender?.id === 1 && ProductGender.female) ||
-          (product.gender?.id === 2 && ProductGender.male) ||
+          ((product.gender?.id === 1 || product?.webGender?.id === 1) &&
+            ProductGender.female) ||
+          ((product.gender?.id === 2 || product?.webGender?.id === 2) &&
+            ProductGender.male) ||
+          (product?.webGender?.id === 3 && ProductGender.child) ||
           (product.gender?.id === 3 && ProductGender.unisex) ||
           null,
         color: product?.color || null,

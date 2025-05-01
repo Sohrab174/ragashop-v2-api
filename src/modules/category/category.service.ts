@@ -729,6 +729,7 @@ export class CategoryService {
       subCategories,
       +parentId,
     );
+
     return this._extractSubIds(groupedCategories || []);
   }
 }

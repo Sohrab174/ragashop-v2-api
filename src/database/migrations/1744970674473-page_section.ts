@@ -135,11 +135,11 @@ ADD CONSTRAINT \`fk_page_section_category1\`
     );
 
     await queryRunner.query(
-      `ALTER TABLE \`product\` CHANGE \`gender\` \`gender\` ENUM('male','female','unisex') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL;`,
+      `ALTER TABLE \`product\` CHANGE \`gender\` \`gender\` ENUM('male','female','child','unisex') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL;`,
     );
 
     await queryRunner.query(
-      `ALTER TABLE \`page_section\` CHANGE \`productGender\` \`productGender\` ENUM('male','female','unisex') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL`,
+      `ALTER TABLE \`page_section\` CHANGE \`productGender\` \`productGender\` ENUM('male','female','child','unisex') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL`,
     );
 
     // ------------------------------

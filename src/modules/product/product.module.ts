@@ -12,6 +12,7 @@ import { ProductDescriptionEntity } from './entities/product-description.entity'
 import { BrandModule } from '../brand/brand.module';
 import { SettingModule } from '../setting/setting.module';
 import { TranslatorModule } from '../../thirdParty/translator/translator.module';
+import { FileStorageService } from '../../file-storage.service';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { TranslatorModule } from '../../thirdParty/translator/translator.module'
     TranslatorModule,
   ],
   controllers: [ProductController],
-  providers: [ProductService],
+  providers: [ProductService, FileStorageService],
   exports: [ProductService],
 })
 export class ProductModule {}

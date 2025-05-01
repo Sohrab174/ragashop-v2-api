@@ -88,6 +88,19 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
+   * POST /products/crawler/admin
+   */
+  @Post('/crawler/details/admin')
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(UserRoles.admin, UserRoles.employee)
+  async crawlerPages() {
+    await this.productService.getProductsPagesByCrawler();
+    return successfulResult(['Done']);
+  }
+
+  /**
+   * -------------------------------------------------------
    * POST /products/crawler/gender/admin
    */
   @Post('/crawler/gender/admin')
@@ -365,12 +378,12 @@ export class ProductController {
       ['color', 'attributeValue.extraValue'],
       'name',
       'number',
-      'gender',
     ])
     filters,
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
     @Query('category_id') categoryId,
+    @Query('gender') gender,
   ) {
     const list = await this.productService.getAll(
       page,
@@ -378,6 +391,7 @@ export class ProductController {
       filters,
       sorts,
       categoryId,
+      gender,
       {
         minPrice,
         maxPrice,
