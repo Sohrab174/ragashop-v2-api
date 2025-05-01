@@ -61,6 +61,19 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
+   * POST /products/crawler/list/admin
+   */
+  @Post('/crawler/list/admin')
+  // @ApiBearerAuth()
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(UserRoles.admin, UserRoles.employee)
+  async crawlerList() {
+    await this.productService.getProductsPagesByCrawler();
+    return successfulResult(['Done']);
+  }
+
+  /**
+   * -------------------------------------------------------
    * POST /products/crawler/admin
    */
   @Post('/crawler/admin')
@@ -84,19 +97,6 @@ export class ProductController {
   async crawlerDetails() {
     const result = await this.productService.getProductsDetailsByCrawler();
     return successfulResult(['Done'], result);
-  }
-
-  /**
-   * -------------------------------------------------------
-   * POST /products/crawler/page-data/admin
-   */
-  @Post('/crawler/page-data/admin')
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(UserRoles.admin, UserRoles.employee)
-  async crawlerPages() {
-    await this.productService.getProductsPagesByCrawler();
-    return successfulResult(['Done']);
   }
 
   /**
