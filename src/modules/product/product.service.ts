@@ -1641,7 +1641,7 @@ export class ProductService {
       .where({ source: 'trendyol', isDeleted: false })
       .andWhere('product.categoryId != 1')
       .andWhere('product.gender IS NULL')
-      .orderBy('gallery.lastCrawlingAt', 'ASC')
+      .orderBy('product.lastCrawlingAt', 'ASC')
       .take(1000)
       .getMany();
 
@@ -1659,7 +1659,15 @@ export class ProductService {
         continue;
       }
 
-      if (!crawlerProduct.gender) continue;
+      if (!crawlerProduct.gender) {
+        await this.productRepository
+          .createQueryBuilder()
+          .update()
+          .set({ lastCrawlingAt: new Date() })
+          .where({ id: product.id })
+          .execute();
+        continue;
+      }
 
       await this.productRepository
         .createQueryBuilder()
