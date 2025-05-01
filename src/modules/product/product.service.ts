@@ -405,7 +405,6 @@ export class ProductService {
     filters,
     sorts = null,
     categoryId = null,
-    gender = null,
     priceRanges: any = {},
   ) {
     let categoryIds = [];
@@ -434,14 +433,14 @@ export class ProductService {
       });
     }
 
-    if (gender) {
-      builder.andWhere(
-        `(product.gender = :gender OR product.gender = 'unisex')`,
-        {
-          gender,
-        },
-      );
-    }
+    // if (gender) {
+    //   builder.andWhere(
+    //     `(product.gender = :gender OR product.gender = 'unisex')`,
+    //     {
+    //       gender,
+    //     },
+    //   );
+    // }
 
     // Product incredible offers
     builder

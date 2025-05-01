@@ -378,12 +378,12 @@ export class ProductController {
       ['color', 'attributeValue.extraValue'],
       'name',
       'number',
+      'gender',
     ])
     filters,
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
     @Query('category_id') categoryId,
-    @Query('gender') gender,
   ) {
     const list = await this.productService.getAll(
       page,
@@ -391,7 +391,6 @@ export class ProductController {
       filters,
       sorts,
       categoryId,
-      gender,
       {
         minPrice,
         maxPrice,
