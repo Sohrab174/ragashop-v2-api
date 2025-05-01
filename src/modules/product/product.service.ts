@@ -1804,7 +1804,7 @@ export class ProductService {
 
     for (const product of existingProducts) {
       await this.getProductByCrawler(product);
-      await sleep(1000);
+      await sleep(300);
     }
 
     return true;
@@ -2048,6 +2048,7 @@ export class ProductService {
         isDigitalGood: crawlerProduct.isDigitalGood,
         isArtWork: crawlerProduct.isArtWork,
         gender: crawlerProduct.gender,
+        status: ProductStatus.active,
         lastCrawlingAt: new Date(),
       })
       .where({ id: product.id })
