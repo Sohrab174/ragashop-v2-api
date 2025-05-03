@@ -72,19 +72,19 @@ export class ProductController {
   //   return successfulResult(['Done']);
   // }
 
-  /**
-   * -------------------------------------------------------
-   * POST /products/crawler/admin
-   */
-  @Post('/crawler/admin')
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(UserRoles.admin, UserRoles.employee)
-  async crawler() {
-    const results = await this.productService.getProductsByCrawler();
+  // /**
+  //  * -------------------------------------------------------
+  //  * POST /products/crawler/admin
+  //  */
+  // @Post('/crawler/admin')
+  // // @ApiBearerAuth()
+  // // @UseGuards(JwtAuthGuard, RolesGuard)
+  // // @Roles(UserRoles.admin, UserRoles.employee)
+  // async crawler() {
+  //   const results = await this.productService.getProductsByCrawler();
 
-    return successfulResult([], results);
-  }
+  //   return successfulResult([], results);
+  // }
 
   /**
    * -------------------------------------------------------

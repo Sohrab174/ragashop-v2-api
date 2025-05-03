@@ -41,7 +41,6 @@ import { ProductDescriptionEntity } from './entities/product-description.entity'
 import { BrandService } from '../brand/brand.service';
 import { SettingService } from '../setting/setting.service';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
-import { GROUP_IDS } from '../../thirdParty/crawler/sources/groupIds';
 import { FileStorageService } from '../../file-storage.service';
 
 @Injectable()
@@ -1525,134 +1524,6 @@ export class ProductService {
     }
   }
 
-  // /**
-  //  * -------------------------------------------------------
-  //  */
-  // async getProductGroupsByCralwer() {
-  //   await this.crawlerService.getProductGroups();
-  // }
-
-  /**
-   * -------------------------------------------------------
-   */
-  async getProductsByCrawler() {
-    const results = [];
-
-    for (const groupId of GROUP_IDS.reverse()) {
-      const crawledProducts = await this.crawlerService.getProducts(groupId);
-
-      const existingProducts = await this.productRepository.find({
-        where: { source: 'trendyol' },
-        relations: ['productGalleries'],
-      });
-
-      for (const product of crawledProducts) {
-        console.log('CRAWLER source product id', product.sourceId);
-
-        const existingProduct = existingProducts.find(
-          (p) => p.sourceId == product.sourceId,
-        );
-
-        if (existingProduct) {
-          continue;
-
-          // if (product.coverPath) {
-          //   const existCover = existingProduct.productGalleries.find(
-          //     (pg) => pg.pathFile === product.coverPath,
-          //   );
-
-          //   if (!existCover) {
-          //     const { identifiers } = await this.galleryRepository
-          //       .createQueryBuilder()
-          //       .insert()
-          //       .values({
-          //         productId: existingProduct.id,
-          //         type: ProductGalleryType.photo,
-          //         source: existingProduct.source,
-          //         pathFile: product.coverPath,
-          //         createdAt: new Date(),
-          //       })
-          //       .execute();
-          //     existingProduct.coverId = identifiers[0].id;
-          //   } else {
-          //     existingProduct.coverId = existCover.id;
-          //   }
-          // }
-
-          // existingProduct.sourceName = product.sourceName;
-          // existingProduct.name = await this._findOrTranslateProduct(
-          //   product.sourceName,
-          // );
-          // existingProduct.sourceUrl = product.sourceUrl;
-          // existingProduct.price = product.price;
-          // existingProduct.discountedPrice = product.discountedPrice;
-          // existingProduct.currency = product.currency;
-          // existingProduct.isDeleted = false;
-          // existingProduct.lastCrawlingAt = new Date();
-
-          // await existingProduct.save();
-
-          // results.push({ action: 'updated', productId: existingProduct.id });
-        } else {
-          const { identifiers } = await this.productRepository
-            .createQueryBuilder()
-            .insert()
-            .values({
-              categoryId: 1,
-              source: product.source,
-              sourceId: product.sourceId,
-              sourceName: product.sourceName,
-              name: await this._findOrTranslateProduct(product.sourceName),
-              sourceUrl: product.sourceUrl,
-              sourceGroupId: product.sourceGroupId,
-              price: product.price,
-              discountedPrice: product.discountedPrice,
-              discountPercent: 0,
-              tax: 0,
-              currency: product.currency,
-              quantity: -1,
-              star: 0,
-              starCountPerson: 0,
-              lastCrawlingAt: new Date(),
-              createdAt: new Date(),
-            })
-            .execute();
-
-          const productId = identifiers[0].id;
-
-          if (product.coverPath) {
-            const { identifiers } = await this.galleryRepository
-              .createQueryBuilder()
-              .insert()
-              .values({
-                productId,
-                type: ProductGalleryType.photo,
-                source: product.source,
-                pathFile: product.coverPath,
-                createdAt: new Date(),
-              })
-              .execute();
-            const coverId = identifiers[0].id;
-
-            await this.productRepository
-              .createQueryBuilder()
-              .update()
-              .set({ coverId })
-              .where({ id: productId })
-              .execute();
-          }
-
-          console.log('INSERT product id', productId);
-          results.push({ action: 'created', productId });
-        }
-      }
-
-      await sleep(100);
-    }
-
-    return results;
-  }
-
   /**
    * -------------------------------------------------------
    */
@@ -1674,7 +1545,7 @@ export class ProductService {
       console.log('CRAWLER source product id', product.sourceId);
 
       const existingProduct = await this.productRepository.count({
-        id: product.sourceId,
+        sourceId: product.sourceId,
         source: product.source,
       });
       if (existingProduct > 0) continue;
@@ -1739,80 +1610,30 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  async getProductsGenderByCrawler() {
-    const existingProducts = await this.productRepository
-      .createQueryBuilder('product')
-      .where({ source: 'trendyol', isDeleted: false })
-      .andWhere('product.categoryId != 1')
-      .andWhere('product.gender IS NULL')
-      .orderBy('product.lastCrawlingAt', 'ASC')
-      .take(1000)
-      .getMany();
-
-    for (const product of existingProducts) {
-      const crawlerProduct = await this.crawlerService.getProductById(
-        product.sourceId,
-      );
-      if (!crawlerProduct) {
-        await this.productRepository
-          .createQueryBuilder()
-          .update()
-          .set({ lastCrawlingAt: new Date(), isDeleted: true })
-          .where({ id: product.id })
-          .execute();
-        continue;
-      }
-
-      if (!crawlerProduct.gender) {
-        await this.productRepository
-          .createQueryBuilder()
-          .update()
-          .set({ lastCrawlingAt: new Date() })
-          .where({ id: product.id })
-          .execute();
-        continue;
-      }
-
-      await this.productRepository
-        .createQueryBuilder()
-        .update()
-        .set({ gender: crawlerProduct.gender, lastCrawlingAt: new Date() })
-        .where({ id: product.id })
-        .execute();
-
-      await sleep(500);
-    }
-
-    return true;
-  }
-
-  /**
-   * -------------------------------------------------------
-   */
   async getProductsDetailsByCrawler() {
-    const existingProducts = await this.productRepository
-      .createQueryBuilder('product')
-      .leftJoin('product.productGalleries', 'productGalleries')
-      .leftJoin('product.productDescriptions', 'productDescriptions')
-      .leftJoin('product.productAttributeValues', 'productAttributeValues')
-      .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
-      .addSelect([
-        'productGalleries.id',
-        'productGalleries.pathFile',
-        'productDescriptions.id',
-        'productDescriptions.sourceContent',
-        'productAttributeValues.id',
-        'productAttributeValues.attributeValueId',
-        'attributeValue.id',
-        'attributeValue.sourceId',
-      ])
-      .where({ source: 'trendyol', isDeleted: false })
-      .andWhere('product.categoryId = 1')
-      .take(100)
-      .getMany();
+    for (let i = 1; i <= 100; i++) {
+      const existingProduct = await this.productRepository
+        .createQueryBuilder('product')
+        .leftJoin('product.productGalleries', 'productGalleries')
+        .leftJoin('product.productDescriptions', 'productDescriptions')
+        .leftJoin('product.productAttributeValues', 'productAttributeValues')
+        .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
+        .addSelect([
+          'productGalleries.id',
+          'productGalleries.pathFile',
+          'productDescriptions.id',
+          'productDescriptions.sourceContent',
+          'productAttributeValues.id',
+          'productAttributeValues.attributeValueId',
+          'attributeValue.id',
+          'attributeValue.sourceId',
+        ])
+        .where({ source: 'trendyol', isDeleted: false })
+        .andWhere('product.categoryId = 1')
+        .orderBy('RAND()')
+        .getOne();
 
-    for (const product of existingProducts) {
-      await this.getProductByCrawler(product);
+      await this.getProductByCrawler(existingProduct);
       await sleep(300);
     }
 
@@ -2476,4 +2297,182 @@ export class ProductService {
       return content;
     });
   }
+
+  // /**
+  //  * -------------------------------------------------------
+  //  */
+  // async getProductsGenderByCrawler() {
+  //   const existingProducts = await this.productRepository
+  //     .createQueryBuilder('product')
+  //     .where({ source: 'trendyol', isDeleted: false })
+  //     .andWhere('product.categoryId != 1')
+  //     .andWhere('product.gender IS NULL')
+  //     .orderBy('product.lastCrawlingAt', 'ASC')
+  //     .take(1000)
+  //     .getMany();
+
+  //   for (const product of existingProducts) {
+  //     const crawlerProduct = await this.crawlerService.getProductById(
+  //       product.sourceId,
+  //     );
+  //     if (!crawlerProduct) {
+  //       await this.productRepository
+  //         .createQueryBuilder()
+  //         .update()
+  //         .set({ lastCrawlingAt: new Date(), isDeleted: true })
+  //         .where({ id: product.id })
+  //         .execute();
+  //       continue;
+  //     }
+
+  //     if (!crawlerProduct.gender) {
+  //       await this.productRepository
+  //         .createQueryBuilder()
+  //         .update()
+  //         .set({ lastCrawlingAt: new Date() })
+  //         .where({ id: product.id })
+  //         .execute();
+  //       continue;
+  //     }
+
+  //     await this.productRepository
+  //       .createQueryBuilder()
+  //       .update()
+  //       .set({ gender: crawlerProduct.gender, lastCrawlingAt: new Date() })
+  //       .where({ id: product.id })
+  //       .execute();
+
+  //     await sleep(500);
+  //   }
+
+  //   return true;
+  // }
+
+  // /**
+  //  * -------------------------------------------------------
+  //  */
+  // async getProductGroupsByCralwer() {
+  //   await this.crawlerService.getProductGroups();
+  // }
+
+  /**
+   * -------------------------------------------------------
+   */
+  // async getProductsByCrawler() {
+  //   const results = [];
+
+  //   for (const groupId of GROUP_IDS.reverse()) {
+  //     const crawledProducts = await this.crawlerService.getProducts(groupId);
+
+  //     const existingProducts = await this.productRepository.find({
+  //       where: { source: 'trendyol' },
+  //       relations: ['productGalleries'],
+  //     });
+
+  //     for (const product of crawledProducts) {
+  //       console.log('CRAWLER source product id', product.sourceId);
+
+  //       const existingProduct = existingProducts.find(
+  //         (p) => p.sourceId == product.sourceId,
+  //       );
+
+  //       if (existingProduct) {
+  //         continue;
+
+  //         // if (product.coverPath) {
+  //         //   const existCover = existingProduct.productGalleries.find(
+  //         //     (pg) => pg.pathFile === product.coverPath,
+  //         //   );
+
+  //         //   if (!existCover) {
+  //         //     const { identifiers } = await this.galleryRepository
+  //         //       .createQueryBuilder()
+  //         //       .insert()
+  //         //       .values({
+  //         //         productId: existingProduct.id,
+  //         //         type: ProductGalleryType.photo,
+  //         //         source: existingProduct.source,
+  //         //         pathFile: product.coverPath,
+  //         //         createdAt: new Date(),
+  //         //       })
+  //         //       .execute();
+  //         //     existingProduct.coverId = identifiers[0].id;
+  //         //   } else {
+  //         //     existingProduct.coverId = existCover.id;
+  //         //   }
+  //         // }
+
+  //         // existingProduct.sourceName = product.sourceName;
+  //         // existingProduct.name = await this._findOrTranslateProduct(
+  //         //   product.sourceName,
+  //         // );
+  //         // existingProduct.sourceUrl = product.sourceUrl;
+  //         // existingProduct.price = product.price;
+  //         // existingProduct.discountedPrice = product.discountedPrice;
+  //         // existingProduct.currency = product.currency;
+  //         // existingProduct.isDeleted = false;
+  //         // existingProduct.lastCrawlingAt = new Date();
+
+  //         // await existingProduct.save();
+
+  //         // results.push({ action: 'updated', productId: existingProduct.id });
+  //       } else {
+  //         const { identifiers } = await this.productRepository
+  //           .createQueryBuilder()
+  //           .insert()
+  //           .values({
+  //             categoryId: 1,
+  //             source: product.source,
+  //             sourceId: product.sourceId,
+  //             sourceName: product.sourceName,
+  //             name: await this._findOrTranslateProduct(product.sourceName),
+  //             sourceUrl: product.sourceUrl,
+  //             sourceGroupId: product.sourceGroupId,
+  //             price: product.price,
+  //             discountedPrice: product.discountedPrice,
+  //             discountPercent: 0,
+  //             tax: 0,
+  //             currency: product.currency,
+  //             quantity: -1,
+  //             star: 0,
+  //             starCountPerson: 0,
+  //             lastCrawlingAt: new Date(),
+  //             createdAt: new Date(),
+  //           })
+  //           .execute();
+
+  //         const productId = identifiers[0].id;
+
+  //         if (product.coverPath) {
+  //           const { identifiers } = await this.galleryRepository
+  //             .createQueryBuilder()
+  //             .insert()
+  //             .values({
+  //               productId,
+  //               type: ProductGalleryType.photo,
+  //               source: product.source,
+  //               pathFile: product.coverPath,
+  //               createdAt: new Date(),
+  //             })
+  //             .execute();
+  //           const coverId = identifiers[0].id;
+
+  //           await this.productRepository
+  //             .createQueryBuilder()
+  //             .update()
+  //             .set({ coverId })
+  //             .where({ id: productId })
+  //             .execute();
+  //         }
+
+  //         console.log('INSERT product id', productId);
+  //         results.push({ action: 'created', productId });
+  //       }
+  //     }
+
+  //     await sleep(100);
+  //   }
+
+  //   return results;
+  // }
 }
