@@ -1558,7 +1558,8 @@ export class ProductService {
           source: product.source,
           sourceId: product.sourceId,
           sourceName: product.sourceName,
-          name: await this._findOrTranslateProduct(product.sourceName),
+          // name: await this._findOrTranslateProduct(product.sourceName),
+          name: product.sourceName,
           sourceUrl: product.sourceUrl,
           sourceGroupId: product.sourceGroupId,
           price: product.price,
@@ -1634,7 +1635,7 @@ export class ProductService {
         .getOne();
 
       await this.getProductByCrawler(existingProduct);
-      await sleep(300);
+      await sleep(10);
     }
 
     return true;
