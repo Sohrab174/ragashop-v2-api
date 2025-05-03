@@ -61,9 +61,10 @@ export class CategoryController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status', ['name']])
+    @Filter(['status'])
     filters,
     @Query('parent_id') parentId,
+    @Query('name') name,
   ) {
     const list = await this.categoryService.getAllForAdmin(
       page,
@@ -71,6 +72,7 @@ export class CategoryController {
       filters,
       sorts,
       parentId,
+      name,
     );
 
     return successfulResult([], list);

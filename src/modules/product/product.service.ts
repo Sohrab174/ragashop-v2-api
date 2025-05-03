@@ -109,6 +109,7 @@ export class ProductService {
     filters = null,
     sorts = null,
     number = null,
+    name = null,
   ) {
     let builder = this.productRepository
       .createQueryBuilder('product')
@@ -133,6 +134,15 @@ export class ProductService {
       builder.andWhere(
         '(product.number LIKE :number OR productAttributeValues.number LIKE :number)',
         { number: `%${number}%` },
+      );
+    }
+
+    if (name) {
+      builder.andWhere(
+        '(product.name LIKE :name OR product.sourceName LIKE :name)',
+        {
+          name: `%${name}%`,
+        },
       );
     }
 

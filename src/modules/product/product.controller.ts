@@ -237,14 +237,10 @@ export class ProductController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter([
-      'status',
-      ['category_id', 'categoryId'],
-      ['brand_id', 'brandId'],
-      'name',
-    ])
+    @Filter(['status', ['category_id', 'categoryId'], ['brand_id', 'brandId']])
     filters,
     @Query('number') number,
+    @Query('name') name,
   ) {
     const list = await this.productService.getAllForAdmin(
       page,
@@ -252,6 +248,7 @@ export class ProductController {
       filters,
       sorts,
       number,
+      name,
     );
 
     return successfulResult([], list);

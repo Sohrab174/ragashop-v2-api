@@ -276,6 +276,7 @@ export class CategoryService {
     filters = null,
     sorts = null,
     parentId = null,
+    name = null,
   ) {
     let builder = this.categoryRepository
       .createQueryBuilder('category')
@@ -294,6 +295,15 @@ export class CategoryService {
       builder.andWhere('(category.parentId IS NULL OR category.parentId = "")');
     } else if (parentId) {
       builder.andWhere({ parentId });
+    }
+
+    if (name) {
+      builder.andWhere(
+        '(category.name LIKE :name OR category.sourceName LIKE :name)',
+        {
+          name: `%${name}%`,
+        },
+      );
     }
 
     const [items, totalItems] = await builder
