@@ -1541,7 +1541,7 @@ export class ProductService {
 
     if (crawledProducts.length === 0) return;
 
-    for (const product of crawledProducts) {
+    for (const product of crawledProducts.filter((p) => !!p?.sourceId)) {
       console.log('CRAWLER source product id', product.sourceId);
 
       const existingProduct = await this.productRepository.count({
