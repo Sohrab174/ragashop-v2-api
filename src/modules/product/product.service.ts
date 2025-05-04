@@ -1631,8 +1631,11 @@ export class ProductService {
         ])
         .where({ source: 'trendyol', isDeleted: false })
         .andWhere('product.categoryId = 1')
+        .andWhere('product.sourceId IS NOT NULL')
         .orderBy('RAND()')
         .getOne();
+
+      if (!existingProduct) break;
 
       try {
         await this.getProductByCrawler(existingProduct);

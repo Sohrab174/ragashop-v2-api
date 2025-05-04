@@ -308,3 +308,14 @@ export const retryOperation = async (
     return { success: false, result: error };
   }
 };
+
+export const smmaryToNumber = async (str) => {
+  if (!str || isNaN(str.replace(/[BMK]/, ''))) return 0;
+  if (str.endsWith('+')) return parseInt(str.slice(0, -1));
+  if (str.endsWith('B'))
+    return Math.floor(parseFloat(str.slice(0, -1)) * 1000000000);
+  if (str.endsWith('M'))
+    return Math.floor(parseFloat(str.slice(0, -1)) * 1000000);
+  if (str.endsWith('K')) return Math.floor(parseFloat(str.slice(0, -1)) * 1000);
+  return parseInt(str);
+};
