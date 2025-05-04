@@ -1634,7 +1634,11 @@ export class ProductService {
         .orderBy('RAND()')
         .getOne();
 
-      await this.getProductByCrawler(existingProduct);
+      try {
+        await this.getProductByCrawler(existingProduct);
+      } catch (e) {
+        console.log(e);
+      }
       await sleep(10);
     }
 
@@ -1709,7 +1713,7 @@ export class ProductService {
     });
 
     // Update or insert brand if missing --------------------------------------
-    if (!product.brandId) {
+    if (!product.brandId && crawlerProduct.brandId) {
       product.brandId = await this.brandService.addOrUpdate(
         product.source,
         crawlerProduct.brandId,
@@ -1718,7 +1722,7 @@ export class ProductService {
     }
 
     // Update or insert category if missing --------------------------------------
-    if (product.categoryId === 1) {
+    if (product.categoryId === 1 && crawlerProduct.categoryId) {
       product.categoryId = await this.categoryService.addOrUpdate(
         product.source,
         crawlerProduct.categoryId,
