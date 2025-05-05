@@ -554,22 +554,23 @@ export class ProductService {
       );
     }
 
+    // TODO: --------------------------------------
     // Group by sourceGroupId and get the first product of each group using a subquery
-    const subQuery = this.productRepository
-      .createQueryBuilder('subProduct')
-      .select('subProduct.id', 'id')
-      .addSelect(
-        'ROW_NUMBER() OVER (PARTITION BY subProduct.sourceGroupId ORDER BY subProduct.id)',
-        'row_num',
-      )
-      .andWhere({ status: ProductStatus.active })
-      .andWhere({ isDeleted: false });
+    // const subQuery = this.productRepository
+    //   .createQueryBuilder('subProduct')
+    //   .select('subProduct.id', 'id')
+    //   .addSelect(
+    //     'ROW_NUMBER() OVER (PARTITION BY subProduct.sourceGroupId ORDER BY subProduct.id)',
+    //     'row_num',
+    //   )
+    //   .andWhere({ status: ProductStatus.active })
+    //   .andWhere({ isDeleted: false });
 
-    builder.innerJoin(
-      `(${subQuery.getQuery()})`,
-      'groupedProducts',
-      'groupedProducts.id = product.id AND groupedProducts.row_num = 1',
-    );
+    // builder.innerJoin(
+    //   `(${subQuery.getQuery()})`,
+    //   'groupedProducts',
+    //   'groupedProducts.id = product.id AND groupedProducts.row_num = 1',
+    // );
 
     const [items, totalItems] = await builder
       .take(limit)
