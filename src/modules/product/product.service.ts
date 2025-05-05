@@ -452,64 +452,64 @@ export class ProductService {
     // }
 
     // Product incredible offers
-    builder
-      .leftJoin(
-        'product.incredibleOffers',
-        'productIncredibleOffers',
-        'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
-        { now: new Date() },
-      )
-      .addSelect('productIncredibleOffers.id')
-      .addSelect('productIncredibleOffers.discountedPrice')
-      .addSelect('productIncredibleOffers.toDate')
+    // builder
+    //   .leftJoin(
+    //     'product.incredibleOffers',
+    //     'productIncredibleOffers',
+    //     'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
+    //     { now: new Date() },
+    //   )
+    //   .addSelect('productIncredibleOffers.id')
+    //   .addSelect('productIncredibleOffers.discountedPrice')
+    //   .addSelect('productIncredibleOffers.toDate')
 
-      // Product attribute value
-      .leftJoin(
-        'product.productAttributeValues',
-        'productAttributeValues',
-        'productAttributeValues.isDeleted = 0',
-      )
-      .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
-      .leftJoin(
-        'attributeValue.attribute',
-        'attribute',
-        'attribute.type = :type',
-        { type: AttributeTypes.color },
-      )
-      .addSelect('productAttributeValues.id')
-      .addSelect('productAttributeValues.price')
-      .addSelect('productAttributeValues.discountedPrice')
-      .addSelect('productAttributeValues.quantity')
-      .addSelect('attributeValue.id')
-      .addSelect('attributeValue.extraValue')
-      .addSelect('attribute.id')
+    //   // Product attribute value
+    //   .leftJoin(
+    //     'product.productAttributeValues',
+    //     'productAttributeValues',
+    //     'productAttributeValues.isDeleted = 0',
+    //   )
+    //   .leftJoin('productAttributeValues.attributeValue', 'attributeValue')
+    //   .leftJoin(
+    //     'attributeValue.attribute',
+    //     'attribute',
+    //     'attribute.type = :type',
+    //     { type: AttributeTypes.color },
+    //   )
+    //   .addSelect('productAttributeValues.id')
+    //   .addSelect('productAttributeValues.price')
+    //   .addSelect('productAttributeValues.discountedPrice')
+    //   .addSelect('productAttributeValues.quantity')
+    //   .addSelect('attributeValue.id')
+    //   .addSelect('attributeValue.extraValue')
+    //   .addSelect('attribute.id')
 
-      // Product incredible offers for attributes
-      .leftJoin(
-        'productAttributeValues.incredibleOffers',
-        'productAttributeIncredibleOffers',
-        'productAttributeIncredibleOffers.fromDate <= :now AND productAttributeIncredibleOffers.toDate >= :now',
-        { now: new Date() },
-      )
-      .addSelect('productAttributeIncredibleOffers.id')
-      .addSelect('productAttributeIncredibleOffers.discountedPrice')
-      .addSelect('productAttributeIncredibleOffers.toDate');
+    //   // Product incredible offers for attributes
+    //   .leftJoin(
+    //     'productAttributeValues.incredibleOffers',
+    //     'productAttributeIncredibleOffers',
+    //     'productAttributeIncredibleOffers.fromDate <= :now AND productAttributeIncredibleOffers.toDate >= :now',
+    //     { now: new Date() },
+    //   )
+    //   .addSelect('productAttributeIncredibleOffers.id')
+    //   .addSelect('productAttributeIncredibleOffers.discountedPrice')
+    //   .addSelect('productAttributeIncredibleOffers.toDate');
 
-    builder.addSelect(
-      `
-        COALESCE(
-          MIN(
-            COALESCE(
-              NULLIF(productAttributeValues.discountedPrice, 0),
-              NULLIF(productAttributeValues.price, 0)
-            )
-          ) OVER (PARTITION BY product.id),
-          NULLIF(product.discountedPrice, 0),
-          NULLIF(product.price, 0),
-          0
-        ) AS mainPrice
-      `,
-    );
+    // builder.addSelect(
+    //   `
+    //     COALESCE(
+    //       MIN(
+    //         COALESCE(
+    //           NULLIF(productAttributeValues.discountedPrice, 0),
+    //           NULLIF(productAttributeValues.price, 0)
+    //         )
+    //       ) OVER (PARTITION BY product.id),
+    //       NULLIF(product.discountedPrice, 0),
+    //       NULLIF(product.price, 0),
+    //       0
+    //     ) AS mainPrice
+    //   `,
+    // );
 
     if (sorts) {
       if (sorts[0].field === 'sales') {
@@ -542,10 +542,10 @@ export class ProductService {
     builder = applyFiltersToBuilder(builder, filters);
 
     if (priceRanges?.minPrice && priceRanges?.maxPrice) {
+      // NULLIF(productAttributeValues.discountedPrice, 0),
+      // NULLIF(productAttributeValues.price, 0),
       builder.andWhere(
         `COALESCE(
-          NULLIF(productAttributeValues.discountedPrice, 0),
-          NULLIF(productAttributeValues.price, 0),
           NULLIF(product.discountedPrice, 0),
           NULLIF(product.price, 0),
           0
@@ -1391,24 +1391,26 @@ export class ProductService {
       price: tryToToman * item.price,
       discountedPrice:
         tryToToman * (offer?.discountedPrice || item.discountedPrice),
-      incredibleOfferExpire: offer?.toDate || null,
-      productAttributeValues: item.productAttributeValues
-        .filter(
-          (attr) =>
-            !!attr.attributeValue?.attribute?.id &&
-            !!attr.attributeValue?.extraValue,
-        )
-        .map((attr) => ({
-          id: attr.id,
-          color: attr.attributeValue?.extraValue || null,
-          price: tryToToman * attr.price,
-          discountedPrice:
-            tryToToman *
-            (attr.incredibleOffers?.[0]?.discountedPrice ||
-              attr.discountedPrice),
-          quantity: item.quantity,
-          incredibleOfferExpire: attr.incredibleOffers?.[0]?.toDate || null,
-        })),
+      incredibleOfferExpire: [],
+      productAttributeValues: [],
+      // incredibleOfferExpire: offer?.toDate || null,
+      // productAttributeValues: item.productAttributeValues
+      //   .filter(
+      //     (attr) =>
+      //       !!attr.attributeValue?.attribute?.id &&
+      //       !!attr.attributeValue?.extraValue,
+      //   )
+      //   .map((attr) => ({
+      //     id: attr.id,
+      //     color: attr.attributeValue?.extraValue || null,
+      //     price: tryToToman * attr.price,
+      //     discountedPrice:
+      //       tryToToman *
+      //       (attr.incredibleOffers?.[0]?.discountedPrice ||
+      //         attr.discountedPrice),
+      //     quantity: item.quantity,
+      //     incredibleOfferExpire: attr.incredibleOffers?.[0]?.toDate || null,
+      //   })),
     };
   }
 
