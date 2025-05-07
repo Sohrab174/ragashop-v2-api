@@ -436,6 +436,7 @@ export class ProductService {
       .leftJoinAndSelect('product.cover', 'cover')
       .andWhere({ status: ProductStatus.active })
       .andWhere({ isDeleted: false })
+      .andWhere('product.price > 0')
       .andWhere('product.categoryId != 1');
 
     if (categoryIds.length > 0) {
@@ -497,21 +498,20 @@ export class ProductService {
     //   .addSelect('productAttributeIncredibleOffers.discountedPrice')
     //   .addSelect('productAttributeIncredibleOffers.toDate');
 
-    // builder.addSelect(
-    //   `
-    //     COALESCE(
-    //       MIN(
-    //         COALESCE(
-    //           NULLIF(productAttributeValues.discountedPrice, 0),
-    //           NULLIF(productAttributeValues.price, 0)
-    //         )
-    //       ) OVER (PARTITION BY product.id),
-    //       NULLIF(product.discountedPrice, 0),
-    //       NULLIF(product.price, 0),
-    //       0
-    //     ) AS mainPrice
-    //   `,
-    // );
+    // MIN(
+    //   COALESCE(
+    //     NULLIF(productAttributeValues.discountedPrice, 0),
+    //     NULLIF(productAttributeValues.price, 0)
+    //   )
+    // ) OVER (PARTITION BY product.id),
+    builder.addSelect(
+      `COALESCE(
+          NULLIF(product.discountedPrice, 0),
+          NULLIF(product.price, 0),
+          0
+        )`,
+      'mainPrice',
+    );
 
     if (sorts) {
       if (sorts[0].field === 'sales') {
