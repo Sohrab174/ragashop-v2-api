@@ -32,10 +32,9 @@ export class CustomerJwtStrategy extends PassportStrategy(
 
   public async validate(payload: JwtPayload) {
     if (!payload.id) {
-      this.error.unauthorized();
+      return null;
     }
 
-    // TODO: check company
     const customer = await this.customerService.getActiveById(payload.id);
     return customer;
   }

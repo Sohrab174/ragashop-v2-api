@@ -15,6 +15,7 @@ import { TransactionEntity } from '../../transaction/entities/transaction.entity
 import { AddressEntity } from '../../address/entities/address.entity';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
 import { WalletHistoryEntity } from './wallet-history.entity';
+import { ProductFavoriteEntity } from '../../favorite/entities/product-favorite.entity';
 
 export enum CustomerStatus {
   active = 'active',
@@ -124,6 +125,12 @@ export class CustomerEntity extends BaseEntity {
 
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;
+
+  @OneToMany(
+    () => ProductFavoriteEntity,
+    (productFavorite) => productFavorite.customer,
+  )
+  productFavorites: ProductFavoriteEntity[];
 
   /**
    * Relations

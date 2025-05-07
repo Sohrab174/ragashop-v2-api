@@ -73,6 +73,7 @@ export const underscoreToCamelCase = (value: string) => {
   return value.replace(/_./g, (m) => m[1].toUpperCase());
 };
 
+// --------------------------------------
 export const applyFiltersToBuilder = (builder, filters) => {
   if (filters) {
     filters.forEach((filter) => {
@@ -80,13 +81,19 @@ export const applyFiltersToBuilder = (builder, filters) => {
       const fields = [];
 
       filter.data.forEach((data, i) => {
-        let param = `${data.field}_${i + 1}`;
-        paramsValue[param] = data.value;
+        let param = '';
 
-        if (data.comparisonOperator === 'IN') {
-          param = `(:...${param})`;
+        if (['IS', 'IS NOT'].includes(data.comparisonOperator)) {
+          param = 'NULL';
         } else {
-          param = `:${param}`;
+          param = `${data.field}_${i + 1}`;
+          paramsValue[param] = data.value;
+
+          if (['IN', 'NOT IN'].includes(data.comparisonOperator)) {
+            param = `(:...${param})`;
+          } else {
+            param = `:${param}`;
+          }
         }
 
         let alias = '';

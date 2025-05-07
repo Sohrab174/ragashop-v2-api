@@ -18,6 +18,7 @@ import { OrderItemEntity } from '../../order/entities/order-item.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 import { ProductDescriptionEntity } from './product-description.entity';
 import { PageSectionItemEntity } from '../../page/entities/page-section-item.entity';
+import { ProductFavoriteEntity } from '../../favorite/entities/product-favorite.entity';
 
 export enum ProductStatus {
   active = 'active',
@@ -293,4 +294,10 @@ export class ProductEntity extends BaseEntity {
     (pageSectionItem) => pageSectionItem.product,
   )
   pageSectionItems: PageSectionItemEntity[];
+
+  @OneToMany(
+    () => ProductFavoriteEntity,
+    (productFavorite) => productFavorite.product,
+  )
+  favorites: ProductFavoriteEntity[];
 }

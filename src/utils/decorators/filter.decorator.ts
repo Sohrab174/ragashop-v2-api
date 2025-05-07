@@ -85,16 +85,25 @@ export const Filter = createParamDecorator(
 
         const filter = [];
         values.forEach((item) => {
-          const valueAndOperator = item.split(':'); // gt:2
+          const valueAndOperator = item.split(/:(.+)/); // gt:2
 
           let value = valueAndOperator[0];
           let comparisonOperator = 'eq'; // default operator
-          if (valueAndOperator.length === 2) {
+          if (valueAndOperator.length >= 2) {
             comparisonOperator = valueAndOperator[0]; // ne | gt | ...
+
+            if (comparisonOperator === 'isn') {
+              comparisonOperator = 'is not';
+            } else if (comparisonOperator === 'nin') {
+              comparisonOperator = 'not in';
+            } else if (comparisonOperator === 'nlike') {
+              comparisonOperator = 'not like';
+            }
+
             value = valueAndOperator[1];
           }
 
-          if (comparisonOperator === 'in') {
+          if (['in', 'not in'].includes(comparisonOperator)) {
             value = value.split(',').map((v) => (/^\d+$/.test(v) ? +v : v));
           } else {
             value = /^\d+$/.test(value) ? +value : value; //  '2' -> 2

@@ -38,6 +38,9 @@ import { ProductSortDto } from './dto/product-sort.dto';
 import * as dotenv from 'dotenv';
 import { CreateUpdateProductAttrValueDto } from './dto/create-update-product-attr-value.dto';
 import { ProductImportExcelDto } from './dto/product-import-excel.dto';
+import { Customer } from '../../utils/decorators/customer.decorator';
+import { CustomerEntity } from '../customer/entities/customer.entity';
+import { OptionalCustomerJwtAuthGuard } from '../customer/jwt/jwt.guard';
 dotenv.config();
 
 @ApiTags('Product')
@@ -355,12 +358,15 @@ export class ProductController {
    * GET /products
    */
   @Get()
+  @ApiBearerAuth()
+  @UseGuards(OptionalCustomerJwtAuthGuard)
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'min_price', required: false })
   @ApiQuery({ name: 'max_price', required: false })
   @ApiQuery({ name: 'category_id', required: false })
   @ApiQuery({ name: 'gender', required: false })
   @ApiQuery({ name: 'brand_id', required: false })
+  @ApiQuery({ name: 'is_favorite', required: false })
   @ApiQuery({ name: 'color', required: false })
   @ApiQuery({ name: 'number', required: false })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -376,11 +382,13 @@ export class ProductController {
       'name',
       'number',
       'gender',
+      ['is_favorite', 'favorites.id'],
     ])
     filters,
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
     @Query('category_id') categoryId,
+    @Customer() customer: CustomerEntity,
   ) {
     const list = await this.productService.getAll(
       page,
@@ -392,6 +400,7 @@ export class ProductController {
         minPrice,
         maxPrice,
       },
+      customer,
     );
 
     return successfulResult([], list);

@@ -31,6 +31,7 @@ import { AddressModule } from './modules/address/address.module';
 import { SettingModule } from './modules/setting/setting.module';
 import { CityModule } from './modules/city/city.module';
 import { NavMenuModule } from './modules/nav-menu/nav-menu.module';
+import { FavoriteModule } from './modules/favorite/favorite.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { NavMenuModule } from './modules/nav-menu/nav-menu.module';
     SettingModule,
     CityModule,
     NavMenuModule,
+    FavoriteModule,
     // DiscountCouponModule,
   ],
   providers: [

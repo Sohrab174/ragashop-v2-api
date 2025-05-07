@@ -42,6 +42,7 @@ import { BrandService } from '../brand/brand.service';
 import { SettingService } from '../setting/setting.service';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
 import { FileStorageService } from '../../file-storage.service';
+import { CustomerEntity } from '../customer/entities/customer.entity';
 
 @Injectable()
 export class ProductService {
@@ -415,6 +416,7 @@ export class ProductService {
     sorts = null,
     categoryId = null,
     priceRanges: any = {},
+    customer: CustomerEntity,
   ) {
     let categoryIds = [];
     if (categoryId) {
@@ -571,6 +573,17 @@ export class ProductService {
     //   'groupedProducts',
     //   'groupedProducts.id = product.id AND groupedProducts.row_num = 1',
     // );
+
+    if (customer) {
+      builder
+        .leftJoin(
+          'product.favorites',
+          'favorites',
+          'favorites.isDeleted = 0 AND favorites.customerId = :customerId',
+          { customerId: customer.id },
+        )
+        .addSelect(['favorites.id']);
+    }
 
     const [items, totalItems] = await builder
       .take(limit)
