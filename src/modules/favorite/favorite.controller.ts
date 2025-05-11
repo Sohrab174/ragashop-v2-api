@@ -2,7 +2,6 @@ import { Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { successfulResult } from '../../utils';
-import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { FavoriteService } from './favorite.service';
 import { ErrorService } from '../../error/error.service';
 import { Customer } from '../../utils/decorators/customer.decorator';

@@ -434,6 +434,7 @@ export class ProductService {
         status: CategoryStatus.active,
       })
       .leftJoinAndSelect('product.cover', 'cover')
+      .leftJoinAndSelect('product.brand', 'brand')
       .andWhere({ status: ProductStatus.active })
       .andWhere({ isDeleted: false })
       .andWhere('product.price > 0')
