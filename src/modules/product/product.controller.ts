@@ -335,6 +335,17 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
+   * GET /products/link
+   */
+  @Get('link')
+  @ApiQuery({ name: 'link', required: true })
+  async getByLink(@Query('link') link: string) {
+    const data = await this.productService.getByLink(link);
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
    * GET /products/:id
    */
   @Get(':id')

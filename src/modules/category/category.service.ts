@@ -491,7 +491,47 @@ export class CategoryService {
       );
     }
 
-    return groupedCategories;
+    function deepCloneCategoryTree(category: any): any {
+      return {
+        ...category,
+        subCategories: category.subCategories
+          ? category.subCategories.map(deepCloneCategoryTree)
+          : undefined,
+      };
+    }
+
+    // Function to generate gendered copies of "لباس" only
+    function createGenderedCategories(categories: any[]) {
+      const result: any[] = [];
+
+      const genders = [
+        { name: 'زنانه', id: 'female' },
+        { name: 'مردانه', id: 'male' },
+        { name: 'بچگانه', id: 'child' },
+      ];
+
+      for (const category of categories) {
+        if (category.name === 'لباس') {
+          for (const gender of genders) {
+            const rootClone = deepCloneCategoryTree(category);
+            rootClone.name = gender.name;
+            rootClone.orginalId = rootClone.id;
+            rootClone.id = gender.id;
+            rootClone.gender = gender.id;
+            rootClone.parentId = null;
+            result.push(rootClone);
+          }
+        } else {
+          const rootClone = deepCloneCategoryTree(category);
+          rootClone.orginalId = rootClone.id;
+          result.push(rootClone);
+        }
+      }
+
+      return result;
+    }
+
+    return createGenderedCategories(groupedCategories);
   }
 
   /**

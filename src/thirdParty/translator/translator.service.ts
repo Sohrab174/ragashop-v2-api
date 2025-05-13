@@ -42,7 +42,7 @@ export class TranslatorService {
       // Return the translated text from the response
       const translated = response.data.choices[0].message.content;
 
-      console.log({ text, translated });
+      // console.log({ text, translated });
       return translated;
     } catch (error: any) {
       console.error(
@@ -75,14 +75,14 @@ export class TranslatorService {
         stream: false,
       });
 
-      console.log(response.data.choices);
+      // console.log(response.data.choices);
 
       // Return the translated text from the response
       const translateds = JSON.parse(
         response.data.choices[0].message.content || '',
       );
 
-      console.log({ texts, translateds });
+      // console.log({ texts, translateds });
 
       return texts.map((text, index) => ({
         text,

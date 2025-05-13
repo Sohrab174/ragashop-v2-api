@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { MENU } from './sources/menu';
 import { ProductGender } from '../../modules/product/entities/product.entity';
-import { sleep } from '../../utils';
+import { sleep, smmaryToNumber } from '../../utils';
 
 @Injectable()
 export class CrawlerService {
@@ -174,6 +174,7 @@ export class CrawlerService {
         sourceUrl: product.url,
         star: product?.ratingScore?.averageRating || 0,
         starCountPerson: product?.ratingScore?.totalRatingCount || 0,
+        commentCount: product?.ratingScore?.totalCommentCount || 0,
         sourceGroupId: product.productGroupId,
         sizeChartUrl: product.sizeChartUrl,
         coverPath: product.imageUrl,
@@ -193,6 +194,11 @@ export class CrawlerService {
         isDigitalGood: product?.isDigitalGood || false,
         hasStock: product?.hasStock || false,
         favoriteCount: product?.favoriteCount || 0,
+        basketCount: smmaryToNumber(product?.socialProof?.basketCount || '0'),
+        orderCount: smmaryToNumber(product?.socialProof?.orderCount || '0'),
+        pageViewCount: smmaryToNumber(
+          product?.socialProof?.pageViewCount || '0',
+        ),
         uxLayout: product?.uxLayout || null,
         categoryId: product?.category?.id || null,
         categoryName: product?.category?.name || null,
