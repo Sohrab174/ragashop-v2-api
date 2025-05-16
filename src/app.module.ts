@@ -25,13 +25,14 @@ import { AttributeModule } from './modules/attribute/attribute.module';
 import { PageModule } from './modules/page/page.module';
 import { TasksModule } from './tasks/tasks.module';
 import { IncredibleOfferModule } from './modules/incredible-offer/Incredible-offer.module';
-import { TelegramApiModule } from './thirdParty/telegram-api/telegram-api.module';
 import { BrandModule } from './modules/brand/brand.module';
 import { AddressModule } from './modules/address/address.module';
 import { SettingModule } from './modules/setting/setting.module';
 import { CityModule } from './modules/city/city.module';
 import { NavMenuModule } from './modules/nav-menu/nav-menu.module';
 import { FavoriteModule } from './modules/favorite/favorite.module';
+import { TelegrafModule } from 'nestjs-telegraf';
+import { TelegrafConfigService } from './thirdParty/telegraf/telegraf-config.service';
 
 @Module({
   imports: [
@@ -45,7 +46,9 @@ import { FavoriteModule } from './modules/favorite/favorite.module';
     }),
     ScheduleModule.forRoot(),
     ErrorModule.register(),
-    TelegramApiModule,
+    TelegrafModule.forRootAsync({
+      useClass: TelegrafConfigService,
+    }),
 
     // Project modules
     CommonModule,

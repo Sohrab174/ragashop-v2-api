@@ -10,11 +10,12 @@ import {
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { sliceText } from '..';
-import { TelegramApiService } from '../../thirdParty/telegram-api/telegram-api.service';
 
 @Injectable()
 export class ErrorsInterceptor implements NestInterceptor {
-  constructor(private readonly telegramApiService: TelegramApiService) {}
+  constructor() {
+    //
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     return next.handle().pipe(

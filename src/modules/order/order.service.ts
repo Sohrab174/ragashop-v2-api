@@ -6,6 +6,7 @@ import { ErrorService } from '../../error/error.service';
 import {
   applyFiltersToBuilder,
   applySortingToBuilder,
+  digit,
   paginationResult,
 } from '../../utils';
 
@@ -20,6 +21,7 @@ import { OrderStatusEntity } from './entities/order-status.entity';
 import { AddressService } from '../address/address.service';
 import { SettingService } from '../setting/setting.service';
 import { WalletHistoryType } from '../customer/entities/wallet-history.entity';
+import { TelegrafBotService } from '../../thirdParty/telegraf/telegraf-bot.service';
 
 @Injectable()
 export class OrderService {
@@ -42,6 +44,7 @@ export class OrderService {
     private customerService: CustomerService,
     private addressService: AddressService,
     private settingService: SettingService,
+    private telegrafBotService: TelegrafBotService,
   ) {}
 
   /**
@@ -603,6 +606,13 @@ export class OrderService {
     order.status = OrderStatus.paid;
     await order.save();
 
+    // notif to telegram
+    this.telegrafBotService.sendNotification(
+      `✅ سفارش جدید\n💰 ${digit(order.finalAmount)} تومان\n\n👱🏻‍♂️ ${
+        order.customer.firstName || ''
+      } ${order.customer.lastName || ''}\n📞 ${order.customer.mobile}`,
+    );
+
     // point to referrer
     if (order.customer.referrerCode) {
       const referrerCustomer = await this.customerService.findByReferrerCode(
@@ -644,6 +654,15 @@ export class OrderService {
             relatedCustomerId: order.customerId,
             relatedOrderId: order.id,
           });
+
+          // notif to telegram
+          this.telegrafBotService.sendNotification(
+            `💌 اعتبار به معرف\n💰 ${buyPercentToReferrerCreditUSD} دلار\n\n👱🏻‍♂️ ${
+              referrerCustomer.firstName || ''
+            } ${referrerCustomer.lastName || ''}\n📞 ${
+              referrerCustomer.mobile
+            }`,
+          );
         }
 
         if (buyPercentToReferrerCreditIRT > 0) {
@@ -658,6 +677,15 @@ export class OrderService {
             relatedCustomerId: order.customerId,
             relatedOrderId: order.id,
           });
+
+          // notif to telegram
+          this.telegrafBotService.sendNotification(
+            `💌 اعتبار به معرف\n💰 ${digit(
+              buyPercentToReferrerCreditIRT,
+            )} تومان\n\n👱🏻‍♂️ ${referrerCustomer.firstName || ''} ${
+              referrerCustomer.lastName || ''
+            }\n📞 ${referrerCustomer.mobile}`,
+          );
         }
 
         if (buyPercentToReferrerCreditTRY > 0) {
@@ -672,6 +700,15 @@ export class OrderService {
             relatedCustomerId: order.customerId,
             relatedOrderId: order.id,
           });
+
+          // notif to telegram
+          this.telegrafBotService.sendNotification(
+            `💌 اعتبار به معرف\n💰 ${buyPercentToReferrerCreditTRY} لیر\n\n👱🏻‍♂️ ${
+              referrerCustomer.firstName || ''
+            } ${referrerCustomer.lastName || ''}\n📞 ${
+              referrerCustomer.mobile
+            }`,
+          );
         }
       }
     }
