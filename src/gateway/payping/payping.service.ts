@@ -16,7 +16,8 @@ export class PaypingService {
       baseURL: 'http://188.121.113.58:1070/https://api.payping.ir/v2',
     });
 
-    this.redirectUrl = 'https://api.payping.ir/v2/pay/gotoipg';
+    // this.redirectUrl = 'https://api.payping.ir/v2/pay/gotoipg';
+    this.redirectUrl = (code) => `https://ragaex.co/payping.php?token=${code}`;
   }
 
   /**

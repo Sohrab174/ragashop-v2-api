@@ -25,7 +25,6 @@ import { Page } from '../../utils/decorators/page.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
 import { Filter } from '../../utils/decorators/filter.decorator';
-import { User } from '../../utils/decorators/user.decorator';
 import { OrderStatus } from './entities/order.entity';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { Customer } from '../../utils/decorators/customer.decorator';
