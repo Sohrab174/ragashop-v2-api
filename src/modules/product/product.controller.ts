@@ -41,6 +41,7 @@ import { ProductImportExcelDto } from './dto/product-import-excel.dto';
 import { Customer } from '../../utils/decorators/customer.decorator';
 import { CustomerEntity } from '../customer/entities/customer.entity';
 import { OptionalCustomerJwtAuthGuard } from '../customer/jwt/jwt.guard';
+import { UpdateGroupProductDto } from './dto/update-group-product.dto';
 dotenv.config();
 
 @ApiTags('Product')
@@ -399,6 +400,7 @@ export class ProductController {
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
     @Query('category_id') categoryId,
+    @Query('search') search,
     @Customer() customer: CustomerEntity,
   ) {
     const list = await this.productService.getAll(
@@ -411,6 +413,7 @@ export class ProductController {
         minPrice,
         maxPrice,
       },
+      search,
       customer,
     );
 
@@ -556,6 +559,20 @@ export class ProductController {
     await this.productService.sort(dto, user, filters);
 
     return successfulResult(['محصول مورد نظر جا‌به‌جا شد']);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /products/group/admin
+   */
+  @Put('group/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  async groupUpdate(@Body() dto: UpdateGroupProductDto) {
+    await this.productService.groupUpdate(dto);
+
+    return successfulResult(['محصول(های) مورد نظر با موفقیت آپدیت شد']);
   }
 
   /**

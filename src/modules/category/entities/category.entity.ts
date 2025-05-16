@@ -19,6 +19,13 @@ export enum CategoryStatus {
   inactive = 'inactive',
 }
 
+export enum CategoryGender {
+  male = 'male',
+  female = 'female',
+  child = 'child',
+  unisex = 'unisex',
+}
+
 @Index('fk_category_category1_idx', ['parentId'], {})
 @Entity('category')
 export class CategoryEntity extends BaseEntity {
@@ -62,6 +69,9 @@ export class CategoryEntity extends BaseEntity {
     transformer: new BooleanTransformer(),
   })
   isSelection: boolean;
+
+  @Column('enum', { name: 'gender', nullable: true, enum: CategoryGender })
+  gender: CategoryGender | null;
 
   @Column('enum', {
     name: 'status',

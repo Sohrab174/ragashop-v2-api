@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional } from 'class-validator';
-import { CategoryStatus } from '../entities/category.entity';
+import { CategoryGender, CategoryStatus } from '../entities/category.entity';
 
 export class CreateCategoryDto {
   @ApiProperty()
@@ -19,4 +19,9 @@ export class CreateCategoryDto {
   @ApiProperty({ required: false })
   @IsOptional()
   isSelection: boolean;
+
+  @ApiProperty({ required: false, enum: CategoryGender })
+  @IsOptional()
+  @IsIn(Object.values(CategoryGender))
+  gender: CategoryGender;
 }

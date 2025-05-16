@@ -43,6 +43,7 @@ import { SettingService } from '../setting/setting.service';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
 import { FileStorageService } from '../../file-storage.service';
 import { CustomerEntity } from '../customer/entities/customer.entity';
+import { UpdateGroupProductDto } from './dto/update-group-product.dto';
 
 @Injectable()
 export class ProductService {
@@ -115,6 +116,7 @@ export class ProductService {
       .createQueryBuilder('product')
       .innerJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.cover', 'cover')
+      .leftJoinAndSelect('product.brand', 'brand')
       .leftJoinAndSelect(
         'product.productAttributeValues',
         'productAttributeValues',
@@ -605,6 +607,7 @@ export class ProductService {
     sorts = null,
     categoryId = null,
     priceRanges: any = {},
+    search = null,
     customer: CustomerEntity,
   ) {
     let categoryIds = [];
@@ -633,6 +636,15 @@ export class ProductService {
       builder.andWhere('product.categoryId IN (:...categoryIds)', {
         categoryIds,
       });
+    }
+
+    if (search) {
+      builder.andWhere(
+        '(product.name LIKE :search OR product.sourceName LIKE :search OR brand.name LIKE :search OR category.name LIKE :search)',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     // if (gender) {
@@ -1132,6 +1144,27 @@ export class ProductService {
     }
 
     return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /products/group/admin
+   */
+  async groupUpdate(dto: UpdateGroupProductDto) {
+    if (!dto.categoryId && !dto.status && !dto.gender) {
+      this.error.methodNotAllowed(['تغییری انتخاب نشده است!']);
+    }
+
+    await this.productRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        ...(dto.status && { status: dto.status }),
+        ...(dto.gender && { gender: dto.gender }),
+        ...(dto.categoryId && { categoryId: dto.categoryId }),
+      })
+      .where({ id: In(dto.ids) })
+      .execute();
   }
 
   /**

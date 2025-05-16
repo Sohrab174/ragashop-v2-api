@@ -60,6 +60,7 @@ export class CategoryService {
         status: dto.status,
         parentId: dto.parentId,
         isSelection: dto.isSelection || false,
+        gender: dto?.gender || null,
         displayOrder: await getLastDisplayOrder(CategoryEntity.name),
         createdAt: new Date(),
       })
@@ -100,6 +101,7 @@ export class CategoryService {
     targetCategory.status = dto.status;
     targetCategory.name = dto.name;
     targetCategory.isSelection = dto.isSelection || false;
+    targetCategory.gender = dto?.gender || null;
 
     await targetCategory.save();
 
@@ -462,18 +464,12 @@ export class CategoryService {
   async getAllTree(childId = null) {
     const categories = await this.categoryRepository
       .createQueryBuilder('category')
-
-      // .innerJoin(
-      //   'category.products',
-      //   'products',
-      //   'products.status = :pStatus',
-      //   { pStatus: ProductStatus.active },
-      // )
       .select([
         'category.id',
         'category.parentId',
         'category.iconPath',
         'category.name',
+        'category.gender',
       ])
       .where({ status: CategoryStatus.active })
       .orderBy('category.displayOrder', 'ASC')
@@ -491,11 +487,17 @@ export class CategoryService {
       );
     }
 
-    function deepCloneCategoryTree(category: any): any {
+    function deepCloneCategoryTree(category: any, gender): any {
+      if (category.gender && gender && category.gender !== gender) {
+        return null;
+      }
+
       return {
         ...category,
         subCategories: category.subCategories
-          ? category.subCategories.map(deepCloneCategoryTree)
+          ? category.subCategories
+              .map((c) => deepCloneCategoryTree(c, gender))
+              .filter((c) => c)
           : undefined,
       };
     }
@@ -513,7 +515,7 @@ export class CategoryService {
       for (const category of categories) {
         if (category.name === 'لباس') {
           for (const gender of genders) {
-            const rootClone = deepCloneCategoryTree(category);
+            const rootClone = deepCloneCategoryTree(category, gender.id);
             rootClone.name = gender.name;
             rootClone.orginalId = rootClone.id;
             rootClone.id = gender.id;
@@ -522,7 +524,7 @@ export class CategoryService {
             result.push(rootClone);
           }
         } else {
-          const rootClone = deepCloneCategoryTree(category);
+          const rootClone = deepCloneCategoryTree(category, null);
           rootClone.orginalId = rootClone.id;
           result.push(rootClone);
         }
@@ -769,7 +771,7 @@ export class CategoryService {
   async getChildIds(parentId) {
     const subCategories = await this.categoryRepository
       .createQueryBuilder('category')
-      .select(['category.id', 'category.parentId'])
+      .select(['category.id', 'category.parentId', 'category.gender'])
       .where({
         status: CategoryStatus.active,
       })
