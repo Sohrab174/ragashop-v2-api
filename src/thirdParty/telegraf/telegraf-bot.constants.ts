@@ -3,4 +3,5 @@ export const BOT_ADMIN_IDS = [
   340997653, // Mohammad Monazami
   114463063, // JAVAD
   83409648, // Behrouz Nasrollahpour
+  757721911, // Morteza
 ];
