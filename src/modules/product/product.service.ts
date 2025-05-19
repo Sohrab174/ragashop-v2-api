@@ -640,7 +640,7 @@ export class ProductService {
 
     if (search) {
       builder.andWhere(
-        '(product.name LIKE :search OR product.sourceName LIKE :search OR brand.name LIKE :search OR category.name LIKE :search)',
+        '(product.name LIKE :search OR product.sourceName LIKE :search OR brand.sourceName LIKE :search OR category.name LIKE :search)',
         {
           search: `%${search}%`,
         },
