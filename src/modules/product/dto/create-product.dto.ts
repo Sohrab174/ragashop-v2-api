@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
-import { ProductStatus } from '../entities/product.entity';
+import { ProductGender, ProductStatus } from '../entities/product.entity';
 import { Type } from 'class-transformer';
 
 class ProductDescription {
@@ -47,6 +47,11 @@ export class CreateProductDto {
   @ApiProperty({ required: true })
   @IsOptional()
   discountedPrice: number;
+
+  @ApiProperty({ required: false, enum: ProductGender })
+  @IsOptional()
+  @IsIn(Object.values(ProductGender))
+  gender: ProductGender;
 
   @ApiProperty({ required: true, enum: ProductStatus })
   @IsNotEmpty()

@@ -1023,13 +1023,17 @@ export class ProductService {
 
     // Checking duplicate product number
     await this.checkDuplicateProductNumber('product', dto.number);
+    let discountPercent = 0;
+    if (dto.price && dto.discountedPrice && dto.price > 0) {
+      discountPercent = ((dto.price - dto.discountedPrice) / dto.price) * 100;
+    }
 
-    // Creating a new product
     const { identifiers } = await this.productRepository
       .createQueryBuilder()
       .insert()
       .values({
         categoryId: dto.categoryId,
+        name: dto.name,
         number: dto.number || null,
         quantity:
           dto.quantity === undefined || dto.quantity === null
@@ -1037,7 +1041,18 @@ export class ProductService {
             : dto.quantity,
         price: dto.price,
         discountedPrice: dto.discountedPrice || null,
+        discountPercent: discountPercent,
+        star: 0,
+        tax: 0,
+        hasStock: dto.quantity && dto.quantity > 0,
+        isVasEnabled: false,
+        isSellable: true,
+        isBasketDiscount: false,
+        isFreeCargo: false,
+        isDigitalGood: false,
+        isArtWork: false,
         displayOrder: await getLastDisplayOrder(ProductEntity.name),
+        gender: dto?.gender || null,
         status: dto.status,
         createdAt: new Date(),
       })
@@ -1096,6 +1111,7 @@ export class ProductService {
     if (dto.number !== undefined) product.number = dto.number;
     if (dto.name !== undefined) product.name = dto.name;
     if (dto.description !== undefined) product.description = dto.description;
+    if (dto.gender !== undefined) product.gender = dto.gender;
 
     await product.save();
 
