@@ -290,7 +290,7 @@ export class TransactionService {
       let result: any = {};
 
       if (transaction.gateway.name === GatewayNames.payping) {
-        callbackUrl = `${this.generateSiteBaseUrl()}/api/payping`;
+        callbackUrl = `https://ragaex.co/payping.php`;
 
         result = await this.payping.paymentRequest(
           transaction.gateway.merchantId,
