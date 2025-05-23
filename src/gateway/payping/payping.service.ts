@@ -52,7 +52,7 @@ export class PaypingService {
 
       return {
         authority: data.code,
-        url: `${this.redirectUrl}/${data.code}`,
+        url: this.redirectUrl(data.code),
         code: '',
         message: '',
       };
