@@ -24,30 +24,31 @@ export class PaypingService {
    * @param amount Amount on Toman
    */
   async paymentRequest(merchant, amount, transactionId, callbackUrl) {
+    const payload = {
+      clientRefId: `SP${transactionId}`,
+      Amount: Math.round(amount), // Toman
+      Description: '',
+      returnUrl: callbackUrl,
+      payerIdentity: `raga-${Date.now()}`,
+    };
+    const headers = {
+      Authorization: `Bearer ${
+        this.config.gateway.mode === 'sandbox' ? this.sandboxMerchant : merchant
+      }`,
+    };
+
+    console.log({ payload, headers });
+
     try {
-      const { data } = await this.axios.post(
-        '/pay',
-        {
-          clientRefId: `SP${transactionId}`,
-          Amount: Math.round(amount), // Toman
-          Description: '',
-          returnUrl: callbackUrl,
-          payerIdentity: Date.now(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${
-              this.config.gateway.mode === 'sandbox'
-                ? this.sandboxMerchant
-                : merchant
-            }`,
-          },
-        },
-      );
+      const { data } = await this.axios.post('/pay', payload, {
+        headers,
+      });
 
       if (!data) {
         throw 'تراکنش ناموفق بود - شرح خطا: عدم وجود کد ارجاع';
       }
+
+      console.log('data', data);
 
       return {
         authority: data.code,
