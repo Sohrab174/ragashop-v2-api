@@ -44,6 +44,7 @@ import { TranslatorService } from '../../thirdParty/translator/translator.servic
 import { FileStorageService } from '../../file-storage.service';
 import { CustomerEntity } from '../customer/entities/customer.entity';
 import { UpdateGroupProductDto } from './dto/update-group-product.dto';
+import axios from 'axios';
 
 @Injectable()
 export class ProductService {
@@ -412,6 +413,15 @@ export class ProductService {
    * GET /products/link
    */
   async getByLink(link: string) {
+    if (link.includes('https://ty.gl')) {
+      try {
+        const response = await axios.head(link, { maxRedirects: 10 });
+        link = response.request.res.responseUrl;
+      } catch (error) {
+        this.error.methodNotAllowed(['لینک وارد شده معتبر نیست!']);
+      }
+    }
+
     if (!link.includes('https://www.trendyol.com')) {
       this.error.methodNotAllowed(['لینک وارد شده معتبر نیست!']);
     }

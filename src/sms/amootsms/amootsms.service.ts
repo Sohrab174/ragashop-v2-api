@@ -27,6 +27,8 @@ export class AmootsmsService {
       OptionalCode: code,
     };
 
+    console.log(params);
+
     try {
       const { data } = await this.axios.get('/SendQuickOTP_REST', {
         params,
@@ -34,7 +36,7 @@ export class AmootsmsService {
 
       return data;
     } catch (e) {
-      console.log(e?.response?.data || 'Error SMS');
+      console.log(e?.response?.data || e || 'Error SMS');
       return false;
     }
   }
