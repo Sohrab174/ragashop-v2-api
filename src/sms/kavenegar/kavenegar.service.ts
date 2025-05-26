@@ -9,7 +9,7 @@ export class KavenegarService {
 
   constructor(private config: ConfigurationService) {
     this.axios = axios.create({
-      baseURL: `https://api.kavenegar.com/v1/${this.config.sms.kavenegarKey}`,
+      baseURL: `http://188.121.113.58:1070/https://api.kavenegar.com/v1/${this.config.sms.kavenegarKey}`,
     });
   }
 
