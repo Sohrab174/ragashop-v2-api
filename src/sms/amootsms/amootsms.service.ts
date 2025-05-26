@@ -10,7 +10,7 @@ export class AmootsmsService {
   constructor(private config: ConfigurationService) {
     this.axios = axios.create({
       // baseURL: `https://portal.amootsms.com/webservice2.asmx`,
-      baseURL: `http://188.121.113.58:1070/https://portal.amootsms.com/webservice2.asmx`,
+      baseURL: `http://188.121.113.58:1070/https://portal.amootsms.com`,
     });
   }
 
@@ -30,9 +30,12 @@ export class AmootsmsService {
     console.log(params);
 
     try {
-      const { data } = await this.axios.get('/SendQuickOTP_REST', {
-        params,
-      });
+      const { data } = await this.axios.get(
+        '/webservice2.asmx/SendQuickOTP_REST',
+        {
+          params,
+        },
+      );
 
       return data;
     } catch (e) {

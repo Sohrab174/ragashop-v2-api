@@ -415,9 +415,23 @@ export class ProductService {
   async getByLink(link: string) {
     if (link.includes('https://ty.gl')) {
       try {
-        const response = await axios.head(link, { maxRedirects: 10 });
-        link = response.request.res.responseUrl;
+        const response = await axios.get(link, {
+          maxRedirects: 10, // follow up to 10 redirects
+        });
+
+        const html = response.data;
+        const match = html.match(
+          /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["'][^>]*>/i,
+        );
+
+        if (match && match[1]) {
+          link = match[1];
+        } else {
+          throw 'Error';
+        }
       } catch (error) {
+        console.log(error);
+
         this.error.methodNotAllowed(['لینک وارد شده معتبر نیست!']);
       }
     }
