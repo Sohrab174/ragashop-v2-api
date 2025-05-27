@@ -748,29 +748,13 @@ export class CustomerService {
    * -------------------------------------------------------
    * DELETE /customers/:id/admin
    */
-  async delete(id: number, force: string) {
-    const customer = await this.customerRepository.findOne({
-      where: { id },
-    });
-
-    if (!customer) {
-      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
-    }
-
-    try {
-      if (force === '1') {
-        await this.orderService.deleteByCustomerId(id);
-      }
-
-      await customer.remove();
-    } catch (err) {
-      this.error.methodNotAllowed(
-        [
-          'Some orders and reserves are related to this customer. Are you sure you want to delete it?',
-        ],
-        { hasDependencies: true },
-      );
-    }
+  async deleteCustomer(id: number) {
+    return await this.customerRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isDeleted: true })
+      .where({ id })
+      .execute();
   }
 
   /**

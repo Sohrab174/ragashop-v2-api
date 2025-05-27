@@ -3,6 +3,7 @@ import { AfterLoad } from 'typeorm/decorator/listeners/AfterLoad';
 import { BeforeInsert } from 'typeorm/decorator/listeners/BeforeInsert';
 import { BeforeUpdate } from 'typeorm/decorator/listeners/BeforeUpdate';
 import * as bcrypt from 'bcryptjs';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
 export enum UserRoles {
   admin = 'admin',
@@ -52,6 +53,13 @@ export class UserEntity extends BaseEntity {
     default: () => UserStatus.active,
   })
   status: UserStatus;
+
+  @Column('tinyint', {
+    name: 'isDeleted',
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isDeleted: boolean;
 
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;

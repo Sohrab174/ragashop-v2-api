@@ -214,17 +214,21 @@ export class UserService {
     return false;
   }
 
-  // /**
-  //  * -------------------------------------------------------
-  //  */
-  // async deleteUser(id: number) {
-  //   return await this.userRepository
-  //     .createQueryBuilder()
-  //     .update()
-  //     .set({ isDeleted: true })
-  //     .where({ id })
-  //     .execute();
-  // }
+  /**
+   * -------------------------------------------------------
+   */
+  async deleteUser(id: number, adminUserId: number) {
+    if (+id === adminUserId) {
+      this.error.methodNotAllowed(['امکان حذف حساب کاربری خود وجود ندارد!']);
+    }
+
+    return await this.userRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isDeleted: true })
+      .where({ id })
+      .execute();
+  }
 
   /**
    * -------------------------------------------------------

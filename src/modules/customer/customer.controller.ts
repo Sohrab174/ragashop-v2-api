@@ -17,7 +17,6 @@ import { Filter } from '../../utils/decorators/filter.decorator';
 import { Limit } from '../../utils/decorators/limit.decorator';
 import { Page } from '../../utils/decorators/page.decorator';
 import { Sort } from '../../utils/decorators/sort.decorator';
-import { User } from '../../utils/decorators/user.decorator';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { CustomerJwtAuthGuard } from './jwt/jwt.guard';
 import { Roles } from '../auth/role/role.decorator';
@@ -257,8 +256,8 @@ export class CustomerController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async delete(@Param('id') customerId: number, @Query('force') force) {
-    await this.customerService.delete(customerId, force);
+  async delete(@Param('id') customerId: number) {
+    await this.customerService.deleteCustomer(customerId);
 
     return successfulResult(['مشتری مورد نظر حذف شد']);
   }

@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
   Put,
+  Delete,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { successfulResult } from '../../utils';
@@ -103,17 +104,17 @@ export class UserController {
     return successfulResult([], userInfo);
   }
 
-  // /**
-  //  * -------------------------------------------------------
-  //  * DELETE /users/admin/1
-  //  */
-  // @Delete('admin/:id')
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(UserRoles.admin)
-  // @HttpCode(HttpStatus.OK)
-  // async deleteUser(@Param('id') id: number ,) {
-  //   await this.userService.deleteUser(id);
-  //   return successfulResult([('The user has been successfully deleted')]);
-  // }
+  /**
+   * -------------------------------------------------------
+   * DELETE /users/admin/1
+   */
+  @Delete('admin/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin)
+  @HttpCode(HttpStatus.OK)
+  async deleteUser(@Param('id') id: number, @User('id') adminUserId: number) {
+    await this.userService.deleteUser(id, adminUserId);
+    return successfulResult(['کاربر مورد نظر با موفقیت حذف شد.']);
+  }
 }

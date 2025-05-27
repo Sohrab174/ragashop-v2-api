@@ -233,6 +233,7 @@ export class ProductController {
   @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'number', required: false })
+  @ApiQuery({ name: 'gender', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ProductStatus })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
   @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
@@ -241,7 +242,12 @@ export class ProductController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status', ['category_id', 'categoryId'], ['brand_id', 'brandId']])
+    @Filter([
+      'status',
+      ['category_id', 'categoryId'],
+      ['brand_id', 'brandId'],
+      'gender',
+    ])
     filters,
     @Query('number') number,
     @Query('name') name,

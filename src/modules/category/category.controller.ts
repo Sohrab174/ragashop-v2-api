@@ -54,6 +54,7 @@ export class CategoryController {
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: CategoryStatus })
+  @ApiQuery({ name: 'gender', required: false })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
   @ApiQuery({ name: 'limit', required: false, description: 'Default: 20' })
   @ApiQuery({ name: 'page', required: false, description: 'Default: 1' })
@@ -61,7 +62,7 @@ export class CategoryController {
     @Page() page,
     @Limit() limit,
     @Sort() sorts,
-    @Filter(['status'])
+    @Filter(['status', 'gender'])
     filters,
     @Query('parent_id') parentId,
     @Query('name') name,

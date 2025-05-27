@@ -16,6 +16,7 @@ import { AddressEntity } from '../../address/entities/address.entity';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
 import { WalletHistoryEntity } from './wallet-history.entity';
 import { ProductFavoriteEntity } from '../../favorite/entities/product-favorite.entity';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
 export enum CustomerStatus {
   active = 'active',
@@ -123,18 +124,25 @@ export class CustomerEntity extends BaseEntity {
   })
   status: CustomerStatus;
 
+  @Column('tinyint', {
+    name: 'isDeleted',
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  isDeleted: boolean;
+
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;
 
+  /**
+   * Relations
+   */
   @OneToMany(
     () => ProductFavoriteEntity,
     (productFavorite) => productFavorite.customer,
   )
   productFavorites: ProductFavoriteEntity[];
 
-  /**
-   * Relations
-   */
   @OneToMany(() => OrderEntity, (order) => order.customer)
   orders: OrderEntity[];
 
