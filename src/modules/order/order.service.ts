@@ -614,9 +614,9 @@ export class OrderService {
     );
 
     // point to referrer
-    if (order.customer.referrerCode) {
+    if (order.customer.inviteCode) {
       const referrerCustomer = await this.customerService.findByReferrerCode(
-        order.customer.referrerCode,
+        order.customer.inviteCode,
       );
 
       if (referrerCustomer) {
@@ -643,12 +643,12 @@ export class OrderService {
 
         // -----------------
         if (buyPercentToReferrerCreditUSD > 0) {
-          referrerCustomer.walletUSD +=
-            (buyPercentToReferrerCreditUSD * orderAmount) / 100;
+          const walletUSD = (buyPercentToReferrerCreditUSD * orderAmount) / 100;
+          referrerCustomer.walletUSD += walletUSD;
           await referrerCustomer.save();
 
           await this.customerService.addWalletHistory({
-            walletUSD: buyPercentToReferrerCreditUSD,
+            walletUSD,
             customerId: referrerCustomer.id,
             type: WalletHistoryType.buy,
             relatedCustomerId: order.customerId,
@@ -657,7 +657,7 @@ export class OrderService {
 
           // notif to telegram
           this.telegrafBotService.sendNotification(
-            `💌 اعتبار به معرف\n💰 ${buyPercentToReferrerCreditUSD} دلار\n\n👱🏻‍♂️ ${
+            `💌 اعتبار به معرف\n💰 ${walletUSD} دلار\n\n👱🏻‍♂️ ${
               referrerCustomer.firstName || ''
             } ${referrerCustomer.lastName || ''}\n📞 ${
               referrerCustomer.mobile
@@ -666,12 +666,12 @@ export class OrderService {
         }
 
         if (buyPercentToReferrerCreditIRT > 0) {
-          referrerCustomer.walletIRT +=
-            (buyPercentToReferrerCreditIRT * orderAmount) / 100;
+          const walletIRT = (buyPercentToReferrerCreditIRT * orderAmount) / 100;
+          referrerCustomer.walletIRT += walletIRT;
           await referrerCustomer.save();
 
           await this.customerService.addWalletHistory({
-            walletIRT: buyPercentToReferrerCreditIRT,
+            walletIRT,
             customerId: referrerCustomer.id,
             type: WalletHistoryType.buy,
             relatedCustomerId: order.customerId,
@@ -680,21 +680,21 @@ export class OrderService {
 
           // notif to telegram
           this.telegrafBotService.sendNotification(
-            `💌 اعتبار به معرف\n💰 ${digit(
-              buyPercentToReferrerCreditIRT,
-            )} تومان\n\n👱🏻‍♂️ ${referrerCustomer.firstName || ''} ${
-              referrerCustomer.lastName || ''
-            }\n📞 ${referrerCustomer.mobile}`,
+            `💌 اعتبار به معرف\n💰 ${digit(walletIRT)} تومان\n\n👱🏻‍♂️ ${
+              referrerCustomer.firstName || ''
+            } ${referrerCustomer.lastName || ''}\n📞 ${
+              referrerCustomer.mobile
+            }`,
           );
         }
 
         if (buyPercentToReferrerCreditTRY > 0) {
-          referrerCustomer.walletTRY +=
-            (buyPercentToReferrerCreditTRY * orderAmount) / 100;
+          const walletTRY = (buyPercentToReferrerCreditTRY * orderAmount) / 100;
+          referrerCustomer.walletTRY += walletTRY;
           await referrerCustomer.save();
 
           await this.customerService.addWalletHistory({
-            walletTRY: buyPercentToReferrerCreditTRY,
+            walletTRY,
             customerId: referrerCustomer.id,
             type: WalletHistoryType.buy,
             relatedCustomerId: order.customerId,
@@ -703,7 +703,7 @@ export class OrderService {
 
           // notif to telegram
           this.telegrafBotService.sendNotification(
-            `💌 اعتبار به معرف\n💰 ${buyPercentToReferrerCreditTRY} لیر\n\n👱🏻‍♂️ ${
+            `💌 اعتبار به معرف\n💰 ${walletTRY} لیر\n\n👱🏻‍♂️ ${
               referrerCustomer.firstName || ''
             } ${referrerCustomer.lastName || ''}\n📞 ${
               referrerCustomer.mobile
