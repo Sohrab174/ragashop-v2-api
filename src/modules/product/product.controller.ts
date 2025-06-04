@@ -230,6 +230,7 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   @ApiQuery({ name: 'category_id', required: false })
+  @ApiQuery({ name: 'discount_percent', required: false })
   @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'number', required: false })
@@ -245,6 +246,7 @@ export class ProductController {
     @Filter([
       'status',
       ['category_id', 'categoryId'],
+      ['discount_percent', 'discountPercent'],
       ['brand_id', 'brandId'],
       'gender',
     ])
@@ -331,6 +333,19 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
+   * GET /products/filter/attributes
+   */
+  @Get('/filter/attributes')
+  @ApiQuery({ name: 'category_id', required: false })
+  async getAttributesForFilter(
+    @Filter([['category_id', 'categoryId']]) filters,
+  ) {
+    const data = await this.productService.getAttributesForFilter(filters);
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
    * GET /products/filter/color
    */
   @Get('/filter/color')
@@ -382,6 +397,8 @@ export class ProductController {
   @ApiQuery({ name: 'min_price', required: false })
   @ApiQuery({ name: 'max_price', required: false })
   @ApiQuery({ name: 'category_id', required: false })
+  @ApiQuery({ name: 'attributes', required: false })
+  @ApiQuery({ name: 'discount_percent', required: false })
   @ApiQuery({ name: 'gender', required: false })
   @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'is_favorite', required: false })
@@ -407,6 +424,7 @@ export class ProductController {
     @Query('max_price') maxPrice,
     @Query('category_id') categoryId,
     @Query('search') search,
+    @Query('attributes') attributes,
     @Customer() customer: CustomerEntity,
   ) {
     const list = await this.productService.getAll(
@@ -420,6 +438,7 @@ export class ProductController {
         maxPrice,
       },
       search,
+      attributes ? attributes.split('-') : [],
       customer,
     );
 

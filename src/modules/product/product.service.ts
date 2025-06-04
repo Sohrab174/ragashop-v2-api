@@ -632,6 +632,7 @@ export class ProductService {
     categoryId = null,
     priceRanges: any = {},
     search = null,
+    attributes = [],
     customer: CustomerEntity,
   ) {
     let categoryIds = [];
@@ -660,6 +661,15 @@ export class ProductService {
       builder.andWhere('product.categoryId IN (:...categoryIds)', {
         categoryIds,
       });
+    }
+
+    if (attributes.length > 0) {
+      builder.innerJoin(
+        'product.productAttributeValues',
+        'productAttributeValues',
+        'productAttributeValues.isDeleted = 0 AND productAttributeValues.attributeValueId IN (:...attributes)',
+        { attributes },
+      );
     }
 
     if (search) {
@@ -1612,6 +1622,13 @@ export class ProductService {
       minPrice: Math.round(prices.minPrice * tryToToman),
       maxPrice: Math.round(prices.maxPrice * tryToToman),
     };
+  }
+  /**
+   * -------------------------------------------------------
+   */
+  async getAttributesForFilter(filters) {
+    // Delegate to optimized AttributeService method
+    return await this.attributeService.getAttributesForFilter(filters);
   }
 
   /**

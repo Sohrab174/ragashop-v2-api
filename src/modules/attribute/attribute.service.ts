@@ -403,6 +403,141 @@ export class AttributeService {
 
   /**
    * -------------------------------------------------------
+   * GET /attributes/filter (optimized method for filters)
+   */
+  async getAttributesForFilter(filters = null) {
+    // Get attributes with product count for sorting - optimized query
+    let attributeBuilder = this.attributeRepository
+      .createQueryBuilder('attribute')
+      .select([
+        'attribute.id AS attributeId',
+        'attribute.name AS attributeName',
+        'attribute.type AS attributeType',
+        'COUNT(DISTINCT product.id) AS productCount',
+      ])
+      .innerJoin('attribute.values', 'attributeValue')
+      .innerJoin(
+        'attributeValue.productAttributeValues',
+        'productAttributeValues',
+        'productAttributeValues.isDeleted = 0',
+      )
+      .innerJoin('productAttributeValues.product', 'product')
+      .innerJoin(
+        'product.category',
+        'category',
+        'category.status = :categoryStatus',
+        {
+          categoryStatus: 1, // Assuming active status is 1
+        },
+      )
+      .where('product.isDeleted = false')
+      .andWhere('product.categoryId != 1')
+      .andWhere('product.status = :productStatus', { productStatus: 1 })
+      .andWhere("attribute.name != 'مبدأ'")
+      .groupBy('attribute.id, attribute.name, attribute.type')
+      .orderBy('productCount', 'DESC')
+      .limit(20);
+
+    // Apply filters if provided
+    if (filters?.categoryId) {
+      attributeBuilder = attributeBuilder.andWhere(
+        'product.categoryId = :categoryId',
+        {
+          categoryId: filters.categoryId,
+        },
+      );
+    }
+
+    const attributesList = await attributeBuilder.getRawMany();
+
+    // Get attribute values for the top 20 attributes
+    const attributeIds = attributesList.map((attr) => attr.attributeId);
+
+    if (attributeIds.length === 0) {
+      return [];
+    }
+
+    let valuesBuilder = this.attributeValueRepository
+      .createQueryBuilder('attributeValue')
+      .select([
+        'attributeValue.id AS attributeValueId',
+        'attributeValue.name AS attributeValueName',
+        'attributeValue.attributeId AS attributeId',
+      ])
+      .innerJoin(
+        'attributeValue.productAttributeValues',
+        'productAttributeValues',
+        'productAttributeValues.isDeleted = 0',
+      )
+      .innerJoin('productAttributeValues.product', 'product')
+      .innerJoin(
+        'product.category',
+        'category',
+        'category.status = :categoryStatus',
+        {
+          categoryStatus: 1,
+        },
+      )
+      .where('attributeValue.attributeId IN (:...attributeIds)', {
+        attributeIds,
+      })
+      .andWhere('product.isDeleted = false')
+      .andWhere('product.categoryId != 1')
+      .andWhere('product.status = :productStatus', { productStatus: 1 })
+      .andWhere('CHAR_LENGTH(attributeValue.name) <= 30')
+      .groupBy(
+        'attributeValue.id, attributeValue.name, attributeValue.attributeId',
+      )
+      .orderBy('attributeValue.name', 'ASC');
+
+    // Apply filters to values query too
+    if (filters?.categoryId) {
+      valuesBuilder = valuesBuilder.andWhere(
+        'product.categoryId = :categoryId',
+        {
+          categoryId: filters.categoryId,
+        },
+      );
+    }
+
+    const valuesList = await valuesBuilder.getRawMany();
+
+    // Group values by attribute
+    const attributesMap = new Map();
+
+    // Initialize attributes
+    attributesList.forEach((attr) => {
+      attributesMap.set(attr.attributeId, {
+        id: attr.attributeId,
+        name: attr.attributeName,
+        type: attr.attributeType,
+        values: [],
+        productCount: parseInt(attr.productCount) || 0,
+      });
+    });
+
+    // Add values to respective attributes
+    valuesList.forEach((value) => {
+      const attribute = attributesMap.get(value.attributeId);
+      if (attribute) {
+        attribute.values.push({
+          id: value.attributeValueId,
+          name: value.attributeValueName,
+        });
+      }
+    });
+
+    // Return sorted attributes (already ordered by product count)
+    return Array.from(attributesMap.values()).map((attr) => ({
+      id: attr.id,
+      name: attr.name,
+      type: attr.type,
+      values: attr.values,
+    }));
+  }
+
+  /**
+   * -------------------------------------------------------
    */
   private async _findOrTranslateAttr(sourceName) {
     const exist = await this.attributeRepository

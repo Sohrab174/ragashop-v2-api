@@ -85,6 +85,20 @@ export class PageSectionEntity extends BaseEntity {
   })
   productGender: PageSectionProductGender | null;
 
+  @Column('tinyint', {
+    name: 'onlyDiscountedProduct',
+    width: 1,
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  onlyDiscountedProduct: boolean;
+
+  @Column('varchar', { name: 'backgroundColor', nullable: true, length: 45 })
+  backgroundColor: string | null;
+
+  @Column('datetime', { name: 'timerToDate', nullable: true })
+  timerToDate: Date | null;
+
   @Column('int', { name: 'displayOrder', default: () => "'1'" })
   displayOrder: number;
 

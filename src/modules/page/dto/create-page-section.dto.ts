@@ -42,6 +42,18 @@ export class CreatePageSectionDto {
   @IsIn(Object.values(PageSectionProductGender))
   productGender: PageSectionProductGender;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  onlyDiscountedProduct: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  backgroundColor: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  timerToDate: Date;
+
   @ApiProperty({ required: true })
   @IsNotEmpty()
   isPublished: boolean;

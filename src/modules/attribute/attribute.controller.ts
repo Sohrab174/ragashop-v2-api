@@ -17,7 +17,6 @@ import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { UserRoles } from '../user/entities/user.entity';
-import { User } from '../../utils/decorators/user.decorator';
 import { successfulResult } from '../../utils';
 import { AttributeTypes } from './entities/attribute.entity';
 import { Page } from '../../utils/decorators/page.decorator';
@@ -194,5 +193,18 @@ export class AttributeController {
     await this.attributeService.delete(attributeId);
 
     return successfulResult(['ویژگی حذف شد']);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /attributes/filter
+   */
+  @Get('filter')
+  @ApiQuery({ name: 'category_id', required: false })
+  async getAttributesForFilter(
+    @Filter([['category_id', 'categoryId']]) filters,
+  ) {
+    const data = await this.attributeService.getAttributesForFilter(filters);
+    return successfulResult([], data);
   }
 }

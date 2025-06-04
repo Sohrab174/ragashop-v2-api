@@ -38,5 +38,17 @@ export class UpdatePageSectionDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  onlyDiscountedProduct: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  backgroundColor: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  timerToDate: Date;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   isPublished: boolean;
 }
