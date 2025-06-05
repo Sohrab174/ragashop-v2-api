@@ -418,6 +418,7 @@ export class ProductController {
       'number',
       'gender',
       ['is_favorite', 'favorites.id'],
+      ['discount_percent', 'discountPercent'],
     ])
     filters,
     @Query('min_price') minPrice,
