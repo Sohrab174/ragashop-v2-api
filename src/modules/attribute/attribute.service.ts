@@ -400,140 +400,119 @@ export class AttributeService {
 
     return attributeValues;
   }
+  async getAttributesForFilter(filters: { categoryId?: number } = {}) {
+    const { categoryId } = filters;
 
-  /**
-   * -------------------------------------------------------
-   * GET /attributes/filter (optimized method for filters)
-   */
-  async getAttributesForFilter(filters = null) {
-    // Get attributes with product count for sorting - optimized query
-    let attributeBuilder = this.attributeRepository
-      .createQueryBuilder('attribute')
+    const productCountSubQuery = this.attributeValueRepository
+      .createQueryBuilder('av')
+      .select('av.attributeId', 'attributeId')
+      .addSelect('COUNT(DISTINCT pav.productId)', 'productCount')
+      .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
+      .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
+      .innerJoin('p.category', 'c', 'c.status = 1')
+      .where('p.categoryId != 1')
+      .groupBy('av.attributeId');
+
+    let query = this.attributeRepository
+      .createQueryBuilder('a')
       .select([
-        'attribute.id AS attributeId',
-        'attribute.name AS attributeName',
-        'attribute.type AS attributeType',
-        'COUNT(DISTINCT product.id) AS productCount',
+        'a.id AS attributeId',
+        'a.name AS attributeName',
+        'a.type AS attributeType',
+        'pc.productCount',
       ])
-      .innerJoin('attribute.values', 'attributeValue')
       .innerJoin(
-        'attributeValue.productAttributeValues',
-        'productAttributeValues',
-        'productAttributeValues.isDeleted = 0',
+        `(${productCountSubQuery.getQuery()})`,
+        'pc',
+        'pc.attributeId = a.id',
       )
-      .innerJoin('productAttributeValues.product', 'product')
-      .innerJoin(
-        'product.category',
-        'category',
-        'category.status = :categoryStatus',
-        {
-          categoryStatus: 1, // Assuming active status is 1
-        },
-      )
-      .where('product.isDeleted = false')
-      .andWhere('product.categoryId != 1')
-      .andWhere('product.status = :productStatus', { productStatus: 1 })
-      .andWhere("attribute.name != 'مبدأ'")
-      .groupBy('attribute.id, attribute.name, attribute.type')
-      .orderBy('productCount', 'DESC')
+      .where('a.name != :excludedName', { excludedName: 'مبدأ' })
+      .orderBy('pc.productCount', 'DESC')
       .limit(20);
 
-    // Apply filters if provided
-    if (filters?.categoryId) {
-      attributeBuilder = attributeBuilder.andWhere(
-        'product.categoryId = :categoryId',
-        {
-          categoryId: filters.categoryId,
-        },
-      );
+    if (categoryId) {
+      query = query
+        .andWhere((qb) => {
+          const sub = qb
+            .subQuery()
+            .select('1')
+            .from('product_attribute_value', 'pav2')
+            .innerJoin(
+              'product',
+              'p2',
+              'p2.id = pav2.productId AND p2.isDeleted = 0 AND p2.status = 1',
+            )
+            .innerJoin(
+              'category',
+              'c2',
+              'c2.id = p2.categoryId AND c2.status = 1',
+            )
+            .where(
+              'pav2.attributeValueId IN ' +
+                qb
+                  .subQuery()
+                  .select('av2.id')
+                  .from('attribute_value', 'av2')
+                  .where('av2.attributeId = a.id')
+                  .getQuery(),
+            )
+            .andWhere('p2.categoryId = :categoryId')
+            .getQuery();
+
+          return `EXISTS ${sub}`;
+        })
+        .setParameter('categoryId', categoryId);
     }
 
-    const attributesList = await attributeBuilder.getRawMany();
+    const attributesList = await query.getRawMany();
 
-    // Get attribute values for the top 20 attributes
-    const attributeIds = attributesList.map((attr) => attr.attributeId);
+    const attributeIds = attributesList.map((a) => a.attributeId);
+    if (attributeIds.length === 0) return [];
 
-    if (attributeIds.length === 0) {
-      return [];
-    }
-
-    let valuesBuilder = this.attributeValueRepository
-      .createQueryBuilder('attributeValue')
+    let valuesQuery = this.attributeValueRepository
+      .createQueryBuilder('av')
       .select([
-        'attributeValue.id AS attributeValueId',
-        'attributeValue.name AS attributeValueName',
-        'attributeValue.attributeId AS attributeId',
+        'av.id AS attributeValueId',
+        'av.name AS attributeValueName',
+        'av.attributeId AS attributeId',
       ])
-      .innerJoin(
-        'attributeValue.productAttributeValues',
-        'productAttributeValues',
-        'productAttributeValues.isDeleted = 0',
-      )
-      .innerJoin('productAttributeValues.product', 'product')
-      .innerJoin(
-        'product.category',
-        'category',
-        'category.status = :categoryStatus',
-        {
-          categoryStatus: 1,
-        },
-      )
-      .where('attributeValue.attributeId IN (:...attributeIds)', {
-        attributeIds,
-      })
-      .andWhere('product.isDeleted = false')
-      .andWhere('product.categoryId != 1')
-      .andWhere('product.status = :productStatus', { productStatus: 1 })
-      .andWhere('CHAR_LENGTH(attributeValue.name) <= 30')
-      .groupBy(
-        'attributeValue.id, attributeValue.name, attributeValue.attributeId',
-      )
-      .orderBy('attributeValue.name', 'ASC');
+      .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
+      .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
+      .innerJoin('p.category', 'c', 'c.status = 1')
+      .where('av.attributeId IN (:...attributeIds)', { attributeIds })
+      .andWhere('p.categoryId != 1')
+      .andWhere('CHAR_LENGTH(av.name) <= 30')
+      .orderBy('av.name', 'ASC');
 
-    // Apply filters to values query too
-    if (filters?.categoryId) {
-      valuesBuilder = valuesBuilder.andWhere(
-        'product.categoryId = :categoryId',
-        {
-          categoryId: filters.categoryId,
-        },
-      );
+    if (categoryId) {
+      valuesQuery = valuesQuery.andWhere('p.categoryId = :categoryId', {
+        categoryId,
+      });
     }
 
-    const valuesList = await valuesBuilder.getRawMany();
+    const valuesList = await valuesQuery.getRawMany();
 
-    // Group values by attribute
     const attributesMap = new Map();
-
-    // Initialize attributes
     attributesList.forEach((attr) => {
       attributesMap.set(attr.attributeId, {
         id: attr.attributeId,
         name: attr.attributeName,
         type: attr.attributeType,
         values: [],
-        productCount: parseInt(attr.productCount) || 0,
       });
     });
 
-    // Add values to respective attributes
     valuesList.forEach((value) => {
-      const attribute = attributesMap.get(value.attributeId);
-      if (attribute) {
-        attribute.values.push({
+      const attr = attributesMap.get(value.attributeId);
+      if (attr) {
+        attr.values.push({
           id: value.attributeValueId,
           name: value.attributeValueName,
         });
       }
     });
 
-    // Return sorted attributes (already ordered by product count)
-    return Array.from(attributesMap.values()).map((attr) => ({
-      id: attr.id,
-      name: attr.name,
-      type: attr.type,
-      values: attr.values,
-    }));
+    return Array.from(attributesMap.values());
   }
 
   /**
