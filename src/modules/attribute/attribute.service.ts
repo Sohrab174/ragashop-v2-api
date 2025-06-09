@@ -400,6 +400,7 @@ export class AttributeService {
 
     return attributeValues;
   }
+
   async getAttributesForFilter(filters: { categoryId?: number } = {}) {
     const { categoryId } = filters;
 

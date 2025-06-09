@@ -1628,7 +1628,8 @@ export class ProductService {
    */
   async getAttributesForFilter(filters) {
     // Delegate to optimized AttributeService method
-    return await this.attributeService.getAttributesForFilter(filters);
+    // return await this.attributeService.getAttributesForFilter(filters);
+    return [];
   }
 
   /**
