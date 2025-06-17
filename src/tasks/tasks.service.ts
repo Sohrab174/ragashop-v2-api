@@ -14,23 +14,23 @@ export class TasksService {
     private productService: ProductService,
   ) {}
 
-  // @Cron(process.env.CRON_JOB_DELETE_UNPAID_ORDER)
-  // async handleDeleteUnpaidOrder() {
-  //   console.log('CRON JOB FOR DELETE UNPAID ORDER');
-  //   await this.orderService.handleDeleteUnpaid();
-  // }
+  @Cron(process.env.CRON_JOB_DELETE_UNPAID_ORDER)
+  async handleDeleteUnpaidOrder() {
+    console.log('CRON JOB FOR DELETE UNPAID ORDER');
+    await this.orderService.handleDeleteUnpaid();
+  }
 
-  // @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_DETAILS)
-  // async handleCrawlerProductDetails() {
-  //   console.log('CRON JOB FOR CRAWLER PRODUCT DETAILS');
-  //   await this.productService.getProductsDetailsByCrawler();
-  // }
+  @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_DETAILS)
+  async handleCrawlerProductDetails() {
+    console.log('CRON JOB FOR CRAWLER PRODUCT DETAILS');
+    await this.productService.getProductsDetailsByCrawler();
+  }
 
-  // @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_PAGES)
-  // async handleProductsPagesByCrawler() {
-  //   console.log('CRON JOB FOR CRAWLER PRODUCT PAGES');
-  //   await this.productService.getProductsPagesByCrawler();
-  // }
+  @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_PAGES)
+  async handleProductsPagesByCrawler() {
+    console.log('CRON JOB FOR CRAWLER PRODUCT PAGES');
+    await this.productService.getProductsPagesByCrawler();
+  }
 
   @Cron(process.env.CRON_JOB_TRY_TO_RIAL)
   async handleDeleteUnpaidOrder() {
