@@ -32,9 +32,9 @@ export class TasksService {
     await this.productService.getProductsPagesByCrawler();
   }
 
-  @Cron(process.env.CRON_JOB_TRY_TO_RIAL)
-  async handleDeleteUnpaidOrder() {
-    console.log('CRON JOB FOR GET TRY TO RIAL');
-    await this.settingService.getTryToRial();
-  }
+  // @Cron(process.env.CRON_JOB_TRY_TO_RIAL)
+  // async handleDeleteUnpaidOrder() {
+  //   console.log('CRON JOB FOR GET TRY TO RIAL');
+  //   await this.settingService.getTryToRial();
+  // }
 }
