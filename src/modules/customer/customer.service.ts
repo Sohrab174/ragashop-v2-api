@@ -583,7 +583,9 @@ export class CustomerService {
    * GET /customers/admin
    */
   async getAllForAdmin(page = 1, limit = 20, filters = null, sorts = null) {
-    let builder = this.customerRepository.createQueryBuilder('customer');
+    let builder = this.customerRepository
+      .createQueryBuilder('customer')
+      .andWhere({ isDeleted: false });
 
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
@@ -616,8 +618,7 @@ export class CustomerService {
   async getByIdForAdmin(id: number) {
     const builder = this.customerRepository
       .createQueryBuilder('customer')
-
-      .where({ id });
+      .where({ id, isDeleted: false });
 
     const customer = await builder.getOne();
 
