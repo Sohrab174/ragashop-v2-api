@@ -401,119 +401,138 @@ export class AttributeService {
     return attributeValues;
   }
 
+  /**
+   * -------------------------------------------------------
+   */
   async getAttributesForFilter(filters: { categoryId?: number } = {}) {
     const { categoryId } = filters;
 
-    const productCountSubQuery = this.attributeValueRepository
-      .createQueryBuilder('av')
-      .select('av.attributeId', 'attributeId')
-      .addSelect('COUNT(DISTINCT pav.productId)', 'productCount')
-      .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
-      .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
-      .innerJoin('p.category', 'c', 'c.status = 1')
-      .where('p.categoryId != 1')
-      .groupBy('av.attributeId');
+    try {
+      const result = await this.attributeRepository.query(
+        'CALL sp_GetAttributesForFilter(?)',
+        [categoryId || null],
+      );
 
-    let query = this.attributeRepository
-      .createQueryBuilder('a')
-      .select([
-        'a.id AS attributeId',
-        'a.name AS attributeName',
-        'a.type AS attributeType',
-        'pc.productCount',
-      ])
-      .innerJoin(
-        `(${productCountSubQuery.getQuery()})`,
-        'pc',
-        'pc.attributeId = a.id',
-      )
-      .where('a.name != :excludedName', { excludedName: 'مبدأ' })
-      .orderBy('pc.productCount', 'DESC')
-      .limit(20);
-
-    if (categoryId) {
-      query = query
-        .andWhere((qb) => {
-          const sub = qb
-            .subQuery()
-            .select('1')
-            .from('product_attribute_value', 'pav2')
-            .innerJoin(
-              'product',
-              'p2',
-              'p2.id = pav2.productId AND p2.isDeleted = 0 AND p2.status = 1',
-            )
-            .innerJoin(
-              'category',
-              'c2',
-              'c2.id = p2.categoryId AND c2.status = 1',
-            )
-            .where(
-              'pav2.attributeValueId IN ' +
-                qb
-                  .subQuery()
-                  .select('av2.id')
-                  .from('attribute_value', 'av2')
-                  .where('av2.attributeId = a.id')
-                  .getQuery(),
-            )
-            .andWhere('p2.categoryId = :categoryId')
-            .getQuery();
-
-          return `EXISTS ${sub}`;
-        })
-        .setParameter('categoryId', categoryId);
+      return result[0].map((row) => ({
+        id: row.attributeId,
+        name: row.attributeName,
+        type: row.attributeType,
+        values: row.attributeValues || [],
+      }));
+    } catch (error) {
+      return [];
     }
 
-    const attributesList = await query.getRawMany();
+    // const productCountSubQuery = this.attributeValueRepository
+    //   .createQueryBuilder('av')
+    //   .select('av.attributeId', 'attributeId')
+    //   .addSelect('COUNT(DISTINCT pav.productId)', 'productCount')
+    //   .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
+    //   .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
+    //   .innerJoin('p.category', 'c', 'c.status = 1')
+    //   .where('p.categoryId != 1')
+    //   .groupBy('av.attributeId');
 
-    const attributeIds = attributesList.map((a) => a.attributeId);
-    if (attributeIds.length === 0) return [];
+    // let query = this.attributeRepository
+    //   .createQueryBuilder('a')
+    //   .select([
+    //     'a.id AS attributeId',
+    //     'a.name AS attributeName',
+    //     'a.type AS attributeType',
+    //     'pc.productCount',
+    //   ])
+    //   .innerJoin(
+    //     `(${productCountSubQuery.getQuery()})`,
+    //     'pc',
+    //     'pc.attributeId = a.id',
+    //   )
+    //   .where('a.name != :excludedName', { excludedName: 'مبدأ' })
+    //   .orderBy('pc.productCount', 'DESC')
+    //   .limit(20);
 
-    let valuesQuery = this.attributeValueRepository
-      .createQueryBuilder('av')
-      .select([
-        'av.id AS attributeValueId',
-        'av.name AS attributeValueName',
-        'av.attributeId AS attributeId',
-      ])
-      .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
-      .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
-      .innerJoin('p.category', 'c', 'c.status = 1')
-      .where('av.attributeId IN (:...attributeIds)', { attributeIds })
-      .andWhere('p.categoryId != 1')
-      .andWhere('CHAR_LENGTH(av.name) <= 30')
-      .orderBy('av.name', 'ASC');
+    // if (categoryId) {
+    //   query = query
+    //     .andWhere((qb) => {
+    //       const sub = qb
+    //         .subQuery()
+    //         .select('1')
+    //         .from('product_attribute_value', 'pav2')
+    //         .innerJoin(
+    //           'product',
+    //           'p2',
+    //           'p2.id = pav2.productId AND p2.isDeleted = 0 AND p2.status = 1',
+    //         )
+    //         .innerJoin(
+    //           'category',
+    //           'c2',
+    //           'c2.id = p2.categoryId AND c2.status = 1',
+    //         )
+    //         .where(
+    //           'pav2.attributeValueId IN ' +
+    //             qb
+    //               .subQuery()
+    //               .select('av2.id')
+    //               .from('attribute_value', 'av2')
+    //               .where('av2.attributeId = a.id')
+    //               .getQuery(),
+    //         )
+    //         .andWhere('p2.categoryId = :categoryId')
+    //         .getQuery();
 
-    if (categoryId) {
-      valuesQuery = valuesQuery.andWhere('p.categoryId = :categoryId', {
-        categoryId,
-      });
-    }
+    //       return `EXISTS ${sub}`;
+    //     })
+    //     .setParameter('categoryId', categoryId);
+    // }
 
-    const valuesList = await valuesQuery.getRawMany();
+    // const attributesList = await query.getRawMany();
 
-    const attributesMap = new Map();
-    attributesList.forEach((attr) => {
-      attributesMap.set(attr.attributeId, {
-        id: attr.attributeId,
-        name: attr.attributeName,
-        type: attr.attributeType,
-        values: [],
-      });
-    });
+    // const attributeIds = attributesList.map((a) => a.attributeId);
+    // if (attributeIds.length === 0) return [];
 
-    valuesList.forEach((value) => {
-      const attr = attributesMap.get(value.attributeId);
-      if (attr) {
-        attr.values.push({
-          id: value.attributeValueId,
-          name: value.attributeValueName,
-        });
-      }
-    });
+    // let valuesQuery = this.attributeValueRepository
+    //   .createQueryBuilder('av')
+    //   .select([
+    //     'av.id AS attributeValueId',
+    //     'av.name AS attributeValueName',
+    //     'av.attributeId AS attributeId',
+    //   ])
+    //   .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
+    //   .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
+    //   .innerJoin('p.category', 'c', 'c.status = 1')
+    //   .where('av.attributeId IN (:...attributeIds)', { attributeIds })
+    //   .andWhere('p.categoryId != 1')
+    //   .andWhere('CHAR_LENGTH(av.name) <= 30')
+    //   .orderBy('av.name', 'ASC');
 
-    return Array.from(attributesMap.values());
+    // if (categoryId) {
+    //   valuesQuery = valuesQuery.andWhere('p.categoryId = :categoryId', {
+    //     categoryId,
+    //   });
+    // }
+
+    // const valuesList = await valuesQuery.getRawMany();
+
+    // const attributesMap = new Map();
+    // attributesList.forEach((attr) => {
+    //   attributesMap.set(attr.attributeId, {
+    //     id: attr.attributeId,
+    //     name: attr.attributeName,
+    //     type: attr.attributeType,
+    //     values: [],
+    //   });
+    // });
+
+    // valuesList.forEach((value) => {
+    //   const attr = attributesMap.get(value.attributeId);
+    //   if (attr) {
+    //     attr.values.push({
+    //       id: value.attributeValueId,
+    //       name: value.attributeValueName,
+    //     });
+    //   }
+    // });
+
+    // return Array.from(attributesMap.values());
   }
 
   /**

@@ -71,6 +71,7 @@ export class CustomerService {
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
+      .andWhere({ isDeleted: false })
       .getOne();
 
     if (!customer) {
@@ -94,6 +95,7 @@ export class CustomerService {
   async loginByMobile(dto: CustomerLoginMobileDto) {
     let customer = await this.customerRepository.findOne({
       mobile: dto.mobile,
+      isDeleted: false,
     });
 
     let isNewUser = false;
@@ -159,6 +161,7 @@ export class CustomerService {
       where: {
         mobile: dto.mobile,
         randomHash: dto.code,
+        isDeleted: false,
       },
       relations: ['addresses'],
     });
@@ -243,6 +246,7 @@ export class CustomerService {
       where: {
         id,
         status: CustomerStatus.active,
+        isDeleted: false,
       },
       relations: ['addresses'],
     });
@@ -263,6 +267,7 @@ export class CustomerService {
   async getRecordById(id: number) {
     return await this.customerRepository.findOne({
       id,
+      isDeleted: false,
     });
   }
 
@@ -274,7 +279,7 @@ export class CustomerService {
       .createQueryBuilder()
       .update()
       .set(dto)
-      .where({ id: customerId })
+      .where({ id: customerId, isDeleted: false })
       .execute();
   }
 
@@ -282,7 +287,10 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async changePassword(customerId: number, dto: CustomerChangePasswordDto) {
-    const customer = await this.customerRepository.findOne(customerId);
+    const customer = await this.customerRepository.findOne({
+      id: customerId,
+      isDeleted: false,
+    });
 
     if (
       dto.oldPassword &&
@@ -306,7 +314,7 @@ export class CustomerService {
       .andWhere('(customer.email = :eom OR customer.mobile = :eom)', {
         eom: dto.emailOrMobile,
       })
-      .andWhere({ status: CustomerStatus.active })
+      .andWhere({ status: CustomerStatus.active, isDeleted: false })
       .getOne();
 
     if (!customer) {
@@ -342,7 +350,7 @@ export class CustomerService {
         'addresses',
         'addresses.isDeleted = 0',
       )
-      .andWhere({ status: CustomerStatus.active })
+      .andWhere({ status: CustomerStatus.active, isDeleted: false })
       .getOne();
 
     if (!customer) {
@@ -424,6 +432,7 @@ export class CustomerService {
     if (dto.email) {
       const customer = await this.customerRepository.findOne({
         email: dto.email,
+        isDeleted: false,
       });
       if (customer) {
         if (customer.status === CustomerStatus.inactive) {
@@ -442,6 +451,7 @@ export class CustomerService {
     if (dto.mobile) {
       const customer = await this.customerRepository.findOne({
         mobile: dto.mobile,
+        isDeleted: false,
       });
       if (customer) {
         if (customer.status === CustomerStatus.inactive) {
@@ -491,7 +501,7 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async sendOtpCode(dto: CustomerResendOtpDto) {
-    const where: any = {};
+    const where: any = { isDeleted: false };
 
     if (dto.type === 'signup') {
       where.status = CustomerStatus.inactive;
@@ -678,7 +688,7 @@ export class CustomerService {
    */
   async update(dto: UpdateCustomerDto) {
     const customer = await this.customerRepository.findOne({
-      where: { id: dto.id },
+      where: { id: dto.id, isDeleted: false },
     });
 
     if (!customer) {
@@ -766,7 +776,11 @@ export class CustomerService {
     mobile = null,
     status: CustomerStatus = null,
   ) {
-    const where = { randomHash, ...(status && { status }) } as any;
+    const where = {
+      randomHash,
+      isDeleted: false,
+      ...(status && { status }),
+    } as any;
 
     if (mobile) {
       where.mobile = mobile;
@@ -814,7 +828,7 @@ export class CustomerService {
         'MONTH(createdAt) AS month',
         'DATE(createdAt) AS date',
       ])
-      .andWhere({ status: CustomerStatus.active })
+      .andWhere({ status: CustomerStatus.active, isDeleted: false })
       .andWhere('DATE(createdAt) BETWEEN :from AND :to', {
         from,
         to,
@@ -858,6 +872,7 @@ export class CustomerService {
         `SUM(IF(customer.status = '${CustomerStatus.active}', 1, 0)) AS active`,
         `SUM(IF(customer.status = '${CustomerStatus.inactive}', 1, 0)) AS inactive`,
       ])
+      .andWhere({ isDeleted: false })
       .getRawOne();
 
     return {
@@ -878,6 +893,7 @@ export class CustomerService {
       referrerCode: referrerCode.trim().toLowerCase(),
       ...(selfUserId && { id: Not(selfUserId) }),
       ...(forceActive && { status: CustomerStatus.active }),
+      isDeleted: false,
     });
   }
 
@@ -958,7 +974,7 @@ export class CustomerService {
           walletTRY: () => `walletTRY + ${changeWalletTRY}`,
         }),
       })
-      .where({ id: customerId })
+      .where({ id: customerId, isDeleted: false })
       .execute();
   }
 }
