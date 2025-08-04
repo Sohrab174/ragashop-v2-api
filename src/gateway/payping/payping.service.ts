@@ -13,7 +13,7 @@ export class PaypingService {
 
     this.axios = axios.create({
       // baseURL: 'https://api.payping.ir/v2',
-      baseURL: 'http://188.121.113.58:1070/https://api.payping.ir/v2',
+      baseURL: 'http://195.177.255.138:1313/https://api.payping.ir/v2',
     });
 
     // this.redirectUrl = 'https://api.payping.ir/v2/pay/gotoipg';
