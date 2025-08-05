@@ -18,6 +18,13 @@ import { TranslatorService } from '../../thirdParty/translator/translator.servic
 
 @Injectable()
 export class AttributeService {
+  // Cache for storing filter attributes with expiry time
+  private filterAttributesCache = new Map<
+    string,
+    { data: any[]; expiry: number }
+  >();
+  private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
   constructor(
     @InjectRepository(AttributeEntity)
     private attributeRepository: Repository<AttributeEntity>,
@@ -132,6 +139,9 @@ export class AttributeService {
 
     const newValueId = identifiers[0].id;
 
+    // Clear cache when new attribute value is added
+    // this.clearFilterAttributesCache();
+
     return { id: newValueId };
   }
 
@@ -171,6 +181,9 @@ export class AttributeService {
     attributeValue.extraValue = dto.extraValue;
 
     await attributeValue.save();
+
+    // Clear cache when attribute value is updated
+    // this.clearFilterAttributesCache();
 
     // Updating the exist attribute value locales and Inserting a new attribute value locales
     // for (let i = 0; i < do.locales?.length; i++) {
@@ -283,6 +296,9 @@ export class AttributeService {
     } finally {
       await queryRunner.release();
     }
+
+    // Clear cache when attribute value is deleted
+    this.clearFilterAttributesCache();
 
     return true;
   }
@@ -407,133 +423,187 @@ export class AttributeService {
   async getAttributesForFilter(filters: { categoryId?: number } = {}) {
     const { categoryId } = filters;
 
+    // Create cache key based on categoryId
+    const cacheKey = `filter_attributes_${categoryId || 'all'}`;
+
+    // Check if cached data exists and is not expired
+    const cached = this.filterAttributesCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      return cached.data;
+    }
+
     try {
       const result = await this.attributeRepository.query(
         'CALL sp_GetAttributesForFilter(?)',
         [categoryId || null],
       );
 
-      return result[0].map((row) => ({
+      const data = result[0].map((row) => ({
         id: row.attributeId,
         name: row.attributeName,
         type: row.attributeType,
         values: row.attributeValues || [],
       }));
+
+      // Cache the result with expiry time
+      this.filterAttributesCache.set(cacheKey, {
+        data: data,
+        expiry: Date.now() + this.CACHE_TTL,
+      });
+
+      return data;
     } catch (error) {
       return [];
     }
-
-    // const productCountSubQuery = this.attributeValueRepository
-    //   .createQueryBuilder('av')
-    //   .select('av.attributeId', 'attributeId')
-    //   .addSelect('COUNT(DISTINCT pav.productId)', 'productCount')
-    //   .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
-    //   .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
-    //   .innerJoin('p.category', 'c', 'c.status = 1')
-    //   .where('p.categoryId != 1')
-    //   .groupBy('av.attributeId');
-
-    // let query = this.attributeRepository
-    //   .createQueryBuilder('a')
-    //   .select([
-    //     'a.id AS attributeId',
-    //     'a.name AS attributeName',
-    //     'a.type AS attributeType',
-    //     'pc.productCount',
-    //   ])
-    //   .innerJoin(
-    //     `(${productCountSubQuery.getQuery()})`,
-    //     'pc',
-    //     'pc.attributeId = a.id',
-    //   )
-    //   .where('a.name != :excludedName', { excludedName: 'مبدأ' })
-    //   .orderBy('pc.productCount', 'DESC')
-    //   .limit(20);
-
-    // if (categoryId) {
-    //   query = query
-    //     .andWhere((qb) => {
-    //       const sub = qb
-    //         .subQuery()
-    //         .select('1')
-    //         .from('product_attribute_value', 'pav2')
-    //         .innerJoin(
-    //           'product',
-    //           'p2',
-    //           'p2.id = pav2.productId AND p2.isDeleted = 0 AND p2.status = 1',
-    //         )
-    //         .innerJoin(
-    //           'category',
-    //           'c2',
-    //           'c2.id = p2.categoryId AND c2.status = 1',
-    //         )
-    //         .where(
-    //           'pav2.attributeValueId IN ' +
-    //             qb
-    //               .subQuery()
-    //               .select('av2.id')
-    //               .from('attribute_value', 'av2')
-    //               .where('av2.attributeId = a.id')
-    //               .getQuery(),
-    //         )
-    //         .andWhere('p2.categoryId = :categoryId')
-    //         .getQuery();
-
-    //       return `EXISTS ${sub}`;
-    //     })
-    //     .setParameter('categoryId', categoryId);
-    // }
-
-    // const attributesList = await query.getRawMany();
-
-    // const attributeIds = attributesList.map((a) => a.attributeId);
-    // if (attributeIds.length === 0) return [];
-
-    // let valuesQuery = this.attributeValueRepository
-    //   .createQueryBuilder('av')
-    //   .select([
-    //     'av.id AS attributeValueId',
-    //     'av.name AS attributeValueName',
-    //     'av.attributeId AS attributeId',
-    //   ])
-    //   .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
-    //   .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
-    //   .innerJoin('p.category', 'c', 'c.status = 1')
-    //   .where('av.attributeId IN (:...attributeIds)', { attributeIds })
-    //   .andWhere('p.categoryId != 1')
-    //   .andWhere('CHAR_LENGTH(av.name) <= 30')
-    //   .orderBy('av.name', 'ASC');
-
-    // if (categoryId) {
-    //   valuesQuery = valuesQuery.andWhere('p.categoryId = :categoryId', {
-    //     categoryId,
-    //   });
-    // }
-
-    // const valuesList = await valuesQuery.getRawMany();
-
-    // const attributesMap = new Map();
-    // attributesList.forEach((attr) => {
-    //   attributesMap.set(attr.attributeId, {
-    //     id: attr.attributeId,
-    //     name: attr.attributeName,
-    //     type: attr.attributeType,
-    //     values: [],
-    //   });
-    // });
-
-    // valuesList.forEach((value) => {
-    //   const attr = attributesMap.get(value.attributeId);
-    //   if (attr) {
-    //     attr.values.push({
-    //       id: value.attributeValueId,
-    //       name: value.attributeValueName,
-    //     });
-    //   }
-    // });
-
-    // return Array.from(attributesMap.values());
   }
+
+  /**
+   * Clear cache for specific category or all categories
+   * Call this method when attributes or attribute values are modified
+   */
+  clearFilterAttributesCache(categoryId?: number) {
+    if (categoryId) {
+      // Clear cache for specific category
+      const cacheKey = `filter_attributes_${categoryId}`;
+      this.filterAttributesCache.delete(cacheKey);
+    } else {
+      // Clear all cache
+      this.filterAttributesCache.clear();
+    }
+  }
+
+  /**
+   * Get cache statistics for debugging
+   */
+  getCacheStats() {
+    const now = Date.now();
+    const stats = {
+      totalKeys: this.filterAttributesCache.size,
+      expiredKeys: 0,
+      validKeys: 0,
+    };
+
+    for (const [, value] of this.filterAttributesCache.entries()) {
+      if (value.expiry < now) {
+        stats.expiredKeys++;
+      } else {
+        stats.validKeys++;
+      }
+    }
+
+    return stats;
+  }
+
+  // const productCountSubQuery = this.attributeValueRepository
+  //   .createQueryBuilder('av')
+  //   .select('av.attributeId', 'attributeId')
+  //   .addSelect('COUNT(DISTINCT pav.productId)', 'productCount')
+  //   .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
+  //   .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
+  //   .innerJoin('p.category', 'c', 'c.status = 1')
+  //   .where('p.categoryId != 1')
+  //   .groupBy('av.attributeId');
+
+  // let query = this.attributeRepository
+  //   .createQueryBuilder('a')
+  //   .select([
+  //     'a.id AS attributeId',
+  //     'a.name AS attributeName',
+  //     'a.type AS attributeType',
+  //     'pc.productCount',
+  //   ])
+  //   .innerJoin(
+  //     `(${productCountSubQuery.getQuery()})`,
+  //     'pc',
+  //     'pc.attributeId = a.id',
+  //   )
+  //   .where('a.name != :excludedName', { excludedName: 'مبدأ' })
+  //   .orderBy('pc.productCount', 'DESC')
+  //   .limit(20);
+
+  // if (categoryId) {
+  //   query = query
+  //     .andWhere((qb) => {
+  //       const sub = qb
+  //         .subQuery()
+  //         .select('1')
+  //         .from('product_attribute_value', 'pav2')
+  //         .innerJoin(
+  //           'product',
+  //           'p2',
+  //           'p2.id = pav2.productId AND p2.isDeleted = 0 AND p2.status = 1',
+  //         )
+  //         .innerJoin(
+  //           'category',
+  //           'c2',
+  //           'c2.id = p2.categoryId AND c2.status = 1',
+  //         )
+  //         .where(
+  //           'pav2.attributeValueId IN ' +
+  //             qb
+  //               .subQuery()
+  //               .select('av2.id')
+  //               .from('attribute_value', 'av2')
+  //               .where('av2.attributeId = a.id')
+  //               .getQuery(),
+  //         )
+  //         .andWhere('p2.categoryId = :categoryId')
+  //         .getQuery();
+
+  //       return `EXISTS ${sub}`;
+  //     })
+  //     .setParameter('categoryId', categoryId);
+  // }
+
+  // const attributesList = await query.getRawMany();
+
+  // const attributeIds = attributesList.map((a) => a.attributeId);
+  // if (attributeIds.length === 0) return [];
+
+  // let valuesQuery = this.attributeValueRepository
+  //   .createQueryBuilder('av')
+  //   .select([
+  //     'av.id AS attributeValueId',
+  //     'av.name AS attributeValueName',
+  //     'av.attributeId AS attributeId',
+  //   ])
+  //   .innerJoin('av.productAttributeValues', 'pav', 'pav.isDeleted = 0')
+  //   .innerJoin('pav.product', 'p', 'p.isDeleted = 0 AND p.status = 1')
+  //   .innerJoin('p.category', 'c', 'c.status = 1')
+  //   .where('av.attributeId IN (:...attributeIds)', { attributeIds })
+  //   .andWhere('p.categoryId != 1')
+  //   .andWhere('CHAR_LENGTH(av.name) <= 30')
+  //   .orderBy('av.name', 'ASC');
+
+  // if (categoryId) {
+  //   valuesQuery = valuesQuery.andWhere('p.categoryId = :categoryId', {
+  //     categoryId,
+  //   });
+  // }
+
+  // const valuesList = await valuesQuery.getRawMany();
+
+  // const attributesMap = new Map();
+  // attributesList.forEach((attr) => {
+  //   attributesMap.set(attr.attributeId, {
+  //     id: attr.attributeId,
+  //     name: attr.attributeName,
+  //     type: attr.attributeType,
+  //     values: [],
+  //   });
+  // });
+
+  // valuesList.forEach((value) => {
+  //   const attr = attributesMap.get(value.attributeId);
+  //   if (attr) {
+  //     attr.values.push({
+  //       id: value.attributeValueId,
+  //       name: value.attributeValueName,
+  //     });
+  //   }
+  // });
+
+  // return Array.from(attributesMap.values());
 
   /**
    * -------------------------------------------------------
