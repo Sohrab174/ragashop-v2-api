@@ -20,21 +20,21 @@ export class TasksService {
     await this.orderService.handleDeleteUnpaid();
   }
 
-  @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_DETAILS)
-  async handleCrawlerProductDetails() {
-    console.log('CRON JOB FOR CRAWLER PRODUCT DETAILS');
-    await this.productService.getProductsDetailsByCrawler();
-  }
+  // @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_DETAILS)
+  // async handleCrawlerProductDetails() {
+  //   console.log('CRON JOB FOR CRAWLER PRODUCT DETAILS');
+  //   await this.productService.getProductsDetailsByCrawler();
+  // }
 
-  @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_PAGES)
-  async handleProductsPagesByCrawler() {
-    console.log('CRON JOB FOR CRAWLER PRODUCT PAGES');
-    await this.productService.getProductsPagesByCrawler();
-  }
+  // @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_PAGES)
+  // async handleProductsPagesByCrawler() {
+  //   console.log('CRON JOB FOR CRAWLER PRODUCT PAGES');
+  //   await this.productService.getProductsPagesByCrawler();
+  // }
 
-  @Cron(process.env.CRON_JOB_TRY_TO_RIAL)
-  async handleTryToRial() {
-    console.log('CRON JOB FOR GET TRY TO RIAL');
-    await this.settingService.getTryToRial();
-  }
+  // @Cron(process.env.CRON_JOB_TRY_TO_RIAL)
+  // async handleTryToRial() {
+  //   console.log('CRON JOB FOR GET TRY TO RIAL');
+  //   await this.settingService.getTryToRial();
+  // }
 }
