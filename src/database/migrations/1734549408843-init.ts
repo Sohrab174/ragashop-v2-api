@@ -340,7 +340,8 @@ export class init1734549408843 implements MigrationInterface {
 
     await queryRunner.query(`ALTER TABLE \`category\` 
 DROP COLUMN \`parentId\`,
-ADD COLUMN \`parentId\` INT(11) NULL DEFAULT NULL AFTER \`sourceId\`;`);
+ADD COLUMN \`parentId\` INT(11) NULL DEFAULT NULL AFTER \`sourceId\`,
+ADD INDEX \`fk_category_category1_idx\` (\`parentId\` ASC);`);
 
     await queryRunner.query(`ALTER TABLE \`category\` 
 ADD CONSTRAINT \`fk_category_category1\`
@@ -373,7 +374,7 @@ ADD CONSTRAINT \`fk_incredible_offer_product_attribute_value1\`
 
     await queryRunner.query(`ALTER TABLE \`order_item\` 
     ADD INDEX \`fk_order_item_product_attribute_value1_idx\` (\`productAttributeValueId\` ASC),
-    ADD INDEX \`fk_order_item_product1_idx\` (\`productId\` ASC)`);
+    ADD INDEX \`fk_order_item_product1_idx\` (\`productId\` ASC`);
 
     await queryRunner.query(`ALTER TABLE \`order_item\` 
   ADD CONSTRAINT \`fk_order_item_product_attribute_value1\`

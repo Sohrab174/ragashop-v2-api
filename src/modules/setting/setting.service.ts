@@ -120,7 +120,6 @@ export class SettingService {
       0,
       5000,
     );
-    console.log(res);
 
     if (res.result && res.result > 0) {
       console.log('new exchange TRY/IRR', new Date(), res.result);
