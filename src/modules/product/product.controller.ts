@@ -327,8 +327,8 @@ export class ProductController {
   async getMinMaxPricesForFilter(
     @Filter([['category_id', 'categoryId']]) filters,
   ) {
-    const data = await this.productService.getMinMaxPricesForFilter(filters);
-    return successfulResult([], data);
+    // const data = await this.productService.getMinMaxPricesForFilter(filters);
+    return successfulResult([], []);
   }
 
   /**
