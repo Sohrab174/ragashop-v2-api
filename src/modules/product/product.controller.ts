@@ -338,8 +338,8 @@ export class ProductController {
   @Get('/filter/attributes')
   @ApiQuery({ name: 'category_id', required: false })
   async getAttributesForFilter(@Query('category_id') categoryId) {
-    const data = await this.productService.getAttributesForFilter(categoryId);
-    return successfulResult([], data);
+    // const data = await this.productService.getAttributesForFilter(categoryId);
+    return successfulResult([], []);
   }
 
   /**
