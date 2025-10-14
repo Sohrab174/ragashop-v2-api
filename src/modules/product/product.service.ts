@@ -673,8 +673,9 @@ export class ProductService {
     }
 
     if (search) {
+      // sourceName ommited from query
       builder.andWhere(
-        '(product.name LIKE :search OR product.sourceName LIKE :search OR brand.sourceName LIKE :search OR category.name LIKE :search)',
+        '(product.name LIKE :search OR brand.sourceName LIKE :search OR category.name LIKE :search)',
         {
           search: `%${search}%`,
         },
