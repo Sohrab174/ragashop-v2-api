@@ -87,7 +87,7 @@ export class BrandService {
   ) {
     let builder = this.brandRepository
       .createQueryBuilder('brand')
-      .innerJoin('brand.products', 'product')
+      .innerJoin('brand.product', 'product')
       .innerJoin('product.category', 'category');
     if (categoryId || gender) {
       if (categoryId) {
