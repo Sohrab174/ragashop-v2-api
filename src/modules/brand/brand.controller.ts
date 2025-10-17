@@ -101,7 +101,7 @@ export class BrandController {
     @Limit() limit,
     @Sort() sorts,
     @Query('is_selection') isSelection,
-    @Query('categoryId') categoryId,
+    @Query('category_id') categoryId,
     @Query('gender') gender,
   ) {
     const list = await this.brandService.getAll(

@@ -85,16 +85,18 @@ export class BrandService {
     categoryId,
     gender,
   ) {
+    console.log('filters', { categoryId, gender });
+
     let builder = this.brandRepository
       .createQueryBuilder('brand')
-      .innerJoin('brand.product', 'product')
-      .innerJoin('product.category', 'category');
+      .innerJoin('brand.products', 'product');
     if (categoryId || gender) {
-      if (categoryId) {
-        builder.where('category.id = :categoryId', { categoryId });
+      if (categoryId && categoryId !== '2') {
+        builder.andWhere('product.categoryId = :categoryId', { categoryId });
       }
       if (gender) {
         builder.andWhere('product.gender = :gender', { gender });
+        // console.log('gender tesssssssssssssssssssssst', categoryId);
       }
       builder.distinct(true);
     }
