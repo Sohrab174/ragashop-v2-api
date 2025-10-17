@@ -77,8 +77,27 @@ export class BrandService {
    * -------------------------------------------------------
    * GET /brands
    */
-  async getAll(page = 1, limit = 20, sorts = null, isSelection = false) {
-    let builder = this.brandRepository.createQueryBuilder('brand');
+  async getAll(
+    page = 1,
+    limit = 20,
+    sorts = null,
+    isSelection = false,
+    categoryId,
+    gender,
+  ) {
+    let builder = this.brandRepository
+      .createQueryBuilder('brand')
+      .innerJoin('brand.products', 'product')
+      .innerJoin('product.category', 'category');
+    if (categoryId || gender) {
+      if (categoryId) {
+        builder.where('category.id = :categoryId', { categoryId });
+      }
+      if (gender) {
+        builder.andWhere('product.gender = :gender', { gender });
+      }
+      builder.distinct(true);
+    }
 
     if (isSelection) {
       builder.andWhere({ isSelection: true });

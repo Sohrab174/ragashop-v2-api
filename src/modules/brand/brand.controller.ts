@@ -101,12 +101,16 @@ export class BrandController {
     @Limit() limit,
     @Sort() sorts,
     @Query('is_selection') isSelection,
+    @Query('categoryId') categoryId,
+    @Query('gender') gender,
   ) {
     const list = await this.brandService.getAll(
       page,
       limit,
       sorts,
       isSelection === '1',
+      categoryId,
+      gender,
     );
 
     return successfulResult([], list);
