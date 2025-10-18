@@ -85,20 +85,18 @@ export class BrandService {
     categoryId,
     gender,
   ) {
-    console.log('filters', { categoryId, gender });
-
     let builder = this.brandRepository
       .createQueryBuilder('brand')
-      .innerJoin('brand.products', 'product');
+      .innerJoin('brand.products', 'product')
+      .select('brand')
+      .distinct(true);
     if (categoryId || gender) {
       if (categoryId && categoryId !== '2') {
         builder.andWhere('product.categoryId = :categoryId', { categoryId });
       }
       if (gender) {
         builder.andWhere('product.gender = :gender', { gender });
-        // console.log('gender tesssssssssssssssssssssst', categoryId);
       }
-      builder.distinct(true);
     }
 
     if (isSelection) {
@@ -115,9 +113,12 @@ export class BrandService {
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
+    const uniqueBrands = [
+      ...new Map(items.map((b) => [b.sourceName, b])).values(),
+    ];
 
     return {
-      items,
+      items: uniqueBrands,
       pagination: paginationResult(page, limit, totalItems),
     };
   }
