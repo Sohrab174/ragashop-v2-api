@@ -326,9 +326,13 @@ export class ProductController {
   @ApiQuery({ name: 'category_id', required: false })
   async getMinMaxPricesForFilter(
     @Filter([['category_id', 'categoryId']]) filters,
+    @Filter([['gender', 'gender']]) gender,
   ) {
-    // const data = await this.productService.getMinMaxPricesForFilter(filters);
-    return successfulResult([], []);
+    const data = await this.productService.getMinMaxPricesForFilter(
+      filters,
+      gender,
+    );
+    return successfulResult([], data);
   }
 
   /**

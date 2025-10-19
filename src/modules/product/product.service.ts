@@ -1595,7 +1595,7 @@ export class ProductService {
   /**
    * -------------------------------------------------------
    */
-  async getMinMaxPricesForFilter(filters) {
+  async getMinMaxPricesForFilter(filters, gender) {
     let builder = this.productRepository
       .createQueryBuilder('product')
       .select([
@@ -1614,7 +1614,11 @@ export class ProductService {
       .andWhere('product.categoryId != 1')
       .andWhere({ status: ProductStatus.active });
 
-    builder = applyFiltersToBuilder(builder, filters);
+    if (filters[0].data[0].value !== 2) {
+      builder = applyFiltersToBuilder(builder, filters);
+    } else {
+      builder = applyFiltersToBuilder(builder, gender);
+    }
     const prices = await builder.getRawOne();
 
     const tryToToman = await this.settingService.getTryToToman();
