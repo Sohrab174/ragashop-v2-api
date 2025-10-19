@@ -1614,7 +1614,7 @@ export class ProductService {
       .andWhere('product.categoryId != 1')
       .andWhere({ status: ProductStatus.active });
 
-    if (filters || gender) {
+    if (filters[0]?.data[0]?.value || gender[0]?.data[0]?.value) {
       if (filters[0].data[0].value !== 2) {
         builder = applyFiltersToBuilder(builder, filters);
       } else {
