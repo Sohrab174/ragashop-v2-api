@@ -828,8 +828,8 @@ export class ProductService {
       .getManyAndCount();
 
     builder.select([
-      'MIN(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS minPrice',
-      'MAX(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS maxPrice',
+      'MIN(COALESCE(product.discountedPrice, product.price)) AS minPrice',
+      'MAX(COALESCE(product.discountedPrice, product.price)) AS maxPrice',
     ]);
     // .innerJoin('product.category', 'category', 'category.status = :status', {
     //   status: CategoryStatus.active,
