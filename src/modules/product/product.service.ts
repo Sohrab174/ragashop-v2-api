@@ -827,11 +827,48 @@ export class ProductService {
       .skip((page - 1) * limit)
       .getManyAndCount();
 
+    builder
+      .select([
+        'MIN(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS minPrice',
+        'MAX(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS maxPrice',
+      ])
+      .innerJoin('product.category', 'category', 'category.status = :status', {
+        status: CategoryStatus.active,
+      })
+      .leftJoin(
+        'product.productAttributeValues',
+        'productAttributeValues',
+        'productAttributeValues.isDeleted = 0',
+      )
+      .andWhere({ isDeleted: false })
+      .andWhere('product.categoryId != 1')
+      .andWhere({ status: ProductStatus.active });
+
+    // if (filters[0]?.data[0]?.value || gender[0]?.data[0]?.value) {
+    //   if (filters[0].data[0].value !== 2) {
+    //     builder = applyFiltersToBuilder(builder, filters);
+    //   } else {
+    //     builder = applyFiltersToBuilder(builder, gender);
+    //   }
+    // }
+    // const prices = await builder.getRawOne();
+
+    // const tryToToman = await this.settingService.getTryToToman();
+
+    // return {
+    //   minPrice: Math.round(prices.minPrice * tryToToman),
+    //   maxPrice: Math.round(prices.maxPrice * tryToToman),
+    // };
+    const prices = await builder.getRawOne();
     const tryToToman = await this.settingService.getTryToToman();
 
     return {
       items: items.map((item) => this.mappingProduct(item, tryToToman)),
       pagination: paginationResult(page, limit, totalItems),
+      prices: {
+        minPrice: Math.round(prices.minPrice * tryToToman),
+        maxPrice: Math.round(prices.maxPrice * tryToToman),
+      },
     };
   }
 
