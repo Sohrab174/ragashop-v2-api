@@ -827,22 +827,21 @@ export class ProductService {
       .skip((page - 1) * limit)
       .getManyAndCount();
 
-    builder
-      .select([
-        'MIN(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS minPrice',
-        'MAX(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS maxPrice',
-      ])
-      .innerJoin('product.category', 'category', 'category.status = :status', {
-        status: CategoryStatus.active,
-      })
-      .leftJoin(
-        'product.productAttributeValues',
-        'productAttributeValues',
-        'productAttributeValues.isDeleted = 0',
-      )
-      .andWhere({ isDeleted: false })
-      .andWhere('product.categoryId != 1')
-      .andWhere({ status: ProductStatus.active });
+    builder.select([
+      'MIN(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS minPrice',
+      'MAX(COALESCE(productAttributeValues.discountedPrice, productAttributeValues.price, product.discountedPrice, product.price)) AS maxPrice',
+    ]);
+    // .innerJoin('product.category', 'category', 'category.status = :status', {
+    //   status: CategoryStatus.active,
+    // })
+    // .leftJoin(
+    //   'product.productAttributeValues',
+    //   'productAttributeValues',
+    //   'productAttributeValues.isDeleted = 0',
+    // )
+    // .andWhere({ isDeleted: false })
+    // .andWhere('product.categoryId != 1')
+    // .andWhere({ status: ProductStatus.active });
 
     // if (filters[0]?.data[0]?.value || gender[0]?.data[0]?.value) {
     //   if (filters[0].data[0].value !== 2) {
