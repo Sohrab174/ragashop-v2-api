@@ -43,6 +43,12 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
         migrationsDir: 'src/database/migrations',
         subscribersDir: 'subscriber',
       },
+      retryAttempts: 10,
+      retryDelay: 3000,
+      extra: {
+        connectionLimit: 10,
+        enableKeepAlive: true,
+      },
     } as TypeOrmModuleOptions;
   }
 }
