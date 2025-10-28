@@ -637,17 +637,17 @@ export class ProductService {
     attributes = [],
     customer: CustomerEntity,
   ) {
-    const filtersAsString = '';
+    let filtersAsString = '';
     Object.keys(filters).map((item) => {
-      filtersAsString + `${item}${filters[item]}`;
+      filtersAsString += `${item}${filters[item]}`;
     });
     const priceRangeAsString = '';
     Object.keys(priceRanges).map((item) => {
-      filtersAsString + `${item}${filters[item]}`;
+      filtersAsString += `${item}${filters[item]}`;
     });
-    const attributesAsString = '';
+    let attributesAsString = '';
     attributes.map((item) => {
-      attributesAsString + item.toString();
+      attributesAsString += item.toString();
     });
 
     const key = `products:${filtersAsString}${categoryId}${priceRangeAsString}${search}${attributesAsString}${customer}`;
