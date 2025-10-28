@@ -661,7 +661,7 @@ export class ProductService {
     const key = `products:${categoryId}`;
     console.log(key);
 
-    const cached = await this.cache.get(key);
+    const cached = await this.cache.get(JSON.parse(key));
     console.log(cached);
 
     if (cached) {
@@ -903,7 +903,7 @@ export class ProductService {
         maxPrice: Math.round(prices.maxPrice * tryToToman),
       },
     };
-    await this.cache.set(key, productResponse, 600);
+    await this.cache.set(key, JSON.stringify(productResponse), 600);
     return {
       items: items.map((item) => this.mappingProduct(item, tryToToman)),
       pagination: paginationResult(page, limit, totalItems),
