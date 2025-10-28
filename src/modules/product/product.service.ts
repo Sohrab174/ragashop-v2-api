@@ -662,10 +662,10 @@ export class ProductService {
     console.log(key);
 
     const cached = await this.cache.get(key);
-    const parsedCache = JSON.parse(cached);
 
-    if (parsedCache) {
+    if (cached) {
       console.log('cache hit');
+      const parsedCache = JSON.parse(cached);
 
       return parsedCache;
     }
