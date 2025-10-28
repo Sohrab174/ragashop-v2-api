@@ -895,15 +895,26 @@ export class ProductService {
     // };
     const prices = await builder.getRawOne();
     const tryToToman = await this.settingService.getTryToToman();
-    const productResponse = {
-      items: items.map((item) => this.mappingProduct(item, tryToToman)),
-      pagination: paginationResult(page, limit, totalItems),
-      prices: {
-        minPrice: Math.round(prices.minPrice * tryToToman),
-        maxPrice: Math.round(prices.maxPrice * tryToToman),
-      },
-    };
-    await this.cache.set(key, JSON.stringify(productResponse), 600);
+    // const productResponse = {
+    //   items: items.map((item) => this.mappingProduct(item, tryToToman)),
+    //   pagination: paginationResult(page, limit, totalItems),
+    //   prices: {
+    //     minPrice: Math.round(prices.minPrice * tryToToman),
+    //     maxPrice: Math.round(prices.maxPrice * tryToToman),
+    //   },
+    // };
+    await this.cache.set(
+      key,
+      JSON.stringify({
+        items: items.map((item) => this.mappingProduct(item, tryToToman)),
+        pagination: paginationResult(page, limit, totalItems),
+        prices: {
+          minPrice: Math.round(prices.minPrice * tryToToman),
+          maxPrice: Math.round(prices.maxPrice * tryToToman),
+        },
+      }),
+      600,
+    );
     return {
       items: items.map((item) => this.mappingProduct(item, tryToToman)),
       pagination: paginationResult(page, limit, totalItems),
