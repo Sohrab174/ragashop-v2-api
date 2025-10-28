@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, CACHE_MANAGER } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { getConnection, Repository, IsNull, In, Not } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
@@ -45,6 +45,7 @@ import { FileStorageService } from '../../file-storage.service';
 import { CustomerEntity } from '../customer/entities/customer.entity';
 import { UpdateGroupProductDto } from './dto/update-group-product.dto';
 import axios from 'axios';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class ProductService {
@@ -70,6 +71,7 @@ export class ProductService {
     private crawlerService: CrawlerService,
     private translatorService: TranslatorService,
     private readonly fileStorage: FileStorageService,
+    @Inject(CACHE_MANAGER) private cache: Cache,
   ) {}
 
   /**
@@ -635,6 +637,12 @@ export class ProductService {
     attributes = [],
     customer: CustomerEntity,
   ) {
+    const key = `products:${filters}${categoryId}${priceRanges}${search}${attributes}${customer}`;
+    const cached = await this.cache.get(key);
+    if (cached) {
+      return cached;
+    }
+
     let categoryIds = [];
     if (categoryId) {
       categoryIds = [
@@ -860,7 +868,15 @@ export class ProductService {
     // };
     const prices = await builder.getRawOne();
     const tryToToman = await this.settingService.getTryToToman();
-
+    const productResponse = {
+      items: items.map((item) => this.mappingProduct(item, tryToToman)),
+      pagination: paginationResult(page, limit, totalItems),
+      prices: {
+        minPrice: Math.round(prices.minPrice * tryToToman),
+        maxPrice: Math.round(prices.maxPrice * tryToToman),
+      },
+    };
+    await this.cache.set(key, productResponse, 600);
     return {
       items: items.map((item) => this.mappingProduct(item, tryToToman)),
       pagination: paginationResult(page, limit, totalItems),

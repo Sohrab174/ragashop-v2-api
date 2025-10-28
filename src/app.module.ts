@@ -1,4 +1,9 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  CacheModule,
+} from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigurationModule } from './config/configuration.module';
@@ -33,6 +38,7 @@ import { NavMenuModule } from './modules/nav-menu/nav-menu.module';
 import { FavoriteModule } from './modules/favorite/favorite.module';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { TelegrafConfigService } from './thirdParty/telegraf/telegraf-config.service';
+import { redisStore } from 'cache-manager-redis-yet';
 
 @Module({
   imports: [
@@ -48,6 +54,22 @@ import { TelegrafConfigService } from './thirdParty/telegraf/telegraf-config.ser
     ErrorModule.register(),
     TelegrafModule.forRootAsync({
       useClass: TelegrafConfigService,
+    }),
+
+    // Cache Module
+
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: async () => ({
+        store: await redisStore({
+          socket: {
+            host: 'localhost',
+            port: 6379,
+          },
+          ttl: 600,
+          database: 0,
+        }),
+      }),
     }),
 
     // Project modules
