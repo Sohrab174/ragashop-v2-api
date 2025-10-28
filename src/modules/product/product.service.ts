@@ -640,6 +640,8 @@ export class ProductService {
     const key = `products:${filters}${categoryId}${priceRanges}${search}${attributes}${customer}`;
     const cached = await this.cache.get(key);
     if (cached) {
+      console.log('cache hit');
+
       return cached;
     }
 
