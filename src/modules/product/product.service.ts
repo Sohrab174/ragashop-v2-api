@@ -637,7 +637,20 @@ export class ProductService {
     attributes = [],
     customer: CustomerEntity,
   ) {
-    const key = `products:${filters}${categoryId}${priceRanges}${search}${attributes}${customer}`;
+    const filtersAsString = '';
+    Object.keys(filters).map((item) => {
+      filtersAsString + `${item}${filters[item]}`;
+    });
+    const priceRangeAsString = '';
+    Object.keys(priceRanges).map((item) => {
+      filtersAsString + `${item}${filters[item]}`;
+    });
+    const attributesAsString = '';
+    attributes.map((item) => {
+      attributesAsString + item.toString();
+    });
+
+    const key = `products:${filtersAsString}${categoryId}${priceRangeAsString}${search}${attributesAsString}${customer}`;
     console.log(key);
 
     const cached = await this.cache.get(key);
