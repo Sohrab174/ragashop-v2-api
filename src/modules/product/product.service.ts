@@ -661,13 +661,13 @@ export class ProductService {
     const key = `products:${categoryId}`;
     console.log(key);
 
-    const cached = await this.cache.get(JSON.parse(key));
-    console.log(cached);
+    const cached = await this.cache.get(key);
+    const parsedCache = JSON.parse(cached);
 
-    if (cached) {
+    if (parsedCache) {
       console.log('cache hit');
 
-      return cached;
+      return parsedCache;
     }
 
     let categoryIds = [];
