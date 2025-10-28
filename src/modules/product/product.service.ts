@@ -650,7 +650,7 @@ export class ProductService {
       attributesAsString += item.toString();
     });
 
-    const key = `products:${filtersAsString}${categoryId}${priceRangeAsString}${search}${attributesAsString}${customer}`;
+    const key = `products:${categoryId}`;
     console.log(key);
 
     const cached = await this.cache.get(key);
