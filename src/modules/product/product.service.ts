@@ -637,28 +637,28 @@ export class ProductService {
     attributes = [],
     customer: CustomerEntity,
   ) {
-    let filtersAsString = '';
-    const filterKeys = Object.keys(filters);
-    if (filterKeys.length) {
-      filterKeys.map((item) => {
-        filtersAsString += `${item}${filters[item]}`;
-      });
-    }
-    let priceRangeAsString = '';
-    const priceKeys = Object.keys(priceRanges);
-    if (priceKeys.length) {
-      priceKeys.map((item) => {
-        priceRangeAsString += `${item}${filters[item]}`;
-      });
-    }
-    let attributesAsString = '';
-    if (attributes.length) {
-      attributes.map((item) => {
-        attributesAsString += item.toString();
-      });
-    }
+    // let filtersAsString = '';
+    // const filterKeys = Object.keys(filters);
+    // if (filterKeys.length) {
+    //   filterKeys.map((item) => {
+    //     filtersAsString += `${item}${filters[item]}`;
+    //   });
+    // }
+    // let priceRangeAsString = '';
+    // const priceKeys = Object.keys(priceRanges);
+    // if (priceKeys.length) {
+    //   priceKeys.map((item) => {
+    //     priceRangeAsString += `${item}${priceRanges[item]}`;
+    //   });
+    // }
+    // let attributesAsString = '';
+    // if (attributes.length) {
+    //   attributes.map((item) => {
+    //     attributesAsString += item.toString();
+    //   });
+    // }
 
-    const key = `products:${categoryId}${filtersAsString}${priceRangeAsString}${attributesAsString}`;
+    const key = `products:${categoryId}`;
     console.log(key);
 
     const cached = await this.cache.get(key);
