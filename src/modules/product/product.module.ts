@@ -13,6 +13,7 @@ import { BrandModule } from '../brand/brand.module';
 import { SettingModule } from '../setting/setting.module';
 import { TranslatorModule } from '../../thirdParty/translator/translator.module';
 import { FileStorageService } from '../../file-storage.service';
+import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-offer.entity';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { FileStorageService } from '../../file-storage.service';
       ProductGalleryEntity,
       ProductAttributeValueEntity,
       ProductDescriptionEntity,
+      IncredibleOfferEntity,
     ]),
     CategoryModule,
     AttributeModule,
