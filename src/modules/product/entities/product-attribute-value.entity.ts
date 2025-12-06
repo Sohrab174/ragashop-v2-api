@@ -21,6 +21,7 @@ import { OrderItemEntity } from '../../order/entities/order-item.entity';
   {},
 )
 @Index('fk_product_attribute_value_product1_idx', ['productId'], {})
+@Index('product_attribute_isDeleted_idx', ['isDeleted'], {})
 @Entity('product_attribute_value')
 export class ProductAttributeValueEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
