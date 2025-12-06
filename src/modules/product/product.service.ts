@@ -1,6 +1,14 @@
 import { Inject, Injectable, CACHE_MANAGER } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { getConnection, Repository, IsNull, In, Not } from 'typeorm';
+import {
+  getConnection,
+  Repository,
+  IsNull,
+  In,
+  Not,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+} from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -46,6 +54,7 @@ import { CustomerEntity } from '../customer/entities/customer.entity';
 import { UpdateGroupProductDto } from './dto/update-group-product.dto';
 import axios from 'axios';
 import { Cache } from 'cache-manager';
+import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-offer.entity';
 
 @Injectable()
 export class ProductService {
@@ -61,6 +70,9 @@ export class ProductService {
 
     @InjectRepository(ProductGalleryEntity)
     private galleryRepository: Repository<ProductGalleryEntity>,
+
+    @InjectRepository(IncredibleOfferEntity)
+    private incredibleOffersRepository: Repository<IncredibleOfferEntity>,
 
     private error: ErrorService,
     private categoryService: CategoryService,
@@ -296,118 +308,259 @@ export class ProductService {
    * -------------------------------------------------------
    * GET /products/:id
    */
+  // async getById(id: number) {
+  //   const builder = this.productRepository
+  //     .createQueryBuilder('product')
+  //     .leftJoinAndSelect('product.cover', 'cover')
+  //     .leftJoinAndSelect('product.productGalleries', 'productGalleries')
+  //     .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
+  //     .innerJoinAndSelect('product.category', 'category')
+  //     .leftJoinAndSelect('product.brand', 'brand')
+  //     // Product incredible offers
+  //     .leftJoin(
+  //       'product.incredibleOffers',
+  //       'productIncredibleOffers',
+  //       'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
+  //       { now: new Date() },
+  //     )
+  //     .addSelect('productIncredibleOffers.id')
+  //     .addSelect('productIncredibleOffers.discountedPrice')
+  //     .addSelect('productIncredibleOffers.toDate')
+
+  //     .leftJoinAndSelect(
+  //       'product.productAttributeValues',
+  //       'productAttributeValues',
+  //       'productAttributeValues.isDeleted = 0',
+  //     )
+  //     .leftJoinAndSelect(
+  //       'productAttributeValues.attributeValue',
+  //       'attributeValue',
+  //     )
+  //     .leftJoinAndSelect('attributeValue.attribute', 'attribute')
+
+  //     // Product incredible offers for attributes
+  //     .leftJoin(
+  //       'productAttributeValues.incredibleOffers',
+  //       'productAttributeIncredibleOffers',
+  //       'productAttributeIncredibleOffers.fromDate <= :now AND productAttributeIncredibleOffers.toDate >= :now',
+  //       { now: new Date() },
+  //     )
+  //     .addSelect('productAttributeIncredibleOffers.id')
+  //     .addSelect('productAttributeIncredibleOffers.discountedPrice')
+  //     .addSelect('productAttributeIncredibleOffers.toDate')
+  //     .where({ id })
+  //     .andWhere('product.categoryId != 1')
+  //     .andWhere({ isDeleted: false });
+
+  //   builder.andWhere({ status: ProductStatus.active });
+
+  //   const product: ProductEntity & {
+  //     incredibleOfferExpire?: Date;
+  //     productAttributeValues: any;
+  //   } = await builder.getOne();
+
+  //   if (!product) {
+  //     this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
+  //   }
+
+  //   const tryToToman = await this.settingService.getTryToToman();
+
+  //   product.discountedPrice =
+  //     tryToToman *
+  //     (product.incredibleOffers?.[0]?.discountedPrice ||
+  //       product.discountedPrice);
+
+  //   product.incredibleOfferExpire =
+  //     product.incredibleOffers?.[0]?.toDate || null;
+
+  //   product.productAttributeValues = product.productAttributeValues.map(
+  //     (pav) => {
+  //       pav.discountedPrice =
+  //         tryToToman *
+  //         (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice);
+  //       pav.incredibleOfferExpire = pav.incredibleOffers?.[0]?.toDate || null;
+  //       pav.price = tryToToman * pav.price;
+  //       delete pav.incredibleOffers;
+  //       return pav;
+  //     },
+  //   );
+
+  //   delete product.incredibleOffers;
+
+  //   (product as any).relatedProducts = await this.productRepository
+  //     .createQueryBuilder('product')
+  //     .leftJoin('product.cover', 'cover')
+  //     .select([
+  //       'product.id',
+  //       'product.name',
+  //       'cover.id',
+  //       'cover.type',
+  //       'cover.pathFile',
+  //     ])
+  //     .where({
+  //       isDeleted: false,
+  //       sourceGroupId: product.sourceGroupId,
+  //       id: Not(product.id),
+  //     })
+  //     .andWhere('product.categoryId != 1')
+  //     .getMany();
+
+  //   return {
+  //     ...product,
+  //     price: product.price * tryToToman,
+  //   };
+
+  //   // if (product.coverId && product.productGalleries?.length === 1) {
+  //   //   return product;
+  //   // }
+
+  //   // return {
+  //   //   ...product,
+  //   //   productGalleries: product.productGalleries.filter(
+  //   //     (g) => g.id !== product.coverId,
+  //   //   ),
+  //   // };
+  // }
   async getById(id: number) {
-    const builder = this.productRepository
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.cover', 'cover')
-      .leftJoinAndSelect('product.productGalleries', 'productGalleries')
-      .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
-      .innerJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.brand', 'brand')
-      // Product incredible offers
-      .leftJoin(
-        'product.incredibleOffers',
-        'productIncredibleOffers',
-        'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
-        { now: new Date() },
-      )
-      .addSelect('productIncredibleOffers.id')
-      .addSelect('productIncredibleOffers.discountedPrice')
-      .addSelect('productIncredibleOffers.toDate')
+    const now = new Date();
 
-      .leftJoinAndSelect(
-        'product.productAttributeValues',
-        'productAttributeValues',
-        'productAttributeValues.isDeleted = 0',
-      )
-      .leftJoinAndSelect(
-        'productAttributeValues.attributeValue',
-        'attributeValue',
-      )
-      .leftJoinAndSelect('attributeValue.attribute', 'attribute')
-
-      // Product incredible offers for attributes
-      .leftJoin(
-        'productAttributeValues.incredibleOffers',
-        'productAttributeIncredibleOffers',
-        'productAttributeIncredibleOffers.fromDate <= :now AND productAttributeIncredibleOffers.toDate >= :now',
-        { now: new Date() },
-      )
-      .addSelect('productAttributeIncredibleOffers.id')
-      .addSelect('productAttributeIncredibleOffers.discountedPrice')
-      .addSelect('productAttributeIncredibleOffers.toDate')
-      .where({ id })
-      .andWhere('product.categoryId != 1')
-      .andWhere({ isDeleted: false });
-
-    builder.andWhere({ status: ProductStatus.active });
-
-    const product: ProductEntity & {
-      incredibleOfferExpire?: Date;
-      productAttributeValues: any;
-    } = await builder.getOne();
+    // ─────────────────────────────────────
+    // 1) Load main product (small, cheap)
+    // ─────────────────────────────────────
+    const product = await this.productRepository.findOne({
+      where: {
+        id,
+        isDeleted: false,
+        categoryId: Not(1),
+        status: ProductStatus.active,
+      },
+      relations: ['cover', 'category', 'brand'],
+    });
 
     if (!product) {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
     }
 
+    // ─────────────────────────────────────
+    // 2) Load related simple relations
+    // ─────────────────────────────────────
+    const descriptionsPromise = this.descriptionRepository.find({
+      where: { productId: id },
+    });
+
+    const galleriesPromise = this.galleryRepository.find({
+      where: { productId: id },
+    });
+
+    // ─────────────────────────────────────
+    // 3) Load productAttributeValues + attribute/attributeValue
+    // ─────────────────────────────────────
+    const attributeValuesPromise = this.productAttributeValueRepository.find({
+      where: { productId: id, isDeleted: false },
+      relations: ['attributeValue', 'attributeValue.attribute'],
+    });
+
+    // ─────────────────────────────────────
+    // 4) Load incredible offers (product-level)
+    // ─────────────────────────────────────
+    const productOffersPromise = this.incredibleOffersRepository.find({
+      where: {
+        productId: id,
+        productAttributeValueId: null,
+        fromDate: LessThanOrEqual(now),
+        toDate: MoreThanOrEqual(now),
+      },
+      select: ['id', 'discountedPrice', 'toDate'],
+    });
+
+    // ─────────────────────────────────────
+    // 5) Load attribute-value-level incredible offers
+    // ─────────────────────────────────────
+    const attributeOffersPromise = this.incredibleOffersRepository.find({
+      where: {
+        productId: id,
+        productAttributeValueId: Not(null),
+        fromDate: LessThanOrEqual(now),
+        toDate: MoreThanOrEqual(now),
+      },
+      select: ['id', 'discountedPrice', 'toDate', 'productAttributeValueId'],
+    });
+
+    // ─────────────────────────────────────
+    // 6) Load related products (separate small query)
+    // ─────────────────────────────────────
+    const relatedProductsPromise = this.productRepository.find({
+      where: {
+        isDeleted: false,
+        categoryId: Not(1),
+        sourceGroupId: product.sourceGroupId,
+        id: Not(product.id),
+      },
+      relations: ['cover'],
+      take: 10,
+    });
+
+    // Run everything in parallel (massive speed-up)
+    const [
+      descriptions,
+      galleries,
+      attributeValues,
+      productOffers,
+      attributeOffers,
+      relatedProducts,
+    ] = await Promise.all([
+      descriptionsPromise,
+      galleriesPromise,
+      attributeValuesPromise,
+      productOffersPromise,
+      attributeOffersPromise,
+      relatedProductsPromise,
+    ]);
+
+    // ─────────────────────────────────────
+    // 7) Attach data
+    // ─────────────────────────────────────
+    product.productDescriptions = descriptions;
+    product.productGalleries = galleries;
+    product.productAttributeValues = attributeValues;
+    (product as any).relatedProducts = relatedProducts;
+
+    // ─────────────────────────────────────
+    // 8) Pricing conversion
+    // ─────────────────────────────────────
     const tryToToman = await this.settingService.getTryToToman();
 
+    // Product-level offer
+    const activeProductOffer = productOffers[0];
     product.discountedPrice =
       tryToToman *
-      (product.incredibleOffers?.[0]?.discountedPrice ||
-        product.discountedPrice);
+      (activeProductOffer?.discountedPrice ?? product.discountedPrice);
 
-    product.incredibleOfferExpire =
-      product.incredibleOffers?.[0]?.toDate || null;
+    (product as any).incredibleOfferExpire = activeProductOffer?.toDate ?? null;
+
+    // Attribute-level offers
+    const attrOfferMap = new Map(
+      attributeOffers.map((o) => [o.productAttributeValueId, o]),
+    );
 
     product.productAttributeValues = product.productAttributeValues.map(
       (pav) => {
+        const offer = attrOfferMap.get(pav.id);
         pav.discountedPrice =
-          tryToToman *
-          (pav.incredibleOffers?.[0]?.discountedPrice || pav.discountedPrice);
-        pav.incredibleOfferExpire = pav.incredibleOffers?.[0]?.toDate || null;
-        pav.price = tryToToman * pav.price;
-        delete pav.incredibleOffers;
+          tryToToman * (offer?.discountedPrice ?? pav.discountedPrice);
+        (pav as any).incredibleOfferExpire = offer?.toDate ?? null;
+        pav.price = pav.price * tryToToman;
         return pav;
       },
     );
 
-    delete product.incredibleOffers;
-
-    (product as any).relatedProducts = await this.productRepository
-      .createQueryBuilder('product')
-      .leftJoin('product.cover', 'cover')
-      .select([
-        'product.id',
-        'product.name',
-        'cover.id',
-        'cover.type',
-        'cover.pathFile',
-      ])
-      .where({
-        isDeleted: false,
-        sourceGroupId: product.sourceGroupId,
-        id: Not(product.id),
-      })
-      .andWhere('product.categoryId != 1')
-      .getMany();
-
+    // ─────────────────────────────────────
+    // 9) Return final product
+    // ─────────────────────────────────────
     return {
       ...product,
       price: product.price * tryToToman,
     };
-
-    // if (product.coverId && product.productGalleries?.length === 1) {
-    //   return product;
-    // }
-
-    // return {
-    //   ...product,
-    //   productGalleries: product.productGalleries.filter(
-    //     (g) => g.id !== product.coverId,
-    //   ),
-    // };
   }
 
   /**
