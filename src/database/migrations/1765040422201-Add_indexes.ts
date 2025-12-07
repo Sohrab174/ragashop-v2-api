@@ -39,20 +39,20 @@ export class AddIndexes1765040422201 implements MigrationInterface {
     await createIndexIfNotExists(
       'product',
       'idx_product_categoryId',
-      '`category_id`',
+      '`categoryId`',
     );
     await createIndexIfNotExists('product', 'idx_product_status', '`status`');
     await createIndexIfNotExists(
       'product',
       'idx_product_sourceGroupId',
-      '`source_group_id`',
+      '`sourceGroupId`',
     );
 
     // PRODUCT_ATTRIBUTE_VALUE
     await createIndexIfNotExists(
       'product_attribute_value',
       'idx_pav_productId',
-      '`product_id`',
+      '`productId`',
     );
     await createIndexIfNotExists(
       'product_attribute_value',
@@ -64,43 +64,43 @@ export class AddIndexes1765040422201 implements MigrationInterface {
     await createIndexIfNotExists(
       'attribute_value',
       'idx_attributeValue_attributeId',
-      '`attribute_id`',
+      '`attributeId`',
     );
 
     // INCREDIBLE_OFFER
     await createIndexIfNotExists(
       'incredible_offer',
       'idx_offer_productId',
-      '`product_id`',
+      '`productId`',
     );
     await createIndexIfNotExists(
       'incredible_offer',
       'idx_offer_attrValueId',
-      '`product_attribute_value_id`',
+      '`productAttributeValueId`',
     );
     await createIndexIfNotExists(
       'incredible_offer',
       'idx_offer_fromDate',
-      '`from_date`',
+      '`fromDate`',
     );
     await createIndexIfNotExists(
       'incredible_offer',
       'idx_offer_toDate',
-      '`to_date`',
+      '`toDate`',
     );
 
     // PRODUCT_GALLERY
     await createIndexIfNotExists(
       'product_gallery',
       'idx_gallery_productId',
-      '`product_id`',
+      '`productId`',
     );
 
     // PRODUCT_DESCRIPTION
     await createIndexIfNotExists(
       'product_description',
       'idx_description_productId',
-      '`product_id`',
+      '`productId`',
     );
   }
 
