@@ -40,10 +40,10 @@ export enum ProductCurrency {
 }
 
 @Index('fk_product_brand1_idx', ['brandId'], {})
-@Index('fk_product_category1_idx', ['categoryId'], {})
+@Index('idx_product_categoryId', ['categoryId'], {})
 @Index('fk_product_product_gallery1_idx', ['coverId'], {})
-@Index('fk_product_product_sourceGroupId_idx', ['sourceGroupId'], {})
-@Index('product_product_isDeleted_idx', ['isDeleted'], {})
+@Index('idx_product_sourceGroupId', ['sourceGroupId'], {})
+@Index('idx_product_isDeleted', ['isDeleted'], {})
 @Index('product_product_status_idx', ['status'], {})
 @Entity('product')
 export class ProductEntity extends BaseEntity {

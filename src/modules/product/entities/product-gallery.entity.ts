@@ -15,7 +15,7 @@ export enum ProductGalleryType {
   video = 'video',
 }
 
-@Index('fk_product_gallery_product1_idx', ['productId'], {})
+@Index('idx_gallery_productId', ['productId'], {})
 @Entity('product_gallery')
 export class ProductGalleryEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })

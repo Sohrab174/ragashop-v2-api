@@ -13,12 +13,10 @@ import { ProductEntity } from '../../product/entities/product.entity';
 import { ProductAttributeValueEntity } from '../../product/entities/product-attribute-value.entity';
 import { PageSectionItemEntity } from '../../page/entities/page-section-item.entity';
 
-@Index('fk_incredible_offer_product1_idx', ['productId'], {})
-@Index(
-  'fk_incredible_offer_product_attribute_value1_idx',
-  ['productAttributeValueId'],
-  {},
-)
+@Index('idx_offer_productId', ['productId'], {})
+@Index('idx_offer_attrValueId', ['productAttributeValueId'], {})
+@Index('idx_offer_fromDate', ['fromDate'], {})
+@Index('idx_offer_toDate', ['toDate'], {})
 @Entity('incredible_offer')
 export class IncredibleOfferEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })

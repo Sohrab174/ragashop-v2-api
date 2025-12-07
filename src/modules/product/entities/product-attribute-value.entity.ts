@@ -15,13 +15,9 @@ import { BooleanTransformer } from '../../../utils/transformers/BooleanTransform
 import { IncredibleOfferEntity } from '../../incredible-offer/entities/Incredible-offer.entity';
 import { OrderItemEntity } from '../../order/entities/order-item.entity';
 
-@Index(
-  'fk_product_attribute_value_attribute_value1_idx',
-  ['attributeValueId'],
-  {},
-)
-@Index('fk_product_attribute_value_product1_idx', ['productId'], {})
-@Index('product_attribute_isDeleted_idx', ['isDeleted'], {})
+@Index('idx_attributeValue_attributeId', ['attributeValueId'], {})
+@Index('idx_pav_productId', ['productId'], {})
+@Index('idx_pav_isDeleted', ['isDeleted'], {})
 @Entity('product_attribute_value')
 export class ProductAttributeValueEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })

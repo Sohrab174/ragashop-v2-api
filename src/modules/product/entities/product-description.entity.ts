@@ -10,7 +10,7 @@ import {
 import { ProductEntity } from './product.entity';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
-@Index('fk_product_description_product1_idx', ['productId'], {})
+@Index('idx_description_productId', ['productId'], {})
 @Entity('product_description')
 export class ProductDescriptionEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
