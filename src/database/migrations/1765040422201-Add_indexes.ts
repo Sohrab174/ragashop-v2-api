@@ -34,7 +34,7 @@ export class AddIndexes1765040422201 implements MigrationInterface {
     await createIndexIfNotExists(
       'product',
       'idx_product_isDeleted',
-      '`is_deleted`',
+      '`isDeleted`',
     );
     await createIndexIfNotExists(
       'product',
@@ -57,7 +57,7 @@ export class AddIndexes1765040422201 implements MigrationInterface {
     await createIndexIfNotExists(
       'product_attribute_value',
       'idx_pav_isDeleted',
-      '`is_deleted`',
+      '`isDeleted`',
     );
 
     // ATTRIBUTE_VALUE
