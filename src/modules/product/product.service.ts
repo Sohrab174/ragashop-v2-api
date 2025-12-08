@@ -309,55 +309,59 @@ export class ProductService {
    * GET /products/:id
    */
   async getById(id: number) {
-    const builder = this.productRepository
-      .createQueryBuilder('product')
-      .leftJoinAndSelect('product.cover', 'cover')
-      .leftJoinAndSelect('product.productGalleries', 'productGalleries')
-      .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
-      .innerJoinAndSelect('product.category', 'category')
-      .leftJoinAndSelect('product.brand', 'brand')
-      // Product incredible offers
-      .leftJoin(
-        'product.incredibleOffers',
-        'productIncredibleOffers',
-        'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
-        { now: new Date() },
-      )
-      .addSelect('productIncredibleOffers.id')
-      .addSelect('productIncredibleOffers.discountedPrice')
-      .addSelect('productIncredibleOffers.toDate')
+    // const builder = this.productRepository
+    //   .createQueryBuilder('product')
+    //   .leftJoinAndSelect('product.cover', 'cover')
+    //   .leftJoinAndSelect('product.productGalleries', 'productGalleries')
+    //   .leftJoinAndSelect('product.productDescriptions', 'productDescriptions')
+    //   .innerJoinAndSelect('product.category', 'category')
+    //   .leftJoinAndSelect('product.brand', 'brand')
+    //   // Product incredible offers
+    //   .leftJoin(
+    //     'product.incredibleOffers',
+    //     'productIncredibleOffers',
+    //     'productIncredibleOffers.fromDate <= :now AND productIncredibleOffers.toDate >= :now AND productIncredibleOffers.productAttributeValueId IS NULL',
+    //     { now: new Date() },
+    //   )
+    //   .addSelect('productIncredibleOffers.id')
+    //   .addSelect('productIncredibleOffers.discountedPrice')
+    //   .addSelect('productIncredibleOffers.toDate')
 
-      .leftJoinAndSelect(
-        'product.productAttributeValues',
-        'productAttributeValues',
-        'productAttributeValues.isDeleted = 0',
-      )
-      .leftJoinAndSelect(
-        'productAttributeValues.attributeValue',
-        'attributeValue',
-      )
-      .leftJoinAndSelect('attributeValue.attribute', 'attribute')
+    //   .leftJoinAndSelect(
+    //     'product.productAttributeValues',
+    //     'productAttributeValues',
+    //     'productAttributeValues.isDeleted = 0',
+    //   )
+    //   .leftJoinAndSelect(
+    //     'productAttributeValues.attributeValue',
+    //     'attributeValue',
+    //   )
+    //   .leftJoinAndSelect('attributeValue.attribute', 'attribute')
 
-      // Product incredible offers for attributes
-      .leftJoin(
-        'productAttributeValues.incredibleOffers',
-        'productAttributeIncredibleOffers',
-        'productAttributeIncredibleOffers.fromDate <= :now AND productAttributeIncredibleOffers.toDate >= :now',
-        { now: new Date() },
-      )
-      .addSelect('productAttributeIncredibleOffers.id')
-      .addSelect('productAttributeIncredibleOffers.discountedPrice')
-      .addSelect('productAttributeIncredibleOffers.toDate')
-      .where({ id })
-      .andWhere('product.categoryId != 1')
-      .andWhere({ isDeleted: false });
+    //   // Product incredible offers for attributes
+    //   .leftJoin(
+    //     'productAttributeValues.incredibleOffers',
+    //     'productAttributeIncredibleOffers',
+    //     'productAttributeIncredibleOffers.fromDate <= :now AND productAttributeIncredibleOffers.toDate >= :now',
+    //     { now: new Date() },
+    //   )
+    //   .addSelect('productAttributeIncredibleOffers.id')
+    //   .addSelect('productAttributeIncredibleOffers.discountedPrice')
+    //   .addSelect('productAttributeIncredibleOffers.toDate')
+    //   .where({ id })
+    //   .andWhere('product.categoryId != 1')
+    //   .andWhere({ isDeleted: false });
 
-    builder.andWhere({ status: ProductStatus.active });
+    // builder.andWhere({ status: ProductStatus.active });
 
-    const product: ProductEntity & {
-      incredibleOfferExpire?: Date;
-      productAttributeValues: any;
-    } = await builder.getOne();
+    // const product: ProductEntity & {
+    //   incredibleOfferExpire?: Date;
+    //   productAttributeValues: any;
+    // } = await builder.getOne();
+    const product = await this.productRepository.query(
+      'CALL get_product_details(?)',
+      [id],
+    );
 
     if (!product) {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
