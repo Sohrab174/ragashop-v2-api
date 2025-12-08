@@ -358,10 +358,9 @@ export class ProductService {
     //   incredibleOfferExpire?: Date;
     //   productAttributeValues: any;
     // } = await builder.getOne();
-    const product = await this.productRepository.query(
-      'CALL get_product_details(?)',
-      [id],
-    );
+    const product = await this.productRepository.query('CALL sp_product(?)', [
+      id,
+    ]);
 
     if (!product) {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
