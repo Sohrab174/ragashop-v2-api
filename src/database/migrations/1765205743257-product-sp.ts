@@ -2,8 +2,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class productSp1765205743257 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP PROCEDURE IF EXISTS sp_product`);
-    await queryRunner.query(`  CREATE PROCEDURE sp_product(IN p_product_id BIGINT)  BEGIN   DECLARE v_now DATETIME;   SET v_now = NOW();
+    await queryRunner.query(`DROP PROCEDURE IF EXISTS get_product_details`);
+    await queryRunner.query(`  CREATE PROCEDURE get_product_details(IN p_product_id BIGINT)  BEGIN   DECLARE v_now DATETIME;   SET v_now = NOW();
    SELECT    p.id AS productId,    p.name,    p.price,    p.status,    p.categoryId,    p.cover,
     b.id AS brandId,    b.name AS brandName,
     cat.id AS categoryId,    cat.name AS categoryName,
