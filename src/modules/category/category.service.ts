@@ -133,7 +133,7 @@ export class CategoryService {
       .where({ id: category.id })
       .execute();
 
-    await generateThumbnail(icon.path, 50, 50);
+    await generateThumbnail(icon.path, 80, 80);
     await squareSizeImage(icon.path, 200, 200);
 
     // Remove the old icon from disk

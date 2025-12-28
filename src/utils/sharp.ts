@@ -66,7 +66,7 @@ export const generateThumbnail = (
   pathFile,
   width = 300,
   height = 300,
-  quality = 70,
+  quality = 100,
 ) => {
   return new Promise((resolve, reject) => {
     const ext = path.extname(pathFile).toLowerCase();
