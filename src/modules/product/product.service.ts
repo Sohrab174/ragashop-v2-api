@@ -2244,11 +2244,7 @@ export class ProductService {
    */
   async getProductByCrawler(product: ProductEntity) {
     try {
-      await axios.post('http://127.0.0.1:9019/product', {
-        Body: {
-          product: product,
-        },
-      });
+      await axios.post('http://127.0.0.1:9019/product', { product: product });
     } catch (error) {
       console.log('Error in getProductByCrawler:', product.sourceId);
       throw new Error('Error in getProductByCrawler: ' + error);
