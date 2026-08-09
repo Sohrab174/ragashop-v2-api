@@ -2244,7 +2244,7 @@ export class ProductService {
    */
   async getProductByCrawler(product: ProductEntity) {
     try {
-      await axios.post('http://127.0.0.1/product', {
+      await axios.post('http://127.0.0.1:9019/product', {
         Body: {
           product: product,
         },
