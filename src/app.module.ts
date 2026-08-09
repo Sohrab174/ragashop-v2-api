@@ -58,20 +58,20 @@ import { redisStore } from 'cache-manager-redis-yet';
 
     // Cache Module
 
-    CacheModule.registerAsync({
-      isGlobal: true,
-      useFactory: async () => {
-        const store = await redisStore({
-          socket: {
-            host: 'localhost',
-            port: 6379,
-          },
-          ttl: 600,
-          database: 0,
-        });
-        return { store: store as any };
-      },
-    }),
+    // CacheModule.registerAsync({
+    //   isGlobal: true,
+    //   useFactory: async () => {
+    //     const store = await redisStore({
+    //       socket: {
+    //         host: 'localhost',
+    //         port: 6379,
+    //       },
+    //       ttl: 600,
+    //       database: 0,
+    //     });
+    //     return { store: store as any };
+    //   },
+    // }),
 
     // Project modules
     CommonModule,

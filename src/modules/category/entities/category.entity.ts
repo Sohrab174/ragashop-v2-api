@@ -25,6 +25,7 @@ export enum CategoryGender {
   child = 'child',
   unisex = 'unisex',
 }
+// isChild boolean to be added
 
 @Index('fk_category_category1_idx', ['parentId'], {})
 @Entity('category')

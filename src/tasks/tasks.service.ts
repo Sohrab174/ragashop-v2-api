@@ -26,11 +26,11 @@ export class TasksService {
   //   await this.productService.getProductsDetailsByCrawler();
   // }
 
-  // @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_PAGES)
-  // async handleProductsPagesByCrawler() {
-  //   console.log('CRON JOB FOR CRAWLER PRODUCT PAGES');
-  //   await this.productService.getProductsPagesByCrawler();
-  // }
+  @Cron(process.env.CRON_JOB_CRAWLER_PRODUCT_PAGES)
+  async handleProductsPagesByCrawler() {
+    console.log('CRON JOB FOR CRAWLER PRODUCT PAGES');
+    await this.productService.getProductsPagesByCrawler();
+  }
 
   @Cron(process.env.CRON_JOB_TRY_TO_RIAL)
   async handleTryToRial() {

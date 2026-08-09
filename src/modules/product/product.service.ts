@@ -1,4 +1,4 @@
-import { Inject, Injectable, CACHE_MANAGER } from '@nestjs/common';
+import { Body, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   getConnection,
@@ -53,7 +53,7 @@ import { FileStorageService } from '../../file-storage.service';
 import { CustomerEntity } from '../customer/entities/customer.entity';
 import { UpdateGroupProductDto } from './dto/update-group-product.dto';
 import axios from 'axios';
-import { Cache } from 'cache-manager';
+// import { Cache } from 'cache-manager';
 import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-offer.entity';
 
 @Injectable()
@@ -82,8 +82,7 @@ export class ProductService {
 
     private crawlerService: CrawlerService,
     private translatorService: TranslatorService,
-    private readonly fileStorage: FileStorageService,
-    @Inject(CACHE_MANAGER) private cache: Cache,
+    private readonly fileStorage: FileStorageService, // @Inject(CACHE_MANAGER) private cache: Cache,
   ) {}
 
   /**
@@ -815,17 +814,17 @@ export class ProductService {
     //   });
     // }
 
-    const key = `products:${categoryId}`;
-    console.log(key);
+    // const key = `products:${categoryId}`;
+    // console.log(key);
 
-    const cached = await this.cache.get(key);
+    // const cached = await this.cache.get(key);
 
-    if (cached) {
-      console.log('cache hit');
-      const parsedCache = JSON.parse(cached);
+    // if (cached) {
+    //   console.log('cache hit');
+    //   const parsedCache = JSON.parse(cached);
 
-      return parsedCache;
-    }
+    //   return parsedCache;
+    // }
 
     let categoryIds = [];
     if (categoryId) {
@@ -1060,18 +1059,18 @@ export class ProductService {
     //     maxPrice: Math.round(prices.maxPrice * tryToToman),
     //   },
     // };
-    await this.cache.set(
-      key,
-      JSON.stringify({
-        items: items.map((item) => this.mappingProduct(item, tryToToman)),
-        pagination: paginationResult(page, limit, totalItems),
-        prices: {
-          minPrice: Math.round(prices.minPrice * tryToToman),
-          maxPrice: Math.round(prices.maxPrice * tryToToman),
-        },
-      }),
-      600,
-    );
+    // await this.cache.set(
+    //   key,
+    //   JSON.stringify({
+    //     items: items.map((item) => this.mappingProduct(item, tryToToman)),
+    //     pagination: paginationResult(page, limit, totalItems),
+    //     prices: {
+    //       minPrice: Math.round(prices.minPrice * tryToToman),
+    //       maxPrice: Math.round(prices.maxPrice * tryToToman),
+    //     },
+    //   }),
+    //   600,
+    // );
     return {
       items: items.map((item) => this.mappingProduct(item, tryToToman)),
       pagination: paginationResult(page, limit, totalItems),
@@ -2244,202 +2243,215 @@ export class ProductService {
    * -------------------------------------------------------
    */
   async getProductByCrawler(product: ProductEntity) {
-    const crawlerProduct = await this.crawlerService.getProductById(
-      product.sourceId,
-    );
-    if (!crawlerProduct) {
-      await this.productRepository
-        .createQueryBuilder()
-        .update()
-        .set({ lastCrawlingAt: new Date(), isDeleted: true })
-        .where({ id: product.id })
-        .execute();
-      return;
-    }
-
-    // Update or insert brand if missing --------------------------------------
-    if (!product.brandId && crawlerProduct.brandId) {
-      product.brandId = await this.brandService.addOrUpdate(
-        product.source,
-        crawlerProduct.brandId,
-        { sourceName: (crawlerProduct.brandName || '').slice(0, 128) },
-      );
-    }
-
-    // Update or insert category if missing --------------------------------------
-    if (product.categoryId === 1 && crawlerProduct.categoryId) {
-      product.categoryId = await this.categoryService.addOrUpdate(
-        product.source,
-        crawlerProduct.categoryId,
-        {
-          sourceName: (crawlerProduct.categoryName || '').slice(0, 128),
-          bankTypeId: crawlerProduct.categoryBankTypeId,
-          bankTypeName: crawlerProduct.categoryBankTypeName,
-          hierarchy: crawlerProduct.categoryHierarchy,
+    try {
+      await axios.post('http://127.0.0.1/product', {
+        Body: {
+          product: product,
         },
-        crawlerProduct.categoryTree,
-      );
-    }
-
-    // Synchronize images based on pathFile --------------------------------------
-    const existingImagePaths = new Set(
-      product.productGalleries.map((img) => img.pathFile),
-    );
-    // const newImagePaths = new Set(crawlerProduct.images);
-
-    // Identify images to add and remove
-    const imagesToAdd = crawlerProduct.images
-      .filter((pathFile) => !existingImagePaths.has(pathFile))
-      .map((pathFile) => ({
-        productId: product.id,
-        pathFile,
-        source: product.source,
-        createdAt: new Date(),
-      }));
-
-    // const imagesToRemove = product.productGalleries
-    //   .filter((img) => !newImagePaths.has(img.pathFile))
-    //   .map((img) => img.id);
-
-    // Apply changes
-    // if (imagesToRemove.length > 0) {
-    //   await this.galleryRepository.delete(imagesToRemove);
-    // }
-    if (imagesToAdd.length > 0) {
-      await this.galleryRepository.save(imagesToAdd);
-    }
-
-    // Synchronize descriptions --------------------------------------
-    const existingDescriptionContents = new Set(
-      product.productDescriptions.map((desc) => desc.sourceContent),
-    );
-    const newDescriptionContents = new Set(
-      crawlerProduct.descriptions.map((desc) => desc.content),
-    );
-
-    // Identify descriptions to add and remove
-    const descriptionsToAdd = [];
-    const filteredDescriptions = crawlerProduct.descriptions.filter(
-      (desc) => !existingDescriptionContents.has(desc.content),
-    );
-
-    const descriptionTranslateds = await this._findOrTranslateDescriptions(
-      filteredDescriptions.map((desc) => desc.content),
-    );
-
-    let index = 0;
-    for (const desc of filteredDescriptions) {
-      descriptionsToAdd.push({
-        productId: product.id,
-        source: product.source,
-        sourceContent: desc.content,
-        content: descriptionTranslateds[index++],
-        displayOrder: desc.displayOrder,
       });
-    }
-
-    const descriptionsToRemove = product.productDescriptions
-      .filter((desc) => !newDescriptionContents.has(desc.sourceContent))
-      .map((desc) => desc.id);
-
-    // Apply changes
-    if (descriptionsToRemove.length > 0) {
-      await this.descriptionRepository.delete(descriptionsToRemove);
-    }
-    if (descriptionsToAdd.length > 0) {
-      await this.descriptionRepository.save(descriptionsToAdd);
-    }
-
-    // Synchronize attributes --------------------------------------
-    const attributeValues = await this.attributeService.addOrUpdates(
-      crawlerProduct.attributes,
-      product.source,
-    );
-
-    const existingAttributeIds = new Set(
-      product.productAttributeValues.map((attr) => attr.attributeValueId),
-    );
-    const newAttributeIds = new Set(
-      attributeValues.map((attr) => attr.valueId),
-    );
-
-    // Identify attributes to add and remove
-    const attributesToAdd = attributeValues
-      .filter((attr) => !existingAttributeIds.has(attr.valueId))
-      .map((attr) => ({
-        productId: product.id,
-        source: product.source,
-        attributeValueId: attr.valueId,
-        discountedPrice: attr.discountedPrice,
-        discountPercent: attr.discountPercent,
-        price: attr.price,
-        quantity: attr.quantity,
-      }));
-    const attributesToRemove = product.productAttributeValues
-      .filter((attr) => !newAttributeIds.has(attr.attributeValueId))
-      .map((attr) => attr.id);
-
-    // Apply changes
-    if (attributesToRemove.length > 0) {
-      await this.productAttributeValueRepository.update(
-        { id: In(attributesToRemove) },
-        { isDeleted: true },
-      );
-    }
-    if (attributesToAdd.length > 0) {
-      await this.productAttributeValueRepository.save(attributesToAdd);
-    }
-
-    // Update product details --------------------------------------
-    if (
-      !product.name ||
-      (product.name && !/[\u0600-\u06FF]/.test(product.name))
-    ) {
-      product.name = await this._findOrTranslateProduct(
-        crawlerProduct.sourceName,
-      );
-    }
-
-    const result = await this.productRepository
-      .createQueryBuilder()
-      .update()
-      .set({
-        brandId: product.brandId,
-        categoryId: product.categoryId,
-        sourceName: crawlerProduct.sourceName,
-        name: product.name,
-        price: crawlerProduct.price,
-        discountedPrice: crawlerProduct.discountedPrice,
-        discountPercent: crawlerProduct.discountedPrice
-          ? (1 - crawlerProduct.discountedPrice / crawlerProduct.price) * 100
-          : 0,
-        sizeChartUrl: crawlerProduct.sizeChartUrl,
-        color: product.color || crawlerProduct.color,
-        star: crawlerProduct.star,
-        starCountPerson: crawlerProduct.starCountPerson,
-        favoriteCount: crawlerProduct.favoriteCount,
-        isVasEnabled: crawlerProduct.isVasEnabled,
-        tax: crawlerProduct.tax,
-        isSellable: crawlerProduct.isSellable,
-        isBasketDiscount: crawlerProduct.isBasketDiscount,
-        hasStock: crawlerProduct.hasStock,
-        isFreeCargo: crawlerProduct.isFreeCargo,
-        uxLayout: crawlerProduct.uxLayout,
-        isDigitalGood: crawlerProduct.isDigitalGood,
-        isArtWork: crawlerProduct.isArtWork,
-        gender: crawlerProduct.gender,
-        status: ProductStatus.active,
-        lastCrawlingAt: new Date(),
-      })
-      .where({ id: product.id })
-      .execute();
-
-    if (result.affected && result.affected > 0) {
-      console.log('Row updated successfully', { id: product.id });
-    } else {
-      console.log('No rows were updated.', { id: product.id });
+    } catch (error) {
+      console.log('Error in getProductByCrawler:', product.sourceId);
+      throw new Error('Error in getProductByCrawler: ' + error);
     }
   }
+
+  // async getProductByCrawler(product: ProductEntity) {
+  //   const crawlerProduct = await this.crawlerService.getProductById(
+  //     product.sourceId,
+  //   );
+  //   if (!crawlerProduct) {
+  //     await this.productRepository
+  //       .createQueryBuilder()
+  //       .update()
+  //       .set({ lastCrawlingAt: new Date(), isDeleted: true })
+  //       .where({ id: product.id })
+  //       .execute();
+  //     return;
+  //   }
+
+  //   // Update or insert brand if missing --------------------------------------
+  //   if (!product.brandId && crawlerProduct.brandId) {
+  //     product.brandId = await this.brandService.addOrUpdate(
+  //       product.source,
+  //       crawlerProduct.brandId,
+  //       { sourceName: (crawlerProduct.brandName || '').slice(0, 128) },
+  //     );
+  //   }
+
+  //   // Update or insert category if missing --------------------------------------
+  //   if (product.categoryId === 1 && crawlerProduct.categoryId) {
+  //     product.categoryId = await this.categoryService.addOrUpdate(
+  //       product.source,
+  //       crawlerProduct.categoryId,
+  //       {
+  //         sourceName: (crawlerProduct.categoryName || '').slice(0, 128),
+  //         bankTypeId: crawlerProduct.categoryBankTypeId,
+  //         bankTypeName: crawlerProduct.categoryBankTypeName,
+  //         hierarchy: crawlerProduct.categoryHierarchy,
+  //       },
+  //       crawlerProduct.categoryTree,
+  //     );
+  //   }
+
+  //   // Synchronize images based on pathFile --------------------------------------
+  //   const existingImagePaths = new Set(
+  //     product.productGalleries.map((img) => img.pathFile),
+  //   );
+  //   // const newImagePaths = new Set(crawlerProduct.images);
+
+  //   // Identify images to add and remove
+  //   const imagesToAdd = crawlerProduct.images
+  //     .filter((pathFile) => !existingImagePaths.has(pathFile))
+  //     .map((pathFile) => ({
+  //       productId: product.id,
+  //       pathFile,
+  //       source: product.source,
+  //       createdAt: new Date(),
+  //     }));
+
+  //   // const imagesToRemove = product.productGalleries
+  //   //   .filter((img) => !newImagePaths.has(img.pathFile))
+  //   //   .map((img) => img.id);
+
+  //   // Apply changes
+  //   // if (imagesToRemove.length > 0) {
+  //   //   await this.galleryRepository.delete(imagesToRemove);
+  //   // }
+  //   if (imagesToAdd.length > 0) {
+  //     await this.galleryRepository.save(imagesToAdd);
+  //   }
+
+  //   // Synchronize descriptions --------------------------------------
+  //   const existingDescriptionContents = new Set(
+  //     product.productDescriptions.map((desc) => desc.sourceContent),
+  //   );
+  //   const newDescriptionContents = new Set(
+  //     crawlerProduct.descriptions.map((desc) => desc.content),
+  //   );
+
+  //   // Identify descriptions to add and remove
+  //   const descriptionsToAdd = [];
+  //   const filteredDescriptions = crawlerProduct.descriptions.filter(
+  //     (desc) => !existingDescriptionContents.has(desc.content),
+  //   );
+
+  //   const descriptionTranslateds = await this._findOrTranslateDescriptions(
+  //     filteredDescriptions.map((desc) => desc.content),
+  //   );
+
+  //   let index = 0;
+  //   for (const desc of filteredDescriptions) {
+  //     descriptionsToAdd.push({
+  //       productId: product.id,
+  //       source: product.source,
+  //       sourceContent: desc.content,
+  //       content: descriptionTranslateds[index++],
+  //       displayOrder: desc.displayOrder,
+  //     });
+  //   }
+
+  //   const descriptionsToRemove = product.productDescriptions
+  //     .filter((desc) => !newDescriptionContents.has(desc.sourceContent))
+  //     .map((desc) => desc.id);
+
+  //   // Apply changes
+  //   if (descriptionsToRemove.length > 0) {
+  //     await this.descriptionRepository.delete(descriptionsToRemove);
+  //   }
+  //   if (descriptionsToAdd.length > 0) {
+  //     await this.descriptionRepository.save(descriptionsToAdd);
+  //   }
+
+  //   // Synchronize attributes --------------------------------------
+  //   const attributeValues = await this.attributeService.addOrUpdates(
+  //     crawlerProduct.attributes,
+  //     product.source,
+  //   );
+
+  //   const existingAttributeIds = new Set(
+  //     product.productAttributeValues.map((attr) => attr.attributeValueId),
+  //   );
+  //   const newAttributeIds = new Set(
+  //     attributeValues.map((attr) => attr.valueId),
+  //   );
+
+  //   // Identify attributes to add and remove
+  //   const attributesToAdd = attributeValues
+  //     .filter((attr) => !existingAttributeIds.has(attr.valueId))
+  //     .map((attr) => ({
+  //       productId: product.id,
+  //       source: product.source,
+  //       attributeValueId: attr.valueId,
+  //       discountedPrice: attr.discountedPrice,
+  //       discountPercent: attr.discountPercent,
+  //       price: attr.price,
+  //       quantity: attr.quantity,
+  //     }));
+  //   const attributesToRemove = product.productAttributeValues
+  //     .filter((attr) => !newAttributeIds.has(attr.attributeValueId))
+  //     .map((attr) => attr.id);
+
+  //   // Apply changes
+  //   if (attributesToRemove.length > 0) {
+  //     await this.productAttributeValueRepository.update(
+  //       { id: In(attributesToRemove) },
+  //       { isDeleted: true },
+  //     );
+  //   }
+  //   if (attributesToAdd.length > 0) {
+  //     await this.productAttributeValueRepository.save(attributesToAdd);
+  //   }
+
+  //   // Update product details --------------------------------------
+  //   if (
+  //     !product.name ||
+  //     (product.name && !/[\u0600-\u06FF]/.test(product.name))
+  //   ) {
+  //     product.name = await this._findOrTranslateProduct(
+  //       crawlerProduct.sourceName,
+  //     );
+  //   }
+
+  //   const result = await this.productRepository
+  //     .createQueryBuilder()
+  //     .update()
+  //     .set({
+  //       brandId: product.brandId,
+  //       categoryId: product.categoryId,
+  //       sourceName: crawlerProduct.sourceName,
+  //       name: product.name,
+  //       price: crawlerProduct.price,
+  //       discountedPrice: crawlerProduct.discountedPrice,
+  //       discountPercent: crawlerProduct.discountedPrice
+  //         ? (1 - crawlerProduct.discountedPrice / crawlerProduct.price) * 100
+  //         : 0,
+  //       sizeChartUrl: crawlerProduct.sizeChartUrl,
+  //       color: product.color || crawlerProduct.color,
+  //       star: crawlerProduct.star,
+  //       starCountPerson: crawlerProduct.starCountPerson,
+  //       favoriteCount: crawlerProduct.favoriteCount,
+  //       isVasEnabled: crawlerProduct.isVasEnabled,
+  //       tax: crawlerProduct.tax,
+  //       isSellable: crawlerProduct.isSellable,
+  //       isBasketDiscount: crawlerProduct.isBasketDiscount,
+  //       hasStock: crawlerProduct.hasStock,
+  //       isFreeCargo: crawlerProduct.isFreeCargo,
+  //       uxLayout: crawlerProduct.uxLayout,
+  //       isDigitalGood: crawlerProduct.isDigitalGood,
+  //       isArtWork: crawlerProduct.isArtWork,
+  //       gender: crawlerProduct.gender,
+  //       status: ProductStatus.active,
+  //       lastCrawlingAt: new Date(),
+  //     })
+  //     .where({ id: product.id })
+  //     .execute();
+
+  //   if (result.affected && result.affected > 0) {
+  //     console.log('Row updated successfully', { id: product.id });
+  //   } else {
+  //     console.log('No rows were updated.', { id: product.id });
+  //   }
+  // }
 
   /**
    * -------------------------------------------------------
