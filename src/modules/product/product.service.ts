@@ -2212,6 +2212,7 @@ export class ProductService {
         'product.categoryId',
         'product.brandId',
         'product.color',
+        'product.sourceUrl',
         'productGalleries.id',
         'productGalleries.pathFile',
         'productDescriptions.id',
