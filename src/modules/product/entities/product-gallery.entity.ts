@@ -34,7 +34,7 @@ export class ProductGalleryEntity extends BaseEntity {
   @Column('varchar', { name: 'source', nullable: true, length: 128 })
   source: string | null;
 
-  @Column('varchar', { name: 'pathFile', length: 128 })
+  @Column('varchar', { name: 'pathFile', length: 512 })
   pathFile: string;
 
   @Column('datetime', { name: 'createdAt' })
