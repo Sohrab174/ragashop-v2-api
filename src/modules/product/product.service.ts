@@ -430,6 +430,7 @@ export class ProductService {
     // ─────────────────────────────────────
     // 1) Load main product (small, cheap)
     // ─────────────────────────────────────
+    console.time(`getById ${id} - product`);
     const product = await this.productRepository.findOne({
       where: {
         id,
@@ -439,6 +440,8 @@ export class ProductService {
       },
       relations: ['cover', 'category', 'brand'],
     });
+
+    console.timeEnd(`getById ${id} - product`);
 
     if (!product) {
       this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
@@ -504,6 +507,7 @@ export class ProductService {
     });
 
     // Run everything in parallel (massive speed-up)
+    console.time(`getById ${id} - parallel`);
     const [
       descriptions,
       galleries,
@@ -519,7 +523,7 @@ export class ProductService {
       attributeOffersPromise,
       relatedProductsPromise,
     ]);
-
+    console.timeEnd(`getById ${id} - parallel`);
     // ─────────────────────────────────────
     // 7) Attach data
     // ─────────────────────────────────────
@@ -531,8 +535,9 @@ export class ProductService {
     // ─────────────────────────────────────
     // 8) Pricing conversion
     // ─────────────────────────────────────
+    console.time(`getById ${id} - currency`);
     const tryToToman = await this.settingService.getTryToToman();
-
+    console.timeEnd(`getById ${id} - currency`);
     // Product-level offer
     const activeProductOffer = productOffers[0];
     product.discountedPrice =
@@ -2245,7 +2250,9 @@ export class ProductService {
    */
   async getProductByCrawler(product: ProductEntity) {
     try {
-      await axios.post('http://127.0.0.1:9019/product', { product: product });
+      return await axios.post('http://127.0.0.1:9019/product', {
+        product: product,
+      });
     } catch (error) {
       console.log('Error in getProductByCrawler:', product.sourceId);
       throw new Error('Error in getProductByCrawler: ' + error);
