@@ -2250,7 +2250,9 @@ export class ProductService {
       });
     } catch (error) {
       console.log('Error in getProductByCrawler:', product.sourceId);
-      throw new Error('Error in getProductByCrawler: ' + error);
+      if (String(error).includes('400')) {
+        this.error.unprocessableEntity(['محصول مورد نظر یافت نشد']);
+      }
     }
   }
 
