@@ -571,9 +571,14 @@ export class ProductService {
    * GET /products/link
    */
   async getByLink(link: string) {
-    return await axios.post('http://127.0.0.1:9019/product/search', {
-      url: link,
-    });
+    try {
+      return await axios.post('http://127.0.0.1:9019/product/search', {
+        url: link,
+      });
+    } catch (error) {
+      console.error('Error fetching product by link:', error);
+      throw error;
+    }
   }
 
   /**
