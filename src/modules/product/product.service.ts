@@ -2845,4 +2845,42 @@ export class ProductService {
 
   //   return results;
   // }
+  async getProductsByCrawler(url: string, count) {
+    const params = new URL(url).searchParams;
+
+    const catId = params.get('wc');
+    const gender = params.get('wg');
+    try {
+      const { data } = await axios.post('http://127.0.0.1:9019/product/page', {
+        count,
+        catId,
+        gender,
+      });
+      return data;
+    } catch (error) {
+      console.log('Error in getProductsByCrawler:', error);
+      throw new Error('Failed to fetch products by crawler');
+    }
+  }
+
+  async getProductSampleByCrawler(url: string, count) {
+    const params = new URL(url).searchParams;
+
+    const catId = params.get('wc');
+    const gender = params.get('wg');
+    try {
+      const { data } = await axios.post(
+        'http://127.0.0.1:9019/product/sample',
+        {
+          count,
+          catId,
+          gender,
+        },
+      );
+      return data;
+    } catch (error) {
+      console.log('Error in getProductSampleByCrawler:', error);
+      throw new Error('Failed to fetch product samples by crawler');
+    }
+  }
 }

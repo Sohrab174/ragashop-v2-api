@@ -647,4 +647,37 @@ export class ProductController {
 
     return successfulResult(['محصول مورد نظر حذف شد']);
   }
+
+  /**
+   * -------------------------------------------------------
+   * POST /products/admin/crawler
+   */
+  @Post('admin/crawler')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @HttpCode(HttpStatus.CREATED)
+  async getProductsByCrawler(@Body() { url, count = 10 }) {
+    const products = await this.productService.getProductsByCrawler(url, count);
+
+    return successfulResult(['محصول جدید با موفقیت ایجاد شد'], products);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * POST /products/admin/sample
+   */
+  @Post('admin/sample')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @HttpCode(HttpStatus.CREATED)
+  async getProductSampleByCrawler(@Body() { url, count = 10 }) {
+    const products = await this.productService.getProductSampleByCrawler(
+      url,
+      count,
+    );
+
+    return successfulResult(['محصول جدید با موفقیت ایجاد شد'], products);
+  }
 }
