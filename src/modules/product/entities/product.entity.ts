@@ -29,8 +29,13 @@ export enum ProductStatus {
 export enum ProductGender {
   male = 'male',
   female = 'female',
-  child = 'child',
   unisex = 'unisex',
+}
+
+export enum ProductAgeGroup {
+  adult = 'adult',
+  child = 'child',
+  baby = 'baby',
 }
 
 export enum ProductCurrency {
@@ -122,6 +127,13 @@ export class ProductEntity extends BaseEntity {
 
   @Column('enum', { name: 'gender', nullable: true, enum: ProductGender })
   gender: ProductGender | null;
+
+  @Column('enum', {
+    name: 'ageGroup',
+    enum: ProductAgeGroup,
+    nullable: true,
+  })
+  ageGroup: ProductAgeGroup | null;
 
   @Column('decimal', {
     name: 'star',
