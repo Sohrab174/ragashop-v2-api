@@ -166,7 +166,7 @@ export class CrawlerService {
             ProductGender.female) ||
           ((product.gender?.id === 2 || product?.webGender?.id === 2) &&
             ProductGender.male) ||
-          (product?.webGender?.id === 3 && ProductGender.child) ||
+          (product?.webGender?.id === 3 && ProductGender.unisex) ||
           (product.gender?.id === 3 && ProductGender.unisex) ||
           null,
         color: product?.color || null,
