@@ -2845,11 +2845,42 @@ export class ProductService {
 
   //   return results;
   // }
-  async getProductsByCrawler(url: string, count) {
-    const params = new URL(url).searchParams;
+  private parseTrendyolUrl(url: string) {
+    const parsedUrl = new URL(url);
+    const searchParams = parsedUrl.searchParams;
 
-    const catId = params.get('wc');
-    const gender = params.get('wg');
+    const catIdFromQuery = searchParams.get('wc') || searchParams.get('c');
+    const genderFromQuery = searchParams.get('wg') || searchParams.get('g');
+
+    if (catIdFromQuery || genderFromQuery) {
+      return {
+        catId: catIdFromQuery,
+        gender: genderFromQuery,
+      };
+    }
+
+    const pathname = parsedUrl.pathname;
+
+    const pathMatch =
+      pathname.match(/(?:^|-|x-)g(\d+)(?:-|$).*?-c(\d+)/i) ||
+      pathname.match(/(?:^|-|x-)c(\d+)(?:-|$).*?-g(\d+)/i);
+
+    if (pathMatch) {
+      const [, genderFromPath, catIdFromPath] = pathMatch;
+      return {
+        catId: catIdFromPath || catIdFromQuery,
+        gender: genderFromPath || genderFromQuery,
+      };
+    }
+
+    return {
+      catId: catIdFromQuery,
+      gender: genderFromQuery,
+    };
+  }
+
+  async getProductsByCrawler(url: string, count) {
+    const { catId, gender } = this.parseTrendyolUrl(url);
     try {
       const { data } = await axios.post('http://127.0.0.1:9019/product/page', {
         count,
@@ -2864,10 +2895,7 @@ export class ProductService {
   }
 
   async getProductSampleByCrawler(url: string, count) {
-    const params = new URL(url).searchParams;
-
-    const catId = params.get('wc');
-    const gender = params.get('wg');
+    const { catId, gender } = this.parseTrendyolUrl(url);
     try {
       const { data } = await axios.post(
         'http://127.0.0.1:9019/product/sample',
