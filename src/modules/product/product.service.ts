@@ -2852,30 +2852,18 @@ export class ProductService {
     const catIdFromQuery = searchParams.get('wc') || searchParams.get('c');
     const genderFromQuery = searchParams.get('wg') || searchParams.get('g');
 
-    if (catIdFromQuery || genderFromQuery) {
-      return {
-        catId: catIdFromQuery,
-        gender: genderFromQuery,
-      };
-    }
+    const pathname = parsedUrl.pathname.toLowerCase();
+    const pathMatches = [...pathname.matchAll(/(?:^|[-/])([gc])(\d+)/gi)];
+    const pathValues = Object.fromEntries(
+      pathMatches.map((match) => [match[1].toLowerCase(), match[2]]),
+    );
 
-    const pathname = parsedUrl.pathname;
-
-    const pathMatch =
-      pathname.match(/(?:^|-|x-)g(\d+)(?:-|$).*?-c(\d+)/i) ||
-      pathname.match(/(?:^|-|x-)c(\d+)(?:-|$).*?-g(\d+)/i);
-
-    if (pathMatch) {
-      const [, genderFromPath, catIdFromPath] = pathMatch;
-      return {
-        catId: catIdFromPath || catIdFromQuery,
-        gender: genderFromPath || genderFromQuery,
-      };
-    }
+    const catIdFromPath = pathValues.c || null;
+    const genderFromPath = pathValues.g || null;
 
     return {
-      catId: catIdFromQuery,
-      gender: genderFromQuery,
+      catId: catIdFromPath || catIdFromQuery,
+      gender: genderFromPath || genderFromQuery,
     };
   }
 
