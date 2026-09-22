@@ -335,6 +335,7 @@ export class CheckoutService {
         fxRateToIrt: tryToToman,
         fxCapturedAt,
         fxRateSource: fxRate.source || FX_RATE_SOURCE_TGJU,
+        shippingCostActual: null,
         address: delivery.address,
         location: null,
         addressDetails: delivery.addressDetails,

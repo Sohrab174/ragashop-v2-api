@@ -19,7 +19,7 @@ describe('security-config.util', () => {
   describe('CORS', () => {
     it('accepts exact allowlisted origins and rejects others', () => {
       process.env.CORS_ORIGINS =
-        'http://127.0.0.1:4445,https://shop.example.com';
+        'http://127.0.0.1:4445,https://shop.example.com,http://127.0.0.1:4450,http://localhost:4450';
       const allowed = resolveCorsAllowedOrigins();
       const decide = createCorsOriginDelegate(allowed);
 
@@ -34,10 +34,15 @@ describe('security-config.util', () => {
       return Promise.all([
         expect(allow('http://127.0.0.1:4445')).resolves.toBe(true),
         expect(allow('https://shop.example.com')).resolves.toBe(true),
+        expect(allow('http://127.0.0.1:4450')).resolves.toBe(true),
+        expect(allow('http://localhost:4450')).resolves.toBe(true),
         expect(allow('https://shop.example.com.attacker.com')).resolves.toBe(
           false,
         ),
         expect(allow('https://evil.com')).resolves.toBe(false),
+        expect(allow('http://127.0.0.1:9999')).resolves.toBe(false),
+        expect(allow('http://localhost:3000')).resolves.toBe(false),
+        expect(allow('http://127.0.0.1:4450.evil.com')).resolves.toBe(false),
         expect(allow(undefined)).resolves.toBe(true),
       ]);
     });
@@ -57,6 +62,37 @@ describe('security-config.util', () => {
       const origins = resolveCorsAllowedOrigins();
       expect(origins).toContain('http://127.0.0.1:4445');
       expect(origins).toContain('http://localhost:4445');
+      expect(origins).toContain('http://127.0.0.1:4450');
+      expect(origins).toContain('http://localhost:4450');
+    });
+
+    it('honors CORS_ORIGINS exact list including storefront when configured', () => {
+      process.env.NODE_ENV = 'development';
+      process.env.CORS_ORIGINS =
+        'http://127.0.0.1:4445,http://127.0.0.1:4450,http://localhost:4450';
+      const origins = resolveCorsAllowedOrigins();
+      expect(origins).toEqual([
+        'http://127.0.0.1:4445',
+        'http://127.0.0.1:4450',
+        'http://localhost:4450',
+      ]);
+
+      const decide = createCorsOriginDelegate(origins);
+      const allow = (origin: string) =>
+        new Promise<boolean>((resolve, reject) => {
+          decide(origin, (err, ok) => {
+            if (err) reject(err);
+            else resolve(!!ok);
+          });
+        });
+
+      return Promise.all([
+        expect(allow('http://127.0.0.1:4445')).resolves.toBe(true),
+        expect(allow('http://127.0.0.1:4450')).resolves.toBe(true),
+        expect(allow('http://localhost:4450')).resolves.toBe(true),
+        expect(allow('http://localhost:4445')).resolves.toBe(false),
+        expect(allow('http://127.0.0.1:4451')).resolves.toBe(false),
+      ]);
     });
 
     it('rejects substring-style deceptive origins via exact match only', () => {

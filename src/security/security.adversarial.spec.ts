@@ -73,7 +73,7 @@ describe('launch security adversarial checks', () => {
     ).not.toThrow();
   });
 
-  it('local development origins resolve for ragashop-site ports', () => {
+  it('local development origins resolve for admin and storefront ports', () => {
     process.env.NODE_ENV = 'development';
     delete process.env.CORS_ORIGINS;
     process.env.SITE_BASE_URL = 'http://127.0.0.1:4445';
@@ -82,7 +82,24 @@ describe('launch security adversarial checks', () => {
       expect.arrayContaining([
         'http://127.0.0.1:4445',
         'http://localhost:4445',
+        'http://127.0.0.1:4450',
+        'http://localhost:4450',
       ]),
     );
+
+    const decide = createCorsOriginDelegate(origins);
+    const check = (origin: string) =>
+      new Promise<boolean>((resolve, reject) => {
+        decide(origin, (err, ok) => (err ? reject(err) : resolve(!!ok)));
+      });
+
+    return Promise.all([
+      expect(check('http://127.0.0.1:4445')).resolves.toBe(true),
+      expect(check('http://127.0.0.1:4450')).resolves.toBe(true),
+      expect(check('http://localhost:4450')).resolves.toBe(true),
+      expect(check('http://127.0.0.1:4451')).resolves.toBe(false),
+      expect(check('http://localhost:3000')).resolves.toBe(false),
+      expect(check('https://evil.example')).resolves.toBe(false),
+    ]);
   });
 });

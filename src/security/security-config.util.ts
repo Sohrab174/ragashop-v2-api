@@ -57,7 +57,8 @@ export function parsePositiveIntEnv(
 /**
  * Exact-match CORS allowlist.
  * Production fails closed when CORS_ORIGINS is missing/empty.
- * Non-production falls back to SITE_BASE_URL / PANEL_BASE_URL / local ragashop-site ports.
+ * Non-production falls back to SITE_BASE_URL / PANEL_BASE_URL plus exact
+ * local admin (:4445) and storefront (:4450) origins — never wildcards.
  */
 export function resolveCorsAllowedOrigins(
   env: NodeJS.ProcessEnv = process.env,
@@ -85,6 +86,8 @@ export function resolveCorsAllowedOrigins(
     env.PANEL_BASE_URL,
     'http://127.0.0.1:4445',
     'http://localhost:4445',
+    'http://127.0.0.1:4450',
+    'http://localhost:4450',
   ]
     .map((origin) => (origin || '').trim())
     .filter(Boolean);
