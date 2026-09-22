@@ -33,6 +33,18 @@ export class OrderItemEntity extends BaseEntity {
   @Column('int', { name: 'productAttributeValueId', nullable: true })
   productAttributeValueId: number | null;
 
+  /** Product title at purchase time (commercial snapshot). */
+  @Column('varchar', { name: 'productName', nullable: true, length: 255 })
+  productName: string | null;
+
+  /** Selected attribute name at purchase time (e.g. سایز). */
+  @Column('varchar', { name: 'optionName', nullable: true, length: 128 })
+  optionName: string | null;
+
+  /** Selected option value label at purchase time (e.g. M). */
+  @Column('varchar', { name: 'optionLabel', nullable: true, length: 255 })
+  optionLabel: string | null;
+
   @Column('decimal', {
     name: 'price',
     precision: 20,
@@ -60,6 +72,42 @@ export class OrderItemEntity extends BaseEntity {
     transformer: new DecimalTransformer(),
   })
   finalAmount: number;
+
+  /** Cost measurement at Order create (F1). Not re-read at payment. */
+  @Column('decimal', {
+    name: 'unitPurchaseCostSnapshot',
+    nullable: true,
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  unitPurchaseCostSnapshot: number | null;
+
+  @Column('decimal', {
+    name: 'unitLandedCostSnapshot',
+    nullable: true,
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  unitLandedCostSnapshot: number | null;
+
+  @Column('enum', {
+    name: 'costCurrency',
+    enum: ['USD', 'TRY', 'IRT'],
+    nullable: true,
+  })
+  costCurrency: 'USD' | 'TRY' | 'IRT' | null;
+
+  @Column('enum', {
+    name: 'cogsStatus',
+    enum: ['captured', 'missing', 'legacy_unknown'],
+    nullable: true,
+  })
+  cogsStatus: 'captured' | 'missing' | 'legacy_unknown' | null;
+
+  @Column('varchar', { name: 'costSource', nullable: true, length: 32 })
+  costSource: string | null;
 
   @Column('datetime', { name: 'createdAt' })
   createdAt: Date;

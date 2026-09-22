@@ -65,4 +65,29 @@ export class UpdateProductDto {
   @ApiProperty({ required: false })
   @IsOptional()
   coverId: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  purchaseCost: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  landedUnitCost: number;
+
+  @ApiProperty({ required: false, enum: ['USD', 'TRY', 'IRT'] })
+  @IsOptional()
+  @IsIn(['USD', 'TRY', 'IRT'])
+  costCurrency: 'USD' | 'TRY' | 'IRT';
+
+  @ApiProperty({
+    required: false,
+    enum: ['manual_admin', 'import_manual', 'calculated', 'unknown_legacy'],
+  })
+  @IsOptional()
+  @IsIn(['manual_admin', 'import_manual', 'calculated', 'unknown_legacy'])
+  costSource:
+    | 'manual_admin'
+    | 'import_manual'
+    | 'calculated'
+    | 'unknown_legacy';
 }

@@ -38,9 +38,12 @@ import { CustomerResetPasswordDto } from './dto/customer-reset-password.dto';
 import { CustomerResendOtpDto } from './dto/customer-resend-otp.dto';
 import { CustomerLoginMobileDto } from './dto/customer-login-mobile.dto';
 import { CustomerLoginVerifyDto } from './dto/customer-login-verify.dto';
+import { AuthRateLimit } from '../../security/auth-rate-limit.decorator';
+import { AuthRateLimitGuard } from '../../security/auth-rate-limit.guard';
 
 @ApiTags('Customer')
 @Controller('customers')
+@UseGuards(AuthRateLimitGuard)
 export class CustomerController {
   constructor(
     private customerService: CustomerService,
@@ -51,6 +54,10 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login/mobile')
+  @AuthRateLimit({
+    kind: 'otpSend',
+    identityFields: ['mobile'],
+  })
   async loginByMobile(@Body() dto: CustomerLoginMobileDto) {
     const data = await this.customerService.loginByMobile(dto);
     return successfulResult(['کد تایید ارسال شد'], data);
@@ -60,6 +67,10 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login/verify')
+  @AuthRateLimit({
+    kind: 'otpVerify',
+    identityFields: ['mobile'],
+  })
   async verifyLogin(@Body() dto: CustomerLoginVerifyDto) {
     const response = await this.customerService.verifyLogin(dto);
     if (response) {
@@ -71,6 +82,10 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('login')
+  @AuthRateLimit({
+    kind: 'login',
+    identityFields: ['emailOrMobile'],
+  })
   async login(@Body() dto: CustomerLoginDto) {
     const response = await this.customerService.login(dto);
     return successfulResult(['با موفقیت لاگین شدید'], response);
@@ -120,6 +135,10 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('password/forgot')
+  @AuthRateLimit({
+    kind: 'otpSend',
+    identityFields: ['emailOrMobile'],
+  })
   async forgotPassword(@Body() dto: CustomerForgotDto) {
     await this.customerService.forgotPassword(dto);
     return successfulResult(['کد تایید ارسال شد']);
@@ -129,6 +148,10 @@ export class CustomerController {
    * --------------------------------------------------------
    */
   @Post('password/reset')
+  @AuthRateLimit({
+    kind: 'otpVerify',
+    identityFields: ['emailOrMobile'],
+  })
   async resetPassword(@Body() dto: CustomerResetPasswordDto) {
     const response = await this.customerService.resetPasswordByToken(dto);
 
@@ -140,6 +163,10 @@ export class CustomerController {
    * POST /customers/signup
    */
   @Post('signup')
+  @AuthRateLimit({
+    kind: 'otpSend',
+    identityFields: ['mobile', 'email'],
+  })
   async signup(@Body() dto: CustomerSignupDto) {
     const response = await this.customerService.signup(dto);
     return successfulResult(['کد تایید ارسال شد'], response);
@@ -150,6 +177,10 @@ export class CustomerController {
    * POST /customers/signup/verify
    */
   @Post('signup/verify')
+  @AuthRateLimit({
+    kind: 'otpVerify',
+    identityFields: ['mobile', 'email'],
+  })
   async verifySignupByCode(@Body() dto: CustomerVerifySignupDto) {
     const response = await this.customerService.verifySignupByCode(dto);
 
@@ -161,6 +192,10 @@ export class CustomerController {
    * POST /customers/resend-otp-code
    */
   @Post('resend-otp-code')
+  @AuthRateLimit({
+    kind: 'otpSend',
+    identityFields: ['mobile', 'email'],
+  })
   async sendOtpCode(@Body() dto: CustomerResendOtpDto) {
     await this.customerService.sendOtpCode(dto);
 

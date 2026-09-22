@@ -1,4 +1,4 @@
-import { HttpStatus } from '@nestjs/common';
+import { HttpStatus, GoneException } from '@nestjs/common';
 import {
   Body,
   Controller,
@@ -92,15 +92,15 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
-   * POST /products/crawler/details/admin
+   * POST /products/crawler/details/admin — disabled
    */
   @Post('/crawler/details/admin')
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(UserRoles.admin, UserRoles.employee)
-  async crawlerDetails() {
-    const result = await this.productService.getProductsDetailsByCrawler();
-    return successfulResult(['Done'], result);
+  legacyCrawlerDetailsDisabled() {
+    throw new GoneException({
+      success: false,
+      messages: ['این مسیر دیگر پشتیبانی نمی‌شود.'],
+      data: {},
+    });
   }
 
   // /**
@@ -118,16 +118,15 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
-   * GET /products/111111/crawler/admin
+   * GET /products/:id/crawler/admin — disabled
    */
   @Get('/:id/crawler/admin')
-  // @ApiBearerAuth()
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(UserRoles.admin, UserRoles.employee)
-  async crawlerById(@Param('id') id: string) {
-    const result = await this.productService.getProductSourceIdByCrawler(id);
-
-    return successfulResult([], result);
+  legacyCrawlerByIdAdminDisabled() {
+    throw new GoneException({
+      success: false,
+      messages: ['این مسیر دیگر پشتیبانی نمی‌شود.'],
+      data: {},
+    });
   }
 
   /**
@@ -359,17 +358,6 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
-   * GET /products/link
-   */
-  @Get('link')
-  @ApiQuery({ name: 'link', required: true })
-  async getByLink(@Query('link') link: string) {
-    const data = await this.productService.getByLink(link);
-    return successfulResult([], data);
-  }
-
-  /**
-   * -------------------------------------------------------
    * GET /products/:id
    */
   @Get(':id')
@@ -380,12 +368,15 @@ export class ProductController {
 
   /**
    * -------------------------------------------------------
-   * GET /products/:id/crawler
+   * GET /products/:id/crawler — disabled
    */
   @Get(':id/crawler')
-  async getProductIdByCrawler(@Param('id') productId: number) {
-    const data = await this.productService.getProductIdByCrawler(productId);
-    return successfulResult([], data);
+  legacyGetProductIdByCrawlerDisabled() {
+    throw new GoneException({
+      success: false,
+      messages: ['این مسیر دیگر پشتیبانی نمی‌شود.'],
+      data: {},
+    });
   }
 
   /**
@@ -527,7 +518,10 @@ export class ProductController {
     @Body() dto: CreateUpdateProductAttrValueDto,
     @User() user: UserEntity,
   ) {
-    const data = await this.productService.addUpdateProductAttributeValue(dto);
+    const data = await this.productService.addUpdateProductAttributeValue(
+      dto,
+      user,
+    );
 
     return successfulResult(['ویژگی مورد نظر با موفقیت ذخیره شد'], data);
   }

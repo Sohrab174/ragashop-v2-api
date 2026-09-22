@@ -1,5 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsNotEmpty, IsOptional } from 'class-validator';
+
+function toStrictBoolean(value: unknown): boolean {
+  if (value === true || value === 1 || value === '1' || value === 'true') {
+    return true;
+  }
+  if (
+    value === false ||
+    value === 0 ||
+    value === '0' ||
+    value === 'false' ||
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return false;
+  }
+  return value as boolean;
+}
 
 export class CreateTransactionDto {
   @ApiProperty({ required: true })
@@ -12,13 +31,19 @@ export class CreateTransactionDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  usedWalletUSD: boolean;
+  @Transform(({ value }) => toStrictBoolean(value))
+  @IsBoolean()
+  usedWalletUSD?: boolean;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  usedWalletIRT: boolean;
+  @Transform(({ value }) => toStrictBoolean(value))
+  @IsBoolean()
+  usedWalletIRT?: boolean;
 
   @ApiProperty({ required: false })
   @IsOptional()
-  usedWalletTRY: boolean;
+  @Transform(({ value }) => toStrictBoolean(value))
+  @IsBoolean()
+  usedWalletTRY?: boolean;
 }

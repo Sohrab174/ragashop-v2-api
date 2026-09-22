@@ -34,10 +34,36 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Environment / secrets (keep sample/templates trackable)
 .env
+.env.*
+*.env
+.env.local
+.env.production.downloaded
+!.env.sample
+!.env.example
+!.env*.example
+!env.sample
+
 ormconfig.json
 /src/mail/maildev/inbox
+
+# Runtime uploads / private receipt storage
 /uploads
+/private-receipts
+uploads/
+private-receipts/
+
+# Local dumps / backups / keys
+*.sql
+*.dump
+*.bak
+*.pem
+*.key
+id_rsa
+id_ed25519
+credentials.json
+
 /entities
 
 extracted.txt

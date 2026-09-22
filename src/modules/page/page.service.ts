@@ -28,6 +28,7 @@ import { PageSectionItemSortDto } from './dto/page-sort-item.dto';
 import { ProductStatus } from '../product/entities/product.entity';
 import { CategoryStatus } from '../category/entities/category.entity';
 import { SettingService } from '../setting/setting.service';
+import { discoveryEligibilitySql } from '../product/discovery-eligibility';
 
 @Injectable()
 export class PageService {
@@ -121,7 +122,9 @@ export class PageService {
       .leftJoin(
         'items.product',
         'product',
-        'product.isDeleted = 0 AND product.status = :productActive',
+        `product.isDeleted = 0 AND product.status = :productActive AND ${discoveryEligibilitySql(
+          'product',
+        )}`,
         { productActive: ProductStatus.active },
       )
       .leftJoin('product.cover', 'productCover')

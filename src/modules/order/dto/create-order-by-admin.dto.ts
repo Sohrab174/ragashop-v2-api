@@ -2,20 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
 import { OrderStatus } from '../entities/order.entity';
+import { OrderProductItemQuantityBase } from '../utils/order-item.validators';
 
-export class ProductItem {
-  @ApiProperty()
-  @IsNotEmpty()
-  productId: number;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  quantity: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  productAttributeValueId: number;
-
+export class ProductItem extends OrderProductItemQuantityBase {
   @ApiProperty({ required: false })
   @IsOptional()
   price: number;

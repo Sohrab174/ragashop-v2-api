@@ -15,6 +15,7 @@ import { AttributeValueEntity } from './entities/attribute-value.entity';
 import { CreateAttributeValueDto } from './dto/create-attribute-value.dto';
 import { UpdateAttributeValueDto } from './dto/update-attribute-value.dto';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
+import { containsPersianScript } from '../../utils/persian-script.util';
 
 @Injectable()
 export class AttributeService {
@@ -609,16 +610,16 @@ export class AttributeService {
    * -------------------------------------------------------
    */
   private async _findOrTranslateAttr(sourceName) {
-    const exist = await this.attributeRepository
+    const candidates = await this.attributeRepository
       .createQueryBuilder('attr')
       .select(['attr.id', 'attr.name'])
       .where('attr.sourceName = :sourceName', { sourceName })
-      .andWhere('attr.name REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]',
-      })
-      .getOne();
+      .orderBy('attr.id', 'ASC')
+      .take(20)
+      .getMany();
 
-    if (exist) {
+    const exist = candidates.find((row) => containsPersianScript(row.name));
+    if (exist?.name) {
       return exist.name;
     }
 
@@ -629,16 +630,16 @@ export class AttributeService {
    * -------------------------------------------------------
    */
   private async _findOrTranslateAttrValue(sourceName) {
-    const exist = await this.attributeValueRepository
+    const candidates = await this.attributeValueRepository
       .createQueryBuilder('attrValue')
       .select(['attrValue.id', 'attrValue.name'])
       .where('attrValue.sourceName = :sourceName', { sourceName })
-      .andWhere('attrValue.name REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]',
-      })
-      .getOne();
+      .orderBy('attrValue.id', 'ASC')
+      .take(20)
+      .getMany();
 
-    if (exist) {
+    const exist = candidates.find((row) => containsPersianScript(row.name));
+    if (exist?.name) {
       return exist.name;
     }
 

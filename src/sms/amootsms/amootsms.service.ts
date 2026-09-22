@@ -28,8 +28,7 @@ export class AmootsmsService {
       OptionalCode: code,
     };
 
-    console.log(params);
-
+    // Do not log credentials or OTP codes.
     try {
       const { data } = await this.axios.get(
         '/webservice2.asmx/SendQuickOTP_REST',
@@ -40,7 +39,7 @@ export class AmootsmsService {
 
       return data;
     } catch (e) {
-      console.log(e?.response?.data || e || 'Error SMS');
+      console.error('AmootSMS OTP send failed');
       return false;
     }
   }

@@ -7,6 +7,9 @@ import { successfulResult } from '../../utils';
 import { UserRoles } from '../user/entities/user.entity';
 import { RolesGuard } from '../auth/role/role.guard';
 import { Roles } from '../auth/role/role.decorator';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../manual-payment/manual-payment.types';
 
 @ApiTags('Setting')
 @Controller('settings')
@@ -51,9 +54,15 @@ export class SettingController {
 
   /**
    * -------------------------------------------------------
-   * Get /settings/try-to-rial
+   * Put /settings/try-to-rial
+   * Privileged FX refresh (mutates last-known-good TRY→IRR).
+   * Admin always allowed; employee requires settings.fx_refresh.
    */
   @Put('try-to-rial')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.settings_fx_refresh)
   async getTryToRial() {
     const data = await this.settingService.getTryToRial();
     return successfulResult([], data);

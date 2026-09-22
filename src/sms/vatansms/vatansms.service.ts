@@ -66,7 +66,7 @@ RagaShop.co
 
       return data;
     } catch (e) {
-      console.log('VATANSMS', { mobiles, message }, e?.response?.data || e);
+      console.error('VatanSMS send failed', { mobiles });
       return null;
     }
   }

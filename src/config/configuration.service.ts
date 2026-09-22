@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as dotenv from 'dotenv';
+import { getEffectiveCrawlerBaseUrl } from '@ragashop/marketplace-identity-lease';
 dotenv.config();
 
 type App = {
@@ -48,6 +49,11 @@ type PasswordCrypto = {
 type AI = {
   deepseekToken: string;
 };
+type Crawler = {
+  baseUrl: string;
+  internalSecret: string;
+  requestTimeoutMs: number;
+};
 
 @Injectable()
 export class ConfigurationService {
@@ -58,6 +64,7 @@ export class ConfigurationService {
   public gateway: Gateway;
   public passwordCrypto: PasswordCrypto;
   public AI: AI;
+  public crawler: Crawler;
 
   constructor() {
     this.getEnv();
@@ -118,5 +125,22 @@ export class ConfigurationService {
     this.AI = {
       deepseekToken: env.AI_DEEPSEEK_TOKEN,
     };
+
+    this.crawler = {
+      baseUrl: getEffectiveCrawlerBaseUrl(env),
+      internalSecret: (env.CRAWLER_INTERNAL_SECRET || '').trim(),
+      requestTimeoutMs:
+        parseInt(env.CRAWLER_REQUEST_TIMEOUT_MS || '120000', 10) || 120000,
+    };
+
+    if (
+      !this.crawler.internalSecret &&
+      env.NODE_ENV !== 'test' &&
+      !env.JEST_WORKER_ID
+    ) {
+      throw new Error(
+        'CRAWLER_INTERNAL_SECRET is required for marketplace import crawler communication',
+      );
+    }
   }
 }

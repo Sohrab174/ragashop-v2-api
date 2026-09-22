@@ -26,6 +26,30 @@ import {
   squareSizeImage,
 } from '../../utils/sharp';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
+import { containsPersianScript } from '../../utils/persian-script.util';
+import {
+  CategoryHierarchyValidationError,
+  validateCategoryParentAssignment,
+} from './category-hierarchy.validation';
+import { CategoryHierarchyLockService } from './category-hierarchy-lock.service';
+import {
+  attachPresentationImages,
+  buildCategoryTree,
+  inheritImagesFromDescendants,
+  prepareCustomerCatalogTree,
+} from './category-tree.builder';
+import {
+  fillImagesFromDescendantCovers,
+  resolveDirectPresentationImages,
+} from './category-presentation-image';
+import {
+  ProductEntity,
+  ProductStatus,
+} from '../product/entities/product.entity';
+import {
+  ProductGalleryEntity,
+  ProductGalleryType,
+} from '../product/entities/product-gallery.entity';
 
 @Injectable()
 export class CategoryService {
@@ -35,6 +59,7 @@ export class CategoryService {
 
     private error: ErrorService,
     private translatorService: TranslatorService,
+    private categoryHierarchyLockService: CategoryHierarchyLockService,
   ) {}
 
   /**
@@ -42,33 +67,40 @@ export class CategoryService {
    * POST /categories/admin
    */
   async add(dto: CreateCategoryDto) {
-    if (dto.parentId) {
-      const parentCategory = await this.categoryRepository.findOne({
-        id: dto.parentId,
-      });
-      if (!parentCategory) {
-        this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
-      }
-    }
+    return this.categoryHierarchyLockService.withHierarchyMutationLock(
+      0,
+      dto.parentId ?? null,
+      async () => {
+        try {
+          await validateCategoryParentAssignment(
+            this.categoryRepository,
+            null,
+            dto.parentId ?? null,
+          );
+        } catch (error) {
+          if (error instanceof CategoryHierarchyValidationError) {
+            this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
+          }
+          throw error;
+        }
 
-    // Creating a new category
-    const { identifiers } = await this.categoryRepository
-      .createQueryBuilder()
-      .insert()
-      .values({
-        name: dto.name,
-        status: dto.status,
-        parentId: dto.parentId,
-        isSelection: dto.isSelection || false,
-        gender: dto?.gender || null,
-        displayOrder: await getLastDisplayOrder(CategoryEntity.name),
-        createdAt: new Date(),
-      })
-      .execute();
+        const { identifiers } = await this.categoryRepository
+          .createQueryBuilder()
+          .insert()
+          .values({
+            name: dto.name,
+            status: dto.status,
+            parentId: dto.parentId,
+            isSelection: dto.isSelection || false,
+            gender: dto?.gender || null,
+            displayOrder: await getLastDisplayOrder(CategoryEntity.name),
+            createdAt: new Date(),
+          })
+          .execute();
 
-    const newCategoryId = identifiers[0].id;
-
-    return { id: newCategoryId };
+        return { id: identifiers[0].id };
+      },
+    );
   }
 
   /**
@@ -87,25 +119,41 @@ export class CategoryService {
       this.error.unprocessableEntity(['این درخواست نامعتبر است']);
     }
 
-    if (dto.parentId) {
-      const categoryParent = await this.categoryRepository.findOne({
-        id: dto.parentId,
-      });
-      if (!categoryParent) {
-        this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
-      }
-    }
+    return this.categoryHierarchyLockService.withHierarchyMutationLock(
+      dto.id,
+      dto.parentId ?? null,
+      async () => {
+        const reloaded = await this.categoryRepository.findOne({
+          where: { id: dto.id },
+        });
+        if (!reloaded) {
+          this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
+        }
 
-    // Updating the category
-    targetCategory.parentId = dto.parentId;
-    targetCategory.status = dto.status;
-    targetCategory.name = dto.name;
-    targetCategory.isSelection = dto.isSelection || false;
-    targetCategory.gender = dto?.gender || null;
+        try {
+          await validateCategoryParentAssignment(
+            this.categoryRepository,
+            dto.id,
+            dto.parentId ?? null,
+          );
+        } catch (error) {
+          if (error instanceof CategoryHierarchyValidationError) {
+            this.error.unprocessableEntity(['دسته بندی مورد نظر یافت نشد']);
+          }
+          throw error;
+        }
 
-    await targetCategory.save();
+        reloaded.parentId = dto.parentId;
+        reloaded.status = dto.status;
+        reloaded.name = dto.name;
+        reloaded.isSelection = dto.isSelection || false;
+        reloaded.gender = dto?.gender || null;
 
-    return true;
+        await reloaded.save();
+
+        return true;
+      },
+    );
   }
 
   /**
@@ -389,16 +437,18 @@ export class CategoryService {
     if (getSubIds) {
       const subCategories = await this.categoryRepository
         .createQueryBuilder('category')
-        .select(['category.id', 'category.parentId'])
+        .select(['category.id', 'category.parentId', 'category.displayOrder'])
         .where({
           status: CategoryStatus.active,
         })
         .getMany();
-      groupedCategories = this._applyCategoryToTree(subCategories);
+      groupedCategories = buildCategoryTree(subCategories as any);
     }
 
+    const withImages = await this._attachFlatPresentationImages(items);
+
     return {
-      items: items.map((item) => ({
+      items: withImages.map((item) => ({
         ...item,
         ...(getSubIds && {
           subIds: this._extractSubIds(
@@ -439,17 +489,19 @@ export class CategoryService {
     if (getSubIds) {
       const subCategories = await this.categoryRepository
         .createQueryBuilder('category')
-        .select(['category.id', 'category.parentId'])
+        .select(['category.id', 'category.parentId', 'category.displayOrder'])
         .where({
           status: CategoryStatus.active,
         })
         .getMany();
 
-      groupedCategories = this._applyCategoryToTree(subCategories, +categoryId);
+      groupedCategories = buildCategoryTree(subCategories as any, +categoryId);
     }
 
+    const [withImage] = await this._attachFlatPresentationImages([category]);
+
     return {
-      ...category,
+      ...withImage,
       ...(getSubIds && {
         subIds: this._extractSubIds(groupedCategories || []),
       }),
@@ -460,6 +512,13 @@ export class CategoryService {
    * -------------------------------------------------------
    * GET /categories/tree
    * GET /categories/tree?child_id=1
+   *
+   * Source-agnostic customer catalog tree:
+   * - real category IDs only (no virtual gender IDs)
+   * - no name-based business cloning
+   * - orphans / inactive-parent children omitted safely
+   * - cycle + depth protected
+   * - presentationImage resolved in batch
    */
   async getAllTree(childId = null) {
     const categories = await this.categoryRepository
@@ -470,70 +529,26 @@ export class CategoryService {
         'category.iconPath',
         'category.name',
         'category.gender',
+        'category.displayOrder',
       ])
       .where({ status: CategoryStatus.active })
-      .orderBy('category.displayOrder', 'ASC')
       .andWhere('category.id != 1')
+      .orderBy('category.displayOrder', 'ASC')
+      .addOrderBy('category.id', 'ASC')
       .getMany();
 
-    const groupedCategories = this._applyCategoryToTree(categories);
+    const fullTree = buildCategoryTree(categories as any);
 
     if (childId) {
-      return findCategoryParentsByChildId(groupedCategories, +childId).map(
-        (cat) => {
-          delete cat.subCategories;
-          return cat;
-        },
-      );
+      return findCategoryParentsByChildId(fullTree, +childId).map((cat) => {
+        const clone = { ...cat };
+        delete clone.subCategories;
+        return clone;
+      });
     }
 
-    function deepCloneCategoryTree(category: any, gender): any {
-      if (category.gender && gender && category.gender !== gender) {
-        return null;
-      }
-
-      return {
-        ...category,
-        subCategories: category.subCategories
-          ? category.subCategories
-              .map((c) => deepCloneCategoryTree(c, gender))
-              .filter((c) => c)
-          : undefined,
-      };
-    }
-
-    // Function to generate gendered copies of "لباس" only
-    function createGenderedCategories(categories: any[]) {
-      const result: any[] = [];
-
-      const genders = [
-        { name: 'زنانه', id: 'female' },
-        { name: 'مردانه', id: 'male' },
-        { name: 'بچگانه', id: 'child' },
-      ];
-
-      for (const category of categories) {
-        if (category.name === 'لباس') {
-          for (const gender of genders) {
-            const rootClone = deepCloneCategoryTree(category, gender.id);
-            rootClone.name = gender.name;
-            rootClone.orginalId = rootClone.id;
-            rootClone.id = gender.id;
-            rootClone.gender = gender.id;
-            rootClone.parentId = null;
-            result.push(rootClone);
-          }
-        } else {
-          const rootClone = deepCloneCategoryTree(category, null);
-          rootClone.orginalId = rootClone.id;
-          result.push(rootClone);
-        }
-      }
-
-      return result;
-    }
-
-    return createGenderedCategories(groupedCategories);
+    const customerTree = prepareCustomerCatalogTree(categories as any);
+    return this._withPresentationImages(customerTree, categories as any);
   }
 
   /**
@@ -642,31 +657,104 @@ export class CategoryService {
   /**
    * -------------------------------------------------------
    */
-  private _applyCategoryToTree(categories, parentId: number = null) {
-    const result = [];
-
-    for (const category of categories) {
-      if (category.parentId === parentId) {
-        const subCategories = this._applyCategoryToTree(
-          categories,
-          category.id,
-        );
-        if (subCategories.length > 0) {
-          category.subCategories = subCategories;
-        }
-        result.push(category);
-      }
-    }
-
-    return result;
-  }
-
   private _extractSubIds(subCategories, result = []) {
     for (const obj of subCategories) {
       result.push(obj.id);
 
       if (obj.subCategories && obj.subCategories.length > 0) {
         this._extractSubIds(obj.subCategories, result);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Batched presentation images for a flat category list (no N+1).
+   */
+  private async _attachFlatPresentationImages(categories: CategoryEntity[]) {
+    if (!categories?.length) {
+      return categories;
+    }
+
+    const imageMap = await this._resolvePresentationImageMap(categories as any);
+
+    return categories.map((category) => ({
+      ...category,
+      presentationImage: imageMap.get(category.id) || category.iconPath || null,
+      hasChildren: undefined,
+    }));
+  }
+
+  /**
+   * Attach batched presentationImage onto a customer tree.
+   */
+  private async _withPresentationImages(tree, flatCategories) {
+    const imageMap = await this._resolvePresentationImageMap(flatCategories);
+    const withDirect = attachPresentationImages(tree, imageMap);
+    return inheritImagesFromDescendants(withDirect);
+  }
+
+  /**
+   * One (or two) queries for all category cover images — never per-card.
+   * Loads full active taxonomy so descendant inheritance works for hubs/lists.
+   */
+  private async _resolvePresentationImageMap(flatCategories) {
+    const allActive = await this.categoryRepository
+      .createQueryBuilder('category')
+      .select(['category.id', 'category.parentId', 'category.iconPath'])
+      .where({ status: CategoryStatus.active })
+      .andWhere('category.id != 1')
+      .getMany();
+
+    const taxonomy = allActive.length > 0 ? allActive : flatCategories || [];
+
+    const ids = taxonomy.map((c) => c.id);
+    if (!ids.length) {
+      return new Map<number, string | null>();
+    }
+
+    const covers = await this._fetchProductCoversForCategories(ids);
+    const direct = resolveDirectPresentationImages(taxonomy as any, covers);
+    return fillImagesFromDescendantCovers(taxonomy as any, direct, covers);
+  }
+
+  private async _fetchProductCoversForCategories(categoryIds: number[]) {
+    if (!categoryIds.length) {
+      return [];
+    }
+
+    // Pick one active product cover per categoryId in a single query.
+    const rows = await this.categoryRepository.manager
+      .createQueryBuilder()
+      .select('p.categoryId', 'categoryId')
+      .addSelect('pg.pathFile', 'pathFile')
+      .from(ProductEntity, 'p')
+      .innerJoin(
+        ProductGalleryEntity,
+        'pg',
+        'pg.id = p.coverId AND pg.type = :galleryType',
+        { galleryType: ProductGalleryType.photo },
+      )
+      .where('p.categoryId IN (:...categoryIds)', { categoryIds })
+      .andWhere('p.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('p.status = :status', { status: ProductStatus.active })
+      .andWhere('p.coverId IS NOT NULL')
+      .orderBy('p.categoryId', 'ASC')
+      .addOrderBy('p.id', 'ASC')
+      .getRawMany();
+
+    // Keep first cover per categoryId
+    const seen = new Set<number>();
+    const result: { categoryId: number; pathFile: string }[] = [];
+    for (const row of rows) {
+      const categoryId = Number(row.categoryId);
+      if (seen.has(categoryId)) {
+        continue;
+      }
+      seen.add(categoryId);
+      if (row.pathFile) {
+        result.push({ categoryId, pathFile: row.pathFile });
       }
     }
 
@@ -749,16 +837,16 @@ export class CategoryService {
    * -------------------------------------------------------
    */
   private async _findOrTranslate(sourceName) {
-    const exist = await this.categoryRepository
+    const candidates = await this.categoryRepository
       .createQueryBuilder('category')
       .select(['category.id', 'category.name'])
       .where('category.sourceName = :sourceName', { sourceName })
-      .andWhere('category.name REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]',
-      })
-      .getOne();
+      .orderBy('category.id', 'ASC')
+      .take(20)
+      .getMany();
 
-    if (exist) {
+    const exist = candidates.find((row) => containsPersianScript(row.name));
+    if (exist?.name) {
       return exist.name;
     }
 
@@ -771,14 +859,19 @@ export class CategoryService {
   async getChildIds(parentId) {
     const subCategories = await this.categoryRepository
       .createQueryBuilder('category')
-      .select(['category.id', 'category.parentId', 'category.gender'])
+      .select([
+        'category.id',
+        'category.parentId',
+        'category.gender',
+        'category.displayOrder',
+      ])
       .where({
         status: CategoryStatus.active,
       })
       .getMany();
 
-    const groupedCategories = this._applyCategoryToTree(
-      subCategories,
+    const groupedCategories = buildCategoryTree(
+      subCategories as any,
       +parentId,
     );
 

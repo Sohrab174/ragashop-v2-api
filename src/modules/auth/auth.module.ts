@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt/jwt.strategy';
 import { MailModule } from '../../mail/mail.module';
 import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { SecurityModule } from '../../security/security.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
     PassportModule,
     MailModule,
     AmootsmsModule,
+    SecurityModule,
     // KavenegarModule,
     JwtModule.registerAsync({
       imports: [ConfigurationModule],

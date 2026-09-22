@@ -34,6 +34,9 @@ import {
   WalletHistoryType,
 } from './entities/wallet-history.entity';
 import { VatansmsService } from '../../sms/vatansms/vatansms.service';
+import { CustomerMobileIdentityService } from './customer-mobile-identity.service';
+import { resolveCustomerByMobileDuplicates } from './customer-identity-resolver';
+import { isNormalizedCustomerMobile } from '../../utils/mobile-normalization';
 
 @Injectable()
 export class CustomerService {
@@ -55,6 +58,8 @@ export class CustomerService {
 
     @Inject(forwardRef(() => OrderService))
     private orderService: OrderService,
+
+    private customerMobileIdentityService: CustomerMobileIdentityService,
   ) {}
 
   /**
@@ -93,83 +98,155 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async loginByMobile(dto: CustomerLoginMobileDto) {
-    let customer = await this.customerRepository.findOne({
-      mobile: dto.mobile,
-      isDeleted: false,
-    });
+    const normalizedMobile = this.customerMobileIdentityService.normalizeMobile(
+      dto.mobile,
+    );
 
-    let isNewUser = false;
-    if (customer) {
-      if (!customer.firstName && !customer.lastName) {
-        isNewUser = true;
-      }
-
-      if (customer.status === CustomerStatus.banned) {
-        this.error.methodNotAllowed([
-          'حساب کاربری شما مسدود شده است، با پشتیبانی تماس حاصل نمایید',
-        ]);
-      }
-      // The verification code has already been sent, please try again in a few minutes!
-      else if (
-        moment(customer.expireRandomHash)
-          .subtract(2, 'minutes')
-          .isAfter(moment())
-      ) {
-        return { mobile: customer.mobile, isNewUser };
-      }
-    } else {
-      isNewUser = true;
-      customer = new CustomerEntity();
-      customer.mobile = dto.mobile;
-      customer.status = CustomerStatus.inactive;
-      customer.createdAt = new Date();
-      customer.referrerCode = await this._generateReferrerCode(6, dto.mobile);
-      customer.walletUSD = 0;
-      customer.walletIRT = 0;
-      customer.walletTRY = 0;
-      customer.buyPercentToReferrerCreditUSD = null;
-      customer.buyPercentToReferrerCreditIRT = null;
-      customer.buyPercentToReferrerCreditTRY = null;
+    if (!isNormalizedCustomerMobile(normalizedMobile)) {
+      this.error.unprocessableEntity(['شماره موبایل نامعتبر است']);
     }
 
-    const randomHash =
-      this.config.app.nodeEnv === 'production'
-        ? await this._generateVerifyCode()
-        : '11111';
+    const otpState =
+      await this.customerMobileIdentityService.withNormalizedMobileLock(
+        normalizedMobile,
+        async () => {
+          const candidates = await this.findCustomersByNormalizedMobile(
+            normalizedMobile,
+          );
+          const resolved = resolveCustomerByMobileDuplicates(candidates);
+          if (resolved.ambiguous) {
+            this.error.unprocessableEntity([
+              'حساب کاربری مبهم است، با پشتیبانی تماس بگیرید',
+            ]);
+          }
 
-    customer.randomHash = randomHash;
-    customer.expireRandomHash = moment().add(5, 'minutes').toDate();
-    await customer.save();
+          let customer = resolved.customer;
+          let isNewUser = false;
 
-    // Sending SMS
-    if (dto.mobile.substring(0, 3) === '+98') {
-      await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
+          if (customer) {
+            if (!customer.firstName && !customer.lastName) {
+              isNewUser = true;
+            }
+
+            if (customer.status === CustomerStatus.banned) {
+              this.error.methodNotAllowed([
+                'حساب کاربری شما مسدود شده است، با پشتیبانی تماس حاصل نمایید',
+              ]);
+            } else if (
+              moment(customer.expireRandomHash)
+                .subtract(2, 'minutes')
+                .isAfter(moment())
+            ) {
+              return {
+                mobile: customer.mobile,
+                isNewUser,
+                randomHash: customer.randomHash,
+                skipSms: true,
+              };
+            }
+          } else {
+            isNewUser = true;
+            customer = new CustomerEntity();
+            customer.mobile = normalizedMobile;
+            customer.status = CustomerStatus.inactive;
+            customer.createdAt = new Date();
+            customer.referrerCode = await this._generateReferrerCode(
+              6,
+              normalizedMobile,
+            );
+            customer.walletUSD = 0;
+            customer.walletIRT = 0;
+            customer.walletTRY = 0;
+            customer.buyPercentToReferrerCreditUSD = null;
+            customer.buyPercentToReferrerCreditIRT = null;
+            customer.buyPercentToReferrerCreditTRY = null;
+          }
+
+          const randomHash =
+            this.config.app.nodeEnv === 'production'
+              ? await this._generateVerifyCode()
+              : '11111';
+
+          customer.randomHash = randomHash;
+          customer.expireRandomHash = moment().add(5, 'minutes').toDate();
+          await customer.save();
+
+          return {
+            mobile: normalizedMobile,
+            isNewUser,
+            randomHash,
+            skipSms: false,
+          };
+        },
+      );
+
+    if (!otpState.skipSms) {
+      if (normalizedMobile.substring(0, 3) === '+98') {
+        await this.amootsmsService.sendOTP(
+          normalizedMobile,
+          otpState.randomHash,
+        );
+      } else if (normalizedMobile.substring(0, 3) === '+90') {
+        await this.vatansmsService.sendOTP(
+          normalizedMobile,
+          otpState.randomHash,
+        );
+      }
     }
-    // Sending SMS To Turk Number
-    else if (dto.mobile.substring(0, 3) === '+90') {
-      await this.vatansmsService.sendOTP(dto.mobile, customer.randomHash);
-    }
 
-    return { mobile: dto.mobile, isNewUser };
+    return { mobile: otpState.mobile, isNewUser: otpState.isNewUser };
   }
 
   /**
    * --------------------------------------------------------
    */
   async verifyLogin(dto: CustomerLoginVerifyDto) {
-    const customer = await this.customerRepository.findOne({
-      where: {
-        mobile: dto.mobile,
-        randomHash: dto.code,
-        isDeleted: false,
-      },
-      relations: ['addresses'],
-    });
+    const normalizedMobile = dto.mobile
+      ? this.customerMobileIdentityService.normalizeMobile(dto.mobile)
+      : null;
 
-    if (!(customer && moment(customer.expireRandomHash).isAfter(moment()))) {
+    let customer: CustomerEntity | null = null;
+    if (normalizedMobile) {
+      const candidates = await this.findCustomersByNormalizedMobile(
+        normalizedMobile,
+      );
+      const matching = candidates.filter(
+        (c) =>
+          c.randomHash === dto.code &&
+          moment(c.expireRandomHash).isAfter(moment()),
+      );
+      const resolved = resolveCustomerByMobileDuplicates(matching);
+      if (resolved.ambiguous) {
+        return this.error.unprocessableEntity([
+          'حساب کاربری مبهم است، با پشتیبانی تماس بگیرید',
+        ]);
+      }
+      customer = resolved.customer;
+    } else {
+      customer = await this.customerRepository.findOne({
+        where: {
+          mobile: dto.mobile,
+          randomHash: dto.code,
+          isDeleted: false,
+        },
+        relations: ['addresses'],
+      });
+      if (customer && !moment(customer.expireRandomHash).isAfter(moment())) {
+        customer = null;
+      }
+    }
+
+    if (!customer) {
       return this.error.unprocessableEntity([
         'کد تایید نامعتبر یا منقضی شده است',
       ]);
+    }
+
+    if (!customer.addresses) {
+      customer = await this.customerRepository.findOne({
+        where: { id: customer.id, isDeleted: false },
+        relations: ['addresses'],
+      });
     }
 
     if (!customer.lastName) {
@@ -428,6 +505,14 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async signup(dto: CustomerSignupDto) {
+    const normalizedMobile = dto.mobile
+      ? this.customerMobileIdentityService.normalizeMobile(dto.mobile)
+      : null;
+
+    if (normalizedMobile && !isNormalizedCustomerMobile(normalizedMobile)) {
+      this.error.unprocessableEntity(['شماره موبایل نامعتبر است']);
+    }
+
     // Checking unique email in this company
     if (dto.email) {
       const customer = await this.customerRepository.findOne({
@@ -438,7 +523,7 @@ export class CustomerService {
         if (customer.status === CustomerStatus.inactive) {
           return await this.sendOtpCode({
             email: dto.email,
-            mobile: dto.mobile,
+            mobile: normalizedMobile || dto.mobile,
             type: 'signup',
           });
         } else {
@@ -447,25 +532,77 @@ export class CustomerService {
       }
     }
 
-    // Checking unique mobile number in this company
-    if (dto.mobile) {
-      const customer = await this.customerRepository.findOne({
-        mobile: dto.mobile,
-        isDeleted: false,
-      });
-      if (customer) {
-        if (customer.status === CustomerStatus.inactive) {
-          return await this.sendOtpCode({
-            email: dto.email,
-            mobile: dto.mobile,
-            type: 'signup',
-          });
-        } else {
-          this.error.unprocessableEntity([
-            'این شماره موبایل قبلا استفاده شده است',
-          ]);
-        }
+    if (normalizedMobile) {
+      const signupResult =
+        await this.customerMobileIdentityService.withNormalizedMobileLock(
+          normalizedMobile,
+          async () => {
+            const candidates = await this.findCustomersByNormalizedMobile(
+              normalizedMobile,
+            );
+            const resolved = resolveCustomerByMobileDuplicates(candidates);
+            if (resolved.ambiguous) {
+              this.error.unprocessableEntity([
+                'حساب کاربری مبهم است، با پشتیبانی تماس بگیرید',
+              ]);
+            }
+            if (resolved.customer) {
+              if (resolved.customer.status === CustomerStatus.inactive) {
+                return {
+                  kind: 'resend' as const,
+                  mobile: normalizedMobile,
+                };
+              }
+              this.error.unprocessableEntity([
+                'این شماره موبایل قبلا استفاده شده است',
+              ]);
+            }
+
+            const newCustomer = new CustomerEntity();
+            for (const key in dto) {
+              newCustomer[key] = dto[key];
+            }
+            newCustomer.mobile = normalizedMobile;
+            newCustomer.status = CustomerStatus.inactive;
+            newCustomer.randomHash = await this._generateVerifyCode();
+            newCustomer.expireRandomHash = moment().add(5, 'minutes').toDate();
+            newCustomer.createdAt = new Date();
+
+            const { identifiers } = await this.customerRepository
+              .createQueryBuilder()
+              .insert()
+              .values(newCustomer)
+              .execute();
+
+            return {
+              kind: 'created' as const,
+              id: identifiers[0].id,
+              randomHash: newCustomer.randomHash,
+            };
+          },
+        );
+
+      if (signupResult.kind === 'resend') {
+        return await this.sendOtpCode({
+          email: dto.email,
+          mobile: normalizedMobile,
+          type: 'signup',
+        });
       }
+
+      if (normalizedMobile.substring(0, 3) === '+98') {
+        await this.amootsmsService.sendOTP(
+          normalizedMobile,
+          signupResult.randomHash,
+        );
+      } else if (normalizedMobile.substring(0, 3) === '+90') {
+        await this.vatansmsService.sendOTP(
+          normalizedMobile,
+          signupResult.randomHash,
+        );
+      }
+
+      return { id: signupResult.id };
     }
 
     const newCustomer = new CustomerEntity();
@@ -483,15 +620,6 @@ export class CustomerService {
       .insert()
       .values(newCustomer)
       .execute();
-
-    // Sending SMS
-    if (dto.mobile.substring(0, 3) === '+98') {
-      await this.amootsmsService.sendOTP(dto.mobile, newCustomer.randomHash);
-    }
-    // Sending SMS To Turk Number
-    else if (dto.mobile.substring(0, 3) === '+90') {
-      await this.vatansmsService.sendOTP(dto.mobile, newCustomer.randomHash);
-    }
 
     const newCustomerId = identifiers[0].id;
     return { id: newCustomerId };
@@ -634,20 +762,75 @@ export class CustomerService {
    * POST /customers/admin
    */
   async add(dto: CreateCustomerDto) {
+    const normalizedMobile = dto.mobile
+      ? this.customerMobileIdentityService.normalizeMobile(dto.mobile)
+      : null;
+
+    if (normalizedMobile && !isNormalizedCustomerMobile(normalizedMobile)) {
+      this.error.unprocessableEntity(['شماره موبایل نامعتبر است']);
+    }
+
+    if (normalizedMobile) {
+      return this.customerMobileIdentityService.withNormalizedMobileLock(
+        normalizedMobile,
+        async () => {
+          if (
+            dto.email &&
+            (await this.customerRepository.findOne({ email: dto.email }))
+          ) {
+            this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
+          }
+
+          const candidates = await this.findCustomersByNormalizedMobile(
+            normalizedMobile,
+          );
+          if (candidates.length > 0) {
+            this.error.unprocessableEntity([
+              'این شماره موبایل قبلا استفاده شده است',
+            ]);
+          }
+
+          if (
+            dto.referrerCode &&
+            (await this.customerRepository.findOne({
+              referrerCode: dto.referrerCode,
+            }))
+          ) {
+            this.error.unprocessableEntity([
+              'این کد معرف قبلا استفاده شده است',
+            ]);
+          }
+
+          const { identifiers } = await this.customerRepository
+            .createQueryBuilder()
+            .insert()
+            .values({
+              ...dto,
+              mobile: normalizedMobile,
+              referrerCode:
+                dto.referrerCode ||
+                (await this._generateReferrerCode(6, normalizedMobile)),
+              buyPercentToReferrerCreditUSD:
+                dto.buyPercentToReferrerCreditUSD || null,
+              buyPercentToReferrerCreditIRT:
+                dto.buyPercentToReferrerCreditIRT || null,
+              buyPercentToReferrerCreditTRY:
+                dto.buyPercentToReferrerCreditTRY || null,
+              createdAt: new Date(),
+            })
+            .execute();
+
+          return { id: identifiers[0].id };
+        },
+      );
+    }
+
     // Checking unique email
     if (
       dto.email &&
       (await this.customerRepository.findOne({ email: dto.email }))
     ) {
       this.error.unprocessableEntity(['این ایمیل قبلا استفاده شده است']);
-    }
-
-    // Checking unique mobile number
-    if (
-      dto.mobile &&
-      (await this.customerRepository.findOne({ mobile: dto.mobile }))
-    ) {
-      this.error.unprocessableEntity(['این شماره موبایل قبلا استفاده شده است']);
     }
 
     // Checking unique referrerCode
@@ -660,7 +843,6 @@ export class CustomerService {
       this.error.unprocessableEntity(['این کد معرف قبلا استفاده شده است']);
     }
 
-    // Creating a new customer
     const { identifiers } = await this.customerRepository
       .createQueryBuilder()
       .insert()
@@ -678,9 +860,7 @@ export class CustomerService {
       })
       .execute();
 
-    const newCustomerId = identifiers[0].id;
-
-    return { id: newCustomerId };
+    return { id: identifiers[0].id };
   }
 
   /**
@@ -766,6 +946,21 @@ export class CustomerService {
       .set({ isDeleted: true })
       .where({ id })
       .execute();
+  }
+
+  /**
+   * Find all non-deleted customers sharing the authoritative normalized mobile.
+   */
+  async findCustomersByNormalizedMobile(
+    normalizedMobile: string,
+  ): Promise<CustomerEntity[]> {
+    if (!normalizedMobile) {
+      return [];
+    }
+    return this.customerRepository.find({
+      where: { mobile: normalizedMobile, isDeleted: false },
+      order: { id: 'ASC' },
+    });
   }
 
   /**

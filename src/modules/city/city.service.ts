@@ -38,4 +38,16 @@ export class CityService {
 
     return await builder.getMany();
   }
+
+  /**
+   * -------------------------------------------------------
+   * GET /provinces
+   */
+  async getProvinces() {
+    return this.provinceRepository
+      .createQueryBuilder('province')
+      .select(['province.id', 'province.name'])
+      .orderBy('province.name', 'ASC')
+      .getMany();
+  }
 }

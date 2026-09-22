@@ -22,6 +22,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { OrderModule } from './modules/order/order.module';
 import { ProductModule } from './modules/product/product.module';
 import { CategoryModule } from './modules/category/category.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 import { SliderModule } from './modules/slider/slider.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
@@ -36,6 +37,11 @@ import { SettingModule } from './modules/setting/setting.module';
 import { CityModule } from './modules/city/city.module';
 import { NavMenuModule } from './modules/nav-menu/nav-menu.module';
 import { FavoriteModule } from './modules/favorite/favorite.module';
+import { CartModule } from './modules/cart/cart.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
+import { MarketplaceImportModule } from './modules/marketplace-import/marketplace-import.module';
+import { ManualPaymentModule } from './modules/manual-payment/manual-payment.module';
+import { CatalogLifecycleModule } from './modules/catalog-lifecycle/catalog-lifecycle.module';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { TelegrafConfigService } from './thirdParty/telegraf/telegraf-config.service';
 import { redisStore } from 'cache-manager-redis-yet';
@@ -52,9 +58,13 @@ import { redisStore } from 'cache-manager-redis-yet';
     }),
     ScheduleModule.forRoot(),
     ErrorModule.register(),
-    TelegrafModule.forRootAsync({
-      useClass: TelegrafConfigService,
-    }),
+    ...(process.env.TELEGRAM_BOT_TOKEN
+      ? [
+          TelegrafModule.forRootAsync({
+            useClass: TelegrafConfigService,
+          }),
+        ]
+      : []),
 
     // Cache Module
 
@@ -80,6 +90,7 @@ import { redisStore } from 'cache-manager-redis-yet';
     OrderModule,
     ProductModule,
     CategoryModule,
+    CatalogModule,
     SliderModule,
     CustomerModule,
     GatewayModule,
@@ -94,6 +105,11 @@ import { redisStore } from 'cache-manager-redis-yet';
     CityModule,
     NavMenuModule,
     FavoriteModule,
+    CartModule,
+    CheckoutModule,
+    MarketplaceImportModule,
+    CatalogLifecycleModule,
+    ManualPaymentModule,
     // DiscountCouponModule,
   ],
   providers: [

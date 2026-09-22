@@ -18,9 +18,12 @@ import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthChangePasswordDto } from './dto/auth-change-password.dto';
 import { AuthForgotDto } from './dto/auth-forgot.dto';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
+import { AuthRateLimit } from '../../security/auth-rate-limit.decorator';
+import { AuthRateLimitGuard } from '../../security/auth-rate-limit.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
+@UseGuards(AuthRateLimitGuard)
 export class AuthController {
   constructor(private authService: AuthService) {}
 
@@ -29,6 +32,10 @@ export class AuthController {
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @AuthRateLimit({
+    kind: 'login',
+    identityFields: ['emailOrMobile'],
+  })
   async login(@Body() dto: AuthLoginDto) {
     const response = await this.authService.login(dto);
     return successfulResult(['با موفقیت لاگین شدید'], response);
@@ -77,6 +84,10 @@ export class AuthController {
    * --------------------------------------------------------
    */
   @Post('password/forgot')
+  @AuthRateLimit({
+    kind: 'otpSend',
+    identityFields: ['emailOrMobile'],
+  })
   async forgotPassword(@Body() dto: AuthForgotDto) {
     await this.authService.forgotPassword(dto);
     return successfulResult(['کد تایید ارسال شد']);
@@ -86,6 +97,10 @@ export class AuthController {
    * --------------------------------------------------------
    */
   @Post('password/reset')
+  @AuthRateLimit({
+    kind: 'otpVerify',
+    identityFields: ['emailOrMobile'],
+  })
   async resetPassword(@Body() dto: AuthResetPasswordDto) {
     const response = await this.authService.resetPasswordByToken(dto);
 

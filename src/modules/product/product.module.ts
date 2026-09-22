@@ -15,6 +15,8 @@ import { TranslatorModule } from '../../thirdParty/translator/translator.module'
 import { FileStorageService } from '../../file-storage.service';
 import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-offer.entity';
 
+import { ProductChildMutationLockService } from './product-child-mutation-lock.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -32,7 +34,11 @@ import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-o
     TranslatorModule,
   ],
   controllers: [ProductController],
-  providers: [ProductService, FileStorageService],
+  providers: [
+    ProductService,
+    FileStorageService,
+    ProductChildMutationLockService,
+  ],
   exports: [ProductService],
 })
 export class ProductModule {}

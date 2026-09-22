@@ -9,6 +9,7 @@ import {
 } from '../../utils';
 import { BrandEntity } from './entities/brand.entity';
 import { TranslatorService } from '../../thirdParty/translator/translator.service';
+import { containsPersianScript } from '../../utils/persian-script.util';
 
 @Injectable()
 export class BrandService {
@@ -162,16 +163,16 @@ export class BrandService {
    * -------------------------------------------------------
    */
   private async _findOrTranslate(sourceName) {
-    const exist = await this.brandRepository
+    const candidates = await this.brandRepository
       .createQueryBuilder('brand')
       .select(['brand.id', 'brand.name'])
       .where('brand.sourceName = :sourceName', { sourceName })
-      .andWhere('brand.name REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]',
-      })
-      .getOne();
+      .orderBy('brand.id', 'ASC')
+      .take(20)
+      .getMany();
 
-    if (exist) {
+    const exist = candidates.find((row) => containsPersianScript(row.name));
+    if (exist?.name) {
       return exist.name;
     }
 

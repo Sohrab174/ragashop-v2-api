@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as moment from 'jalali-moment';
-import { getConnection, Repository, LessThan } from 'typeorm';
+import { getConnection, Repository, QueryRunner } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import {
   applyFiltersToBuilder,
@@ -21,7 +21,79 @@ import { OrderStatusEntity } from './entities/order-status.entity';
 import { AddressService } from '../address/address.service';
 import { SettingService } from '../setting/setting.service';
 import { WalletHistoryType } from '../customer/entities/wallet-history.entity';
+import { CustomerEntity } from '../customer/entities/customer.entity';
+import { ReferralAwardEntity } from '../customer/entities/referral-award.entity';
+import { OrderPaymentFinalizationEntity } from './entities/order-payment-finalization.entity';
+import { SettingEntity } from '../setting/entities/setting.entity';
+import { ProductStatus } from '../product/entities/product.entity';
 import { TelegrafBotService } from '../../thirdParty/telegraf/telegraf-bot.service';
+import {
+  parseStrictPositiveInt,
+  validateAdminMoney,
+  validateEffectiveSalePrice,
+  validateOptionalPositiveIntId,
+  validateOrderItemQuantity,
+} from './utils/commerce-input.validator';
+import {
+  ORDER_COMPLETABLE_STATES,
+  isOrderAlreadyPaid,
+} from './utils/order-payable-states';
+import {
+  isInventoryReleaseBlocked,
+  isOrderHardDeletionBlocked,
+  FINANCIALLY_PRESERVED_TRANSACTION_STATUSES,
+} from './utils/order-financial-preservation';
+import { isOrderNumberUniqueViolation, isMysqlDuplicateKeyError } from './utils/duplicate-key.util';
+import {
+  isInventoryStillReserved,
+  restoreReservedInventoryLines,
+  ReservedInventoryLine,
+} from './utils/order-inventory-release';
+import {
+  assertOrderStatusTransition,
+  isAdminOrderRewriteAllowed,
+} from './utils/order-status-transitions';
+import { loadUnpaidOrderCleanupConfig } from './utils/unpaid-order-cleanup.config';
+import {
+  TransactionEntity,
+  TransactionPaymentSource,
+  TransactionStatus,
+} from '../transaction/entities/transaction.entity';
+import {
+  GatewayEntity,
+  GatewayStatus,
+} from '../gateway/entities/gateway.entity';
+import { ProductCurrency } from '../product/entities/product.entity';
+import {
+  buildOrderItemCostSnapshot,
+  resolveEffectiveCost,
+} from '../finance/cost-resolution';
+import { normalizeOrderCogsToIrt } from '../finance/cogs-normalization';
+import { FinancialEventService } from '../finance/financial-event.service';
+import {
+  FinancialEventType,
+  FX_RATE_SOURCE_TGJU,
+  ProfitabilityStatus,
+} from '../finance/finance.types';
+import { computeSettlementFromOrderSnapshot } from '../finance/settlement-money';
+import { AuthoritativeTryToToman } from '../setting/setting.service';
+import { PaymentSubmissionEntity } from '../manual-payment/entities/payment-submission.entity';
+import {
+  ACTIVE_MANUAL_PAYMENT_HOLD_STATUSES,
+  PaymentSubmissionPurpose,
+} from '../manual-payment/manual-payment.types';
+import { hasActiveOrderPaymentHold } from '../manual-payment/utils/manual-payment.helpers';
+
+export type InventoryReleaseOutcome =
+  | 'released'
+  | 'skipped_not_reserved'
+  | 'skipped_financially_preserved'
+  | 'not_found';
+
+export type OrderPaymentClaimResult =
+  | 'claimed'
+  | 'same_transaction'
+  | 'other_transaction';
 
 @Injectable()
 export class OrderService {
@@ -35,6 +107,12 @@ export class OrderService {
     @InjectRepository(OrderStatusEntity)
     private orderStatusRepository: Repository<OrderStatusEntity>,
 
+    @InjectRepository(ReferralAwardEntity)
+    private referralAwardRepository: Repository<ReferralAwardEntity>,
+
+    @InjectRepository(OrderPaymentFinalizationEntity)
+    private orderPaymentFinalizationRepository: Repository<OrderPaymentFinalizationEntity>,
+
     private config: ConfigurationService,
     private mail: MailService,
     private productService: ProductService,
@@ -45,6 +123,7 @@ export class OrderService {
     private addressService: AddressService,
     private settingService: SettingService,
     private telegrafBotService: TelegrafBotService,
+    private financialEventService: FinancialEventService,
   ) {}
 
   /**
@@ -55,37 +134,34 @@ export class OrderService {
     customerId: number = null,
     orderId: number = null,
   ) {
+    const isAdminOrder = !customerId && (dto.customerId || orderId);
+
+    if (orderId) {
+      parseStrictPositiveInt(orderId, this.error, 'درخواست نامعتبر است');
+    }
+
     // Checking the customer by admin
     if (dto.customerId) {
-      if (!(await this.customerService.getActiveById(dto.customerId))) {
+      const adminCustomerId = parseStrictPositiveInt(
+        dto.customerId,
+        this.error,
+        'مشتری پیدا نشد و یا حساب کاربری وی غیرفعال است',
+      );
+      if (!(await this.customerService.getActiveById(adminCustomerId))) {
         this.error.unprocessableEntity([
           'مشتری پیدا نشد و یا حساب کاربری وی غیرفعال است',
         ]);
       }
     }
 
-    // Checking the order by orderId
-    let order: OrderEntity;
-    if (orderId) {
-      order = await this.orderRepository.findOne({
-        where: {
-          id: orderId,
-        },
-        relations: [
-          'orderItems',
-          'orderItems.product',
-          'orderItems.productAttributeValue',
-        ],
-      });
-      if (!order) {
-        this.error.unprocessableEntity(['درخواست نامعتبر است']);
-      }
-      // Removing the old items and rollback quantity
-      await this._deleteItemsAndRollbackQuantity(order.orderItems);
-    }
+    const addressId = parseStrictPositiveInt(
+      dto.addressId,
+      this.error,
+      'آدرس انتخابی معتبر نمی‌باشد!',
+    );
 
     const address = await this.addressService.getRecordById(
-      dto.addressId,
+      addressId,
       customerId,
     );
     if (!address) {
@@ -93,53 +169,89 @@ export class OrderService {
     }
 
     // get products from DB
-    const products = await this.productService.findByIds(
-      dto.productItems.map((item) => item.productId),
+    const productIds = dto.productItems.map((item) =>
+      parseStrictPositiveInt(
+        item.productId,
+        this.error,
+        'محصول مورد نظر یافت نشد!',
+      ),
     );
+    const products = await this.productService.findByIds(productIds);
 
-    // merge product items with product from db
+    // merge product items with product from db — prices always from DB for customers
     const mixedItems = [];
-    dto.productItems.forEach((cartItem) => {
-      const fromDb = products.find(
-        (product) => product.id === cartItem.productId,
-      );
+    dto.productItems.forEach((cartItem, index) => {
+      const quantity = validateOrderItemQuantity(cartItem.quantity, this.error);
+      const productId = productIds[index];
+
+      const fromDb = products.find((product) => product.id === productId);
 
       if (!fromDb) {
         this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
       }
 
-      const productAttributeValue = fromDb.productAttributeValues.find(
-        (pav) => pav.id === cartItem.productAttributeValueId,
-      );
-
-      // checking product attribute quantity
       if (
-        productAttributeValue &&
-        productAttributeValue.quantity !== -1 &&
-        cartItem.quantity > productAttributeValue.quantity
+        !isAdminOrder &&
+        (fromDb.isDeleted || fromDb.status !== ProductStatus.active)
       ) {
-        this.error.unprocessableEntity(['موجودی محصول درخواستی کافی نمی‌باشد']);
+        this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
       }
 
-      // checking product quantity, if not exist productAttributeValue
-      if (
-        !productAttributeValue &&
-        fromDb.quantity !== -1 &&
-        cartItem.quantity > fromDb.quantity
-      ) {
-        this.error.unprocessableEntity(['موجودی محصول درخواستی کافی نمی‌باشد']);
+      const variantIdSupplied =
+        cartItem.productAttributeValueId !== undefined &&
+        cartItem.productAttributeValueId !== null &&
+        cartItem.productAttributeValueId !== '';
+
+      const variantId = variantIdSupplied
+        ? validateOptionalPositiveIntId(
+            cartItem.productAttributeValueId,
+            this.error,
+            'تنوع محصول انتخابی معتبر نمی‌باشد',
+          )
+        : null;
+
+      const productAttributeValue = variantId
+        ? fromDb.productAttributeValues.find((pav) => pav.id === variantId)
+        : null;
+
+      if (variantId && !productAttributeValue) {
+        this.error.unprocessableEntity(['تنوع محصول انتخابی معتبر نمی‌باشد']);
+      }
+
+      if (productAttributeValue?.isDeleted && !isAdminOrder) {
+        this.error.unprocessableEntity(['تنوع محصول انتخابی معتبر نمی‌باشد']);
+      }
+
+      const allowClientPrice = isAdminOrder && cartItem.price != null;
+      let price: number;
+      let discountedPrice: number;
+
+      if (productAttributeValue) {
+        price = allowClientPrice
+          ? validateAdminMoney(cartItem.price, this.error)
+          : productAttributeValue.price ?? fromDb.price;
+        discountedPrice = allowClientPrice
+          ? 0
+          : productAttributeValue.discountedPrice ??
+            fromDb.discountedPrice ??
+            null;
+      } else {
+        price = allowClientPrice
+          ? validateAdminMoney(cartItem.price, this.error)
+          : fromDb.price;
+        discountedPrice = allowClientPrice ? 0 : fromDb.discountedPrice ?? null;
+      }
+
+      if (!isAdminOrder) {
+        validateEffectiveSalePrice(price, discountedPrice, this.error);
       }
 
       mixedItems.push({
         ...fromDb,
         stockQuantity: fromDb.quantity,
-        price: cartItem.price || productAttributeValue?.price || fromDb.price,
-        discountedPrice: cartItem.price
-          ? 0
-          : productAttributeValue?.discountedPrice ||
-            fromDb?.discountedPrice ||
-            0,
-        quantity: cartItem.quantity,
+        price,
+        discountedPrice,
+        quantity,
         productAttributeValue,
       });
     });
@@ -153,25 +265,13 @@ export class OrderService {
       (acc, mixedItem) =>
         acc +
         (mixedItem.price -
-          (mixedItem?.discountedPrice || mixedItem?.price || 0)) *
+          (mixedItem?.discountedPrice ?? mixedItem?.price ?? 0)) *
           mixedItem.quantity,
       0,
     );
 
     // Calculating amount after doing discount
     const itemsAmount = amount - discount;
-
-    // // discount coupon on amount
-    // let coupon = null;
-    // if (customerId && dto.discountCouponCode) {
-    //   coupon = await this.discountCouponService.calculateDiscountByCouponCode(
-    //     dto.discountCouponCode,
-    //     itemsAmount,
-    //     customerId,
-    //     true,
-    //   );
-    // }
-    // itemsAmount -= coupon?.discountAmount || 0;
 
     const setting = await this.settingService.getByAdmin([
       'maxShippingCost',
@@ -185,14 +285,15 @@ export class OrderService {
       tax = (setting.taxPercent * itemsAmount) / 100;
     }
 
-    // Calculating shipping
+    // Calculating shipping — only admin may supply explicit shipping
     let shipping = 0;
-    // admin
-    if (dto.shipping !== undefined) {
-      shipping = dto.shipping || 0;
-    }
-    // setting
-    else if (setting.shippingPercent) {
+    if (isAdminOrder && dto.shipping !== undefined) {
+      shipping = validateAdminMoney(
+        dto.shipping,
+        this.error,
+        'هزینه ارسال نامعتبر است',
+      );
+    } else if (setting.shippingPercent) {
       shipping = (setting.shippingPercent * itemsAmount) / 100;
 
       if (setting.maxShippingCost && shipping > setting.maxShippingCost) {
@@ -202,101 +303,198 @@ export class OrderService {
 
     const finalAmount = itemsAmount + shipping + tax;
 
-    // Updating the order
-    if (order) {
-      order.customerId = dto.customerId;
-      order.amount = amount;
-      order.discount = discount;
-      order.shipping = shipping;
-      order.tax = tax;
-      order.finalAmount = finalAmount;
-      order.description = dto.description;
-      order.status = dto.status;
-      await order.save();
-    }
+    const queryRunner = getConnection().createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Creating the new order
-    else {
-      // Generating new order number
-      const generatedNumber = await this._generateOrderNumber();
+    try {
+      let order: OrderEntity;
 
-      const value = {
-        customerId: customerId || dto.customerId,
-        number: generatedNumber,
-        amount,
-        discount,
-        shipping,
-        tax,
-        finalAmount,
-        address: address.address,
-        location: address.location,
-        addressDetails: address.details,
-        postalCode: address.postalCode,
-        phone: address.phone,
-        cityId: address.cityId,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        sourceTrackingCode: null,
-        // discountCoupon: coupon?.discountAmount || 0,
-        // discountCouponUsedId: coupon?.usedId || null,
-        description: dto.description,
-        status: dto.status || OrderStatus.pending,
-        createdAt: new Date(),
-      };
+      // Updating the order — lock first, then load current items inside txn
+      if (orderId) {
+        order = await queryRunner.manager.findOne(OrderEntity, {
+          where: { id: orderId },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-      // Inserting into order
-      const { identifiers } = await this.orderRepository
+        if (!order) {
+          this.error.unprocessableEntity(['درخواست نامعتبر است']);
+        }
+
+        // C1: rewrite only while this order still owns an unpaid reservation.
+        if (!isAdminOrderRewriteAllowed(order.status)) {
+          this.error.unprocessableEntity([
+            'ویرایش سفارش در این وضعیت مجاز نیست',
+          ]);
+        }
+
+        const rewriteTransactions = await this.lockOrderTransactions(
+          queryRunner,
+          orderId,
+        );
+        const rewriteFinalization = await queryRunner.manager.findOne(
+          OrderPaymentFinalizationEntity,
+          { where: { orderId } },
+        );
+        const rewriteManualHold = await this.hasActiveManualPaymentHold(
+          queryRunner,
+          orderId,
+        );
+
+        if (
+          isInventoryReleaseBlocked(
+            order,
+            rewriteTransactions,
+            !!rewriteFinalization,
+            rewriteManualHold,
+          )
+        ) {
+          this.error.unprocessableEntity([
+            'ویرایش سفارش در حال پرداخت مجاز نیست',
+          ]);
+        }
+
+        // Status changes go through updateStatus; rewrite stays pending.
+        if (dto.status != null && dto.status !== OrderStatus.pending) {
+          this.error.unprocessableEntity([
+            'برای تغییر وضعیت از مسیر وضعیت سفارش استفاده کنید',
+          ]);
+        }
+
+        const currentOrderItems = await queryRunner.manager.find(
+          OrderItemEntity,
+          {
+            where: { orderId },
+            relations: ['product', 'productAttributeValue'],
+          },
+        );
+
+        await this._deleteItemsAndRollbackQuantity(
+          currentOrderItems,
+          queryRunner,
+        );
+
+        // F1: existing Order FX snapshot is immutable on rewrite.
+        // Do not call live TGJU; do not fabricate FX for legacy null snapshots.
+        order.customerId = dto.customerId;
+        order.amount = amount;
+        order.discount = discount;
+        order.shipping = shipping;
+        order.tax = tax;
+        order.finalAmount = finalAmount;
+        order.description = dto.description;
+        order.status = OrderStatus.pending;
+        await queryRunner.manager.save(order);
+      } else {
+        // F1: fresh TGJU-backed rate only for NEW Order creation.
+        const fxRate =
+          await this.settingService.requireFreshAuthoritativeTryToToman();
+        const fxCapturedAt = new Date();
+
+        const createStatus = dto.status || OrderStatus.pending;
+        if (createStatus !== OrderStatus.pending) {
+          this.error.unprocessableEntity([
+            'سفارش جدید باید در وضعیت در انتظار باشد',
+          ]);
+        }
+
+        // Generating new order number with bounded retry on unique collision
+        orderId = await this._insertOrderWithUniqueNumber(queryRunner, {
+          customerId: customerId || dto.customerId,
+          amount,
+          discount,
+          shipping,
+          tax,
+          finalAmount,
+          commercialCurrency: ProductCurrency.TRY,
+          fxRateToIrt: fxRate.tryToToman,
+          fxCapturedAt,
+          fxRateSource: fxRate.source || FX_RATE_SOURCE_TGJU,
+          address: address.address,
+          location: address.location,
+          addressDetails: address.details,
+          postalCode: address.postalCode,
+          phone: address.phone,
+          cityId: address.cityId,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          sourceTrackingCode: null,
+          description: dto.description,
+          status: OrderStatus.pending,
+          createdAt: new Date(),
+        });
+      }
+
+      // insert to orderItems — cost measurement snapshot at create (F1)
+      await queryRunner.manager
         .createQueryBuilder()
         .insert()
-        .values(value)
+        .into(OrderItemEntity)
+        .values(
+          mixedItems.map((product) => {
+            const costSnap = buildOrderItemCostSnapshot(
+              resolveEffectiveCost(product, product.productAttributeValue),
+            );
+            return {
+              orderId,
+              productId: product.id,
+              productAttributeValueId: product.productAttributeValue?.id || null,
+              price: product.price,
+              discountedPrice: product?.discountedPrice ?? 0,
+              quantity: product.quantity,
+              finalAmount:
+                (product?.discountedPrice ?? product?.price ?? 0) *
+                product.quantity,
+              unitPurchaseCostSnapshot: costSnap.unitPurchaseCostSnapshot,
+              unitLandedCostSnapshot: costSnap.unitLandedCostSnapshot,
+              costCurrency: costSnap.costCurrency,
+              cogsStatus: costSnap.cogsStatus,
+              costSource: costSnap.costSource,
+              createdAt: new Date(),
+            };
+          }),
+        )
         .execute();
 
-      orderId = identifiers[0].id;
-    }
+      // atomically decrement stock
+      for (let i = 0; i < mixedItems.length; i++) {
+        const mixedItem = mixedItems[i];
+        let decremented = false;
 
-    // insert to orderItems
-    await this.orderItemRepository
-      .createQueryBuilder()
-      .insert()
-      .values(
-        mixedItems.map((product) => ({
-          orderId,
-          productId: product.id,
-          productAttributeValueId: product.productAttributeValue?.id || null,
-          price: product.price,
-          discountedPrice: product?.discountedPrice || 0,
-          quantity: product.quantity,
-          finalAmount:
-            (product?.discountedPrice || product?.price || 0) *
-            product.quantity,
-          createdAt: new Date(),
-        })),
-      )
-      .execute();
-
-    // update product quantity
-    for (let i = 0; i < mixedItems.length; i++) {
-      const mixedItem = mixedItems[i];
-
-      // update productAttributeValue stock quantity
-      if (mixedItem.productAttributeValue) {
-        if (mixedItem.productAttributeValue.quantity !== -1) {
-          await this.productService.updateAttributeQuantity(
+        if (mixedItem.productAttributeValue) {
+          decremented = await this.productService.decrementAttributeQuantity(
             mixedItem.productAttributeValue.id,
-            mixedItem.productAttributeValue.quantity - mixedItem.quantity,
+            mixedItem.quantity,
+            queryRunner,
+          );
+        } else {
+          decremented = await this.productService.decrementQuantity(
+            mixedItem.id,
+            mixedItem.quantity,
+            queryRunner,
           );
         }
-      }
-      // update product stock quantity
-      else if (mixedItem.stockQuantity !== -1) {
-        await this.productService.updateQuantity(
-          mixedItem.id,
-          mixedItem.stockQuantity - mixedItem.quantity,
-        );
-      }
-    }
 
-    return orderId;
+        if (!decremented) {
+          this.error.unprocessableEntity([
+            'موجودی محصول درخواستی کافی نمی‌باشد',
+          ]);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return orderId;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+
+      if (err?.status) {
+        throw err;
+      }
+
+      this.error.methodNotAllowed(['خطایی رخ داده است']);
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   /**
@@ -502,83 +700,271 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    * PUT /orders/status/admin
+   *
+   * Phase C1: enforced lifecycle transitions. Rejecting a still-pending
+   * unpaid order releases reserved inventory exactly once under order+tx
+   * locks when financially safe. Paid/non-pending reject does not restore.
    */
   async updateStatus(dto: UpdateOrderStatusDto) {
-    const order = await this.orderRepository.findOne({
-      where: { id: dto.id },
-    });
-
-    if (!order) {
-      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
-    }
-
-    order.status = dto.status;
-
-    if (dto.reasonRejected !== undefined) {
-      order.reasonRejected = dto.reasonRejected;
-    }
-    if (dto.postTrackingCode !== undefined) {
-      order.postTrackingCode = dto.postTrackingCode;
-    }
-    if (dto.sourceTrackingCode !== undefined) {
-      order.sourceTrackingCode = dto.sourceTrackingCode;
-    }
-    return await order.save();
-  }
-
-  /**
-   * -------------------------------------------------------
-   * DELETE /orders/:id/admin
-   */
-  async delete(id: number) {
-    const order = await this.orderRepository.findOne({
-      where: { id },
-      relations: ['orderItems', 'orderItems.product', 'transactions'],
-    });
-
-    if (!order) {
-      this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
-    }
-
-    // Rollbacking the orderItems if an error occurs
     const queryRunner = getConnection().createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      for (let i = 0; i < order.orderItems.length; i++) {
-        const orderItem = order.orderItems[i];
+      const order = await queryRunner.manager.findOne(OrderEntity, {
+        where: { id: dto.id },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-        // Rollback the product quantity
-        if (orderItem.product.quantity !== -1) {
-          orderItem.product.quantity =
-            orderItem.product.quantity + orderItem.quantity;
-          await queryRunner.manager.save(orderItem.product);
+      if (!order) {
+        this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
+      }
+
+      assertOrderStatusTransition(order.status, dto.status, this.error);
+
+      const releasingUnpaidReject =
+        dto.status === OrderStatus.rejected &&
+        isInventoryStillReserved(order.status);
+
+      if (releasingUnpaidReject) {
+        const transactions = await this.lockOrderTransactions(
+          queryRunner,
+          order.id,
+        );
+        const finalization = await queryRunner.manager.findOne(
+          OrderPaymentFinalizationEntity,
+          { where: { orderId: order.id } },
+        );
+        const manualHold = await this.hasActiveManualPaymentHold(
+          queryRunner,
+          order.id,
+        );
+
+        if (
+          isInventoryReleaseBlocked(
+            order,
+            transactions,
+            !!finalization,
+            manualHold,
+          )
+        ) {
+          this.error.methodNotAllowed([
+            'آزادسازی موجودی سفارش دارای سابقه مالی مجاز نیست',
+          ]);
         }
 
-        // Removing the orderItem
-        await queryRunner.manager.remove(orderItem);
+        const orderItems = await queryRunner.manager.find(OrderItemEntity, {
+          where: { orderId: order.id },
+        });
+        await this.restoreReservedInventory(orderItems, queryRunner);
       }
 
-      for (let i = 0; i < order.transactions.length; i++) {
-        const transaction = order.transactions[i];
-        // Removing the transaction
-        await queryRunner.manager.remove(transaction);
+      order.status = dto.status;
+
+      if (dto.reasonRejected !== undefined) {
+        order.reasonRejected = dto.reasonRejected;
+      }
+      if (dto.postTrackingCode !== undefined) {
+        order.postTrackingCode = dto.postTrackingCode;
+      }
+      if (dto.sourceTrackingCode !== undefined) {
+        order.sourceTrackingCode = dto.sourceTrackingCode;
       }
 
-      // Removing the order
+      const saved = await queryRunner.manager.save(order);
+      await queryRunner.commitTransaction();
+      return saved;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      if (err instanceof HttpException) {
+        throw err;
+      }
+      this.error.methodNotAllowed(['خطایی رخ داده است']);
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Hard-deletes an order and its transactions.
+   * Phase 2B-3: blocked when financial history must be preserved.
+   * Phase C1: pending unpaid orders restore reserved inventory exactly once
+   * (product XOR PAV, mirroring create). Already-rejected orders do not
+   * restore again. Reachable via DELETE /orders/:id/admin and cleanup.
+   *
+   * Lock order: Order row → Transactions by id ASC → (optional finalization).
+   */
+  async delete(id: number) {
+    const queryRunner = getConnection().createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const order = await queryRunner.manager.findOne(OrderEntity, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!order) {
+        this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
+      }
+
+      const transactions = await this.lockOrderTransactions(queryRunner, id);
+      const finalization = await queryRunner.manager.findOne(
+        OrderPaymentFinalizationEntity,
+        { where: { orderId: id } },
+      );
+      const manualHold = await this.hasActiveManualPaymentHold(queryRunner, id);
+
+      if (
+        isOrderHardDeletionBlocked(
+          order,
+          transactions || [],
+          !!finalization,
+          manualHold,
+        )
+      ) {
+        this.error.methodNotAllowed(['حذف سفارش دارای سابقه مالی مجاز نیست']);
+      }
+
+      const orderItems = await queryRunner.manager.find(OrderItemEntity, {
+        where: { orderId: id },
+      });
+
+      if (isInventoryStillReserved(order.status)) {
+        await this.restoreReservedInventory(orderItems, queryRunner);
+      }
+
+      for (let i = 0; i < orderItems.length; i++) {
+        await queryRunner.manager.remove(orderItems[i]);
+      }
+
+      for (let i = 0; i < (transactions || []).length; i++) {
+        await queryRunner.manager.remove(transactions[i]);
+      }
+
       await queryRunner.manager.remove(order);
-
       await queryRunner.commitTransaction();
     } catch (err) {
       await queryRunner.rollbackTransaction();
-
+      if (err instanceof HttpException) {
+        throw err;
+      }
       this.error.methodNotAllowed(['خطایی رخ داده است']);
     } finally {
       await queryRunner.release();
     }
 
     return true;
+  }
+
+  /**
+   * Authoritative unpaid-reservation restore for a locked pending order.
+   * Safe to call only while holding pessimistic_write on the order row and
+   * only when {@link isInventoryStillReserved} is true for that row.
+   */
+  async restoreReservedInventory(
+    orderItems: ReservedInventoryLine[],
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    await restoreReservedInventoryLines(
+      this.productService,
+      orderItems,
+      queryRunner,
+    );
+  }
+
+  /**
+   * Exactly-once unpaid release: lock order, restore iff still pending and
+   * financially safe, then durably transition pending → rejected so a second
+   * call cannot restore again without a new reservation.
+   *
+   * Lock order: Order → Transactions by id ASC.
+   */
+  async tryReleasePendingInventory(
+    orderId: number,
+    queryRunner: QueryRunner,
+  ): Promise<InventoryReleaseOutcome> {
+    const order = await queryRunner.manager.findOne(OrderEntity, {
+      where: { id: orderId },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!order) {
+      return 'not_found';
+    }
+
+    if (!isInventoryStillReserved(order.status)) {
+      return 'skipped_not_reserved';
+    }
+
+    const transactions = await this.lockOrderTransactions(queryRunner, orderId);
+    const finalization = await queryRunner.manager.findOne(
+      OrderPaymentFinalizationEntity,
+      { where: { orderId } },
+    );
+    const manualHold = await this.hasActiveManualPaymentHold(
+      queryRunner,
+      orderId,
+    );
+
+    if (
+      isInventoryReleaseBlocked(
+        order,
+        transactions,
+        !!finalization,
+        manualHold,
+      )
+    ) {
+      return 'skipped_financially_preserved';
+    }
+
+    const orderItems = await queryRunner.manager.find(OrderItemEntity, {
+      where: { orderId },
+    });
+    await this.restoreReservedInventory(orderItems, queryRunner);
+    order.status = OrderStatus.rejected;
+    await queryRunner.manager.save(order);
+    return 'released';
+  }
+
+  /**
+   * Lock all transactions for an order in stable id order (after order lock).
+   */
+  private async lockOrderTransactions(
+    queryRunner: QueryRunner,
+    orderId: number,
+  ): Promise<TransactionEntity[]> {
+    return queryRunner.manager
+      .createQueryBuilder(TransactionEntity, 'tx')
+      .setLock('pessimistic_write')
+      .where('tx.orderId = :orderId', { orderId })
+      .orderBy('tx.id', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * C2A: active SUBMITTED/UNDER_REVIEW hold with future holdExpiresAt.
+   */
+  private async hasActiveManualPaymentHold(
+    queryRunner: QueryRunner,
+    orderId: number,
+  ): Promise<boolean> {
+    const now = new Date();
+    const row = await queryRunner.manager
+      .createQueryBuilder(PaymentSubmissionEntity, 'ps')
+      .where('ps.orderId = :orderId', { orderId })
+      .andWhere('ps.purpose = :purpose', {
+        purpose: PaymentSubmissionPurpose.ORDER_PAYMENT,
+      })
+      .andWhere('ps.status IN (:...statuses)', {
+        statuses: ACTIVE_MANUAL_PAYMENT_HOLD_STATUSES,
+      })
+      .andWhere('ps.holdExpiresAt > :now', { now })
+      .orderBy('ps.id', 'DESC')
+      .getOne();
+
+    return hasActiveOrderPaymentHold(row, now);
   }
 
   /**
@@ -595,177 +981,612 @@ export class OrderService {
   }
 
   /**
-   * -------------------------------------------------------
+   * Atomically mark order paid. Returns whether this call performed the transition.
    */
-  async complete(orderId: number) {
-    const order = await this.orderRepository.findOne({
+  async markOrderPaidAtomic(
+    orderId: number,
+    queryRunner: QueryRunner,
+    successfulTransactionId?: number,
+  ): Promise<'newly_paid' | 'already_paid' | 'not_found' | 'invalid_state'> {
+    const updatePayload: Partial<OrderEntity> = { status: OrderStatus.paid };
+    if (successfulTransactionId != null) {
+      updatePayload.successfulTransactionId = successfulTransactionId;
+    }
+
+    const updateResult = await queryRunner.manager
+      .createQueryBuilder()
+      .update(OrderEntity)
+      .set(updatePayload)
+      .where('id = :id AND status IN (:...statuses)', {
+        id: orderId,
+        statuses: ORDER_COMPLETABLE_STATES,
+      })
+      .execute();
+
+    if (updateResult.affected > 0) {
+      return 'newly_paid';
+    }
+
+    const order = await queryRunner.manager.findOne(OrderEntity, {
       where: { id: orderId },
-      relations: ['customer', 'orderItems', 'orderItems.product'],
+      select: ['id', 'status'],
     });
 
-    order.status = OrderStatus.paid;
-    await order.save();
+    if (!order) {
+      return 'not_found';
+    }
 
-    // notif to telegram
+    if (isOrderAlreadyPaid(order.status)) {
+      return 'already_paid';
+    }
+
+    return 'invalid_state';
+  }
+
+  /**
+   * DB-enforced one-successful-finalization-per-order claim.
+   */
+  async claimOrderPaymentFinalization(
+    orderId: number,
+    transactionId: number,
+    queryRunner: QueryRunner,
+  ): Promise<OrderPaymentClaimResult> {
+    await queryRunner.manager.findOne(OrderEntity, {
+      where: { id: orderId },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    try {
+      await queryRunner.manager.insert(OrderPaymentFinalizationEntity, {
+        orderId,
+        transactionId,
+        finalizedAt: new Date(),
+      });
+      return 'claimed';
+    } catch (err) {
+      if (err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062) {
+        const existing = await queryRunner.manager.findOne(
+          OrderPaymentFinalizationEntity,
+          { where: { orderId } },
+        );
+
+        if (existing?.transactionId === transactionId) {
+          return 'same_transaction';
+        }
+
+        return 'other_transaction';
+      }
+
+      throw err;
+    }
+  }
+
+  /**
+   * Complete order payment after financial writes for the winning transaction.
+   */
+  async finalizeOrderPaymentAtomic(
+    orderId: number,
+    transactionId: number,
+    queryRunner: QueryRunner,
+  ): Promise<'finalized' | 'idempotent' | 'superseded'> {
+    const claim = await this.claimOrderPaymentFinalization(
+      orderId,
+      transactionId,
+      queryRunner,
+    );
+
+    if (claim === 'other_transaction') {
+      return 'superseded';
+    }
+
+    const paymentResult = await this.markOrderPaidAtomic(
+      orderId,
+      queryRunner,
+      transactionId,
+    );
+
+    if (claim === 'same_transaction') {
+      return 'idempotent';
+    }
+
+    if (paymentResult === 'newly_paid') {
+      await this.recognizeCogsFromOrderItemSnapshots(orderId, queryRunner);
+      await this.applyReferralRewardsAtomic(orderId, queryRunner);
+      return 'finalized';
+    }
+
+    if (paymentResult === 'already_paid') {
+      return 'idempotent';
+    }
+
+    this.error.unprocessableEntity(['این سفارش قابل پرداخت نمی‌باشد']);
+  }
+
+  /**
+   * F1: COGS recognition from OrderItem snapshots only (never re-read Product).
+   * If any line lacks landed cost → incomplete_missing_cogs; no aggregate COGS event.
+   */
+  async recognizeCogsFromOrderItemSnapshots(
+    orderId: number,
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    const order = await queryRunner.manager.findOne(OrderEntity, {
+      where: { id: orderId },
+    });
+    if (!order) {
+      return;
+    }
+
+    const now = new Date();
+    await queryRunner.manager
+      .createQueryBuilder()
+      .update(OrderEntity)
+      .set({ financialConfirmedAt: now })
+      .where('id = :id AND financialConfirmedAt IS NULL', { id: orderId })
+      .execute();
+
+    const items = await queryRunner.manager.find(OrderItemEntity, {
+      where: { orderId },
+    });
+
+    const normalized = normalizeOrderCogsToIrt(items, order.fxRateToIrt);
+
+    if (!normalized.ok) {
+      await queryRunner.manager
+        .createQueryBuilder()
+        .update(OrderEntity)
+        .set({
+          profitabilityStatus: ProfitabilityStatus.incomplete_missing_cogs,
+        })
+        .where('id = :id', { id: orderId })
+        .execute();
+      return;
+    }
+
+    await this.financialEventService.insertIdempotent(queryRunner, {
+      eventType: FinancialEventType.ORDER_COGS_RECOGNIZED,
+      amount: normalized.totalIrt,
+      currency: ProductCurrency.IRT,
+      amountIrt: normalized.totalIrt,
+      fxRateToIrt: normalized.fxRateToIrt,
+      orderId,
+      sourceType: 'order_payment_finalization',
+      sourceId: String(orderId),
+      idempotencyKey: `opf:${orderId}:ORDER_COGS_RECOGNIZED`,
+      metadata: {
+        lineCount: normalized.lineCount,
+        reportingCurrency: ProductCurrency.IRT,
+      },
+      occurredAt: now,
+    });
+
+    await queryRunner.manager
+      .createQueryBuilder()
+      .update(OrderEntity)
+      .set({ profitabilityStatus: ProfitabilityStatus.complete })
+      .where('id = :id', { id: orderId })
+      .execute();
+  }
+
+  /**
+   * Idempotent referral reward application tied to durable ledger row.
+   */
+  async applyReferralRewardsAtomic(
+    orderId: number,
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    const order = await queryRunner.manager.findOne(OrderEntity, {
+      where: { id: orderId },
+      relations: ['customer'],
+    });
+
+    if (!order?.customer?.inviteCode) {
+      return;
+    }
+
+    const referrerCustomer = await queryRunner.manager
+      .createQueryBuilder(CustomerEntity, 'customer')
+      .where('customer.referrerCode = :code', {
+        code: order.customer.inviteCode,
+      })
+      .getOne();
+
+    if (!referrerCustomer) {
+      return;
+    }
+
+    const setting = await queryRunner.manager.findOne(SettingEntity, {
+      where: { id: 1 },
+    });
+
+    if (!setting) {
+      return;
+    }
+
+    const orderAmount = order.amount - order.discount;
+
+    const buyPercentToReferrerCreditUSD =
+      referrerCustomer.buyPercentToReferrerCreditUSD ??
+      setting.buyPercentToReferrerCreditUSD;
+
+    const buyPercentToReferrerCreditIRT =
+      referrerCustomer.buyPercentToReferrerCreditIRT ??
+      setting.buyPercentToReferrerCreditIRT;
+
+    const buyPercentToReferrerCreditTRY =
+      referrerCustomer.buyPercentToReferrerCreditTRY ??
+      setting.buyPercentToReferrerCreditTRY;
+
+    const walletUSD =
+      buyPercentToReferrerCreditUSD > 0
+        ? (buyPercentToReferrerCreditUSD * orderAmount) / 100
+        : 0;
+    const walletIRT =
+      buyPercentToReferrerCreditIRT > 0
+        ? (buyPercentToReferrerCreditIRT * orderAmount) / 100
+        : 0;
+    const walletTRY =
+      buyPercentToReferrerCreditTRY > 0
+        ? (buyPercentToReferrerCreditTRY * orderAmount) / 100
+        : 0;
+
+    const boundedWalletUSD = this._boundReferralAmount(walletUSD);
+    const boundedWalletIRT = this._boundReferralAmount(walletIRT);
+    const boundedWalletTRY = this._boundReferralAmount(walletTRY);
+
+    if (
+      boundedWalletUSD === 0 &&
+      boundedWalletIRT === 0 &&
+      boundedWalletTRY === 0
+    ) {
+      return;
+    }
+
+    let awardId: number | null = null;
+    try {
+      const insertResult = await queryRunner.manager
+        .createQueryBuilder()
+        .insert()
+        .into(ReferralAwardEntity)
+        .values({
+          orderId: order.id,
+          referrerCustomerId: referrerCustomer.id,
+          referredCustomerId: order.customerId,
+          walletUSD: boundedWalletUSD,
+          walletIRT: boundedWalletIRT,
+          walletTRY: boundedWalletTRY,
+          createdAt: new Date(),
+        })
+        .execute();
+      awardId = insertResult.identifiers?.[0]?.id ?? null;
+    } catch (err) {
+      if (err?.code === 'ER_DUP_ENTRY' || err?.errno === 1062) {
+        return;
+      }
+      throw err;
+    }
+
+    if (boundedWalletUSD > 0) {
+      await queryRunner.manager.increment(
+        CustomerEntity,
+        { id: referrerCustomer.id },
+        'walletUSD',
+        boundedWalletUSD,
+      );
+    }
+
+    if (boundedWalletIRT > 0) {
+      await queryRunner.manager.increment(
+        CustomerEntity,
+        { id: referrerCustomer.id },
+        'walletIRT',
+        boundedWalletIRT,
+      );
+    }
+
+    if (boundedWalletTRY > 0) {
+      await queryRunner.manager.increment(
+        CustomerEntity,
+        { id: referrerCustomer.id },
+        'walletTRY',
+        boundedWalletTRY,
+      );
+    }
+
+    if (boundedWalletUSD > 0) {
+      await queryRunner.manager
+        .createQueryBuilder()
+        .insert()
+        .into('wallet_history')
+        .values({
+          walletUSD: boundedWalletUSD,
+          customerId: referrerCustomer.id,
+          type: WalletHistoryType.buy,
+          relatedCustomerId: order.customerId,
+          relatedOrderId: order.id,
+          createdAt: new Date(),
+        })
+        .execute();
+    }
+
+    if (boundedWalletIRT > 0) {
+      await queryRunner.manager
+        .createQueryBuilder()
+        .insert()
+        .into('wallet_history')
+        .values({
+          walletIRT: boundedWalletIRT,
+          customerId: referrerCustomer.id,
+          type: WalletHistoryType.buy,
+          relatedCustomerId: order.customerId,
+          relatedOrderId: order.id,
+          createdAt: new Date(),
+        })
+        .execute();
+    }
+
+    if (boundedWalletTRY > 0) {
+      await queryRunner.manager
+        .createQueryBuilder()
+        .insert()
+        .into('wallet_history')
+        .values({
+          walletTRY: boundedWalletTRY,
+          customerId: referrerCustomer.id,
+          type: WalletHistoryType.buy,
+          relatedCustomerId: order.customerId,
+          relatedOrderId: order.id,
+          createdAt: new Date(),
+        })
+        .execute();
+    }
+
+    // F1: financial event for IRT commission magnitude (primary reporting currency).
+    if (awardId != null && boundedWalletIRT > 0) {
+      await this.financialEventService.insertIdempotent(queryRunner, {
+        eventType: FinancialEventType.REFERRAL_COMMISSION_EARNED,
+        amount: boundedWalletIRT,
+        currency: ProductCurrency.IRT,
+        amountIrt: boundedWalletIRT,
+        orderId: order.id,
+        customerId: referrerCustomer.id,
+        referralAwardId: awardId,
+        sourceType: 'referral_award',
+        sourceId: String(awardId),
+        idempotencyKey: `referral_award:${awardId}:REFERRAL_COMMISSION_EARNED`,
+        metadata: {
+          walletUSD: boundedWalletUSD,
+          walletTRY: boundedWalletTRY,
+          walletIRT: boundedWalletIRT,
+        },
+      });
+    }
+  }
+
+  /**
+   * Side effects only — must run outside critical financial transactions.
+   */
+  async sendPostPaymentNotifications(orderId: number): Promise<void> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['customer'],
+    });
+
+    if (!order) {
+      return;
+    }
+
     this.telegrafBotService.sendNotification(
       `✅ سفارش جدید\n💰 ${digit(order.finalAmount)} تومان\n\n👱🏻‍♂️ ${
         order.customer.firstName || ''
       } ${order.customer.lastName || ''}\n📞 ${order.customer.mobile}`,
     );
 
-    // point to referrer
-    if (order.customer.inviteCode) {
-      const referrerCustomer = await this.customerService.findByReferrerCode(
-        order.customer.inviteCode,
+    const award = await this.referralAwardRepository.findOne({
+      where: { orderId },
+    });
+
+    if (!award) {
+      return;
+    }
+
+    const referrerCustomer = await this.customerService.getActiveById(
+      award.referrerCustomerId,
+    );
+
+    if (!referrerCustomer) {
+      return;
+    }
+
+    if (award.walletUSD > 0) {
+      this.telegrafBotService.sendNotification(
+        `💌 اعتبار به معرف\n💰 ${award.walletUSD} دلار\n\n👱🏻‍♂️ ${
+          referrerCustomer.firstName || ''
+        } ${referrerCustomer.lastName || ''}\n📞 ${referrerCustomer.mobile}`,
+      );
+    }
+
+    if (award.walletIRT > 0) {
+      this.telegrafBotService.sendNotification(
+        `💌 اعتبار به معرف\n💰 ${digit(award.walletIRT)} تومان\n\n👱🏻‍♂️ ${
+          referrerCustomer.firstName || ''
+        } ${referrerCustomer.lastName || ''}\n📞 ${referrerCustomer.mobile}`,
+      );
+    }
+
+    if (award.walletTRY > 0) {
+      this.telegrafBotService.sendNotification(
+        `💌 اعتبار به معرف\n💰 ${award.walletTRY} لیر\n\n👱🏻‍♂️ ${
+          referrerCustomer.firstName || ''
+        } ${referrerCustomer.lastName || ''}\n📞 ${referrerCustomer.mobile}`,
+      );
+    }
+  }
+
+  /**
+   * Admin manual settlement — uses the same finalization invariant as gateway/wallet.
+   */
+  async settleOrderManuallyAtomic(
+    orderId: number,
+  ): Promise<'finalized' | 'idempotent'> {
+    const queryRunner = getConnection().createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    let notify = false;
+
+    try {
+      const order = await queryRunner.manager.findOne(OrderEntity, {
+        where: { id: orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!order) {
+        this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
+      }
+
+      if (isOrderAlreadyPaid(order.status)) {
+        await queryRunner.commitTransaction();
+        return 'idempotent';
+      }
+
+      const gateway = await queryRunner.manager.findOne(GatewayEntity, {
+        where: { status: GatewayStatus.active, isDeleted: false },
+      });
+
+      if (!gateway) {
+        this.error.unprocessableEntity(['درگاه پرداخت فعال یافت نشد']);
+      }
+
+      let settlement;
+      try {
+        settlement = computeSettlementFromOrderSnapshot(order);
+      } catch (e) {
+        if (e?.message === 'order_fx_snapshot_missing') {
+          this.error.unprocessableEntity(
+            ['نرخ ارز سفارش موجود نیست. امکان تسویه وجود ندارد.'],
+            { code: 'order_fx_snapshot_missing' },
+          );
+        }
+        throw e;
+      }
+
+      const { identifiers } = await queryRunner.manager
+        .createQueryBuilder()
+        .insert()
+        .into(TransactionEntity)
+        .values({
+          orderId: order.id,
+          customerId: order.customerId,
+          gatewayId: gateway.id,
+          amount: settlement.settlementAmount,
+          settlementCurrency: settlement.settlementCurrency,
+          fxRateToIrt: settlement.fxRateToIrt,
+          commercialAmount: settlement.commercialAmount,
+          commercialCurrency: settlement.commercialCurrency,
+          walletAmount: 0,
+          walletIRT: 0,
+          walletTRY: 0,
+          walletUSD: 0,
+          reduceCardAmount: 0,
+          status: TransactionStatus.paid,
+          paymentSource: TransactionPaymentSource.manual,
+          referenceNumber: `MANUAL-${order.id}-${Date.now()}`,
+          message: 'manual_admin_settlement',
+          paidAt: new Date(),
+          ip: '127.0.0.1',
+          createdAt: new Date(),
+        })
+        .execute();
+
+      const manualTransactionId = identifiers[0].id;
+
+      const finalizeResult = await this.finalizeOrderPaymentAtomic(
+        order.id,
+        manualTransactionId,
+        queryRunner,
       );
 
-      if (referrerCustomer) {
-        const setting = await this.settingService.getByAdmin([
-          'buyPercentToReferrerCreditUSD',
-          'buyPercentToReferrerCreditIRT',
-          'buyPercentToReferrerCreditTRY',
-        ]);
+      if (finalizeResult === 'superseded') {
+        this.error.unprocessableEntity(['این سفارش قبلاً پرداخت شده است']);
+      }
 
-        const orderAmount = order.amount - order.discount;
+      await queryRunner.commitTransaction();
+      notify = finalizeResult === 'finalized';
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
 
-        // ------------------
-        const buyPercentToReferrerCreditUSD =
-          referrerCustomer.buyPercentToReferrerCreditUSD ||
-          setting.buyPercentToReferrerCreditUSD;
+    if (notify) {
+      await this.sendPostPaymentNotifications(orderId);
+    }
 
-        const buyPercentToReferrerCreditIRT =
-          referrerCustomer.buyPercentToReferrerCreditIRT ||
-          setting.buyPercentToReferrerCreditIRT;
+    return notify ? 'finalized' : 'idempotent';
+  }
 
-        const buyPercentToReferrerCreditTRY =
-          referrerCustomer.buyPercentToReferrerCreditTRY ||
-          setting.buyPercentToReferrerCreditTRY;
+  private _boundReferralAmount(value: number): number {
+    if (!Number.isFinite(value) || value < 0) {
+      return 0;
+    }
+    return Math.round(value * 100) / 100;
+  }
 
-        // -----------------
-        if (buyPercentToReferrerCreditUSD > 0) {
-          const walletUSD = (buyPercentToReferrerCreditUSD * orderAmount) / 100;
-          referrerCustomer.walletUSD += walletUSD;
-          await referrerCustomer.save();
+  private async _insertOrderWithUniqueNumber(
+    queryRunner: QueryRunner,
+    value: Record<string, unknown>,
+    maxAttempts = 5,
+  ): Promise<number> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const generatedNumber = await this._generateOrderNumber(
+        queryRunner,
+        attempt,
+      );
 
-          await this.customerService.addWalletHistory({
-            walletUSD,
-            customerId: referrerCustomer.id,
-            type: WalletHistoryType.buy,
-            relatedCustomerId: order.customerId,
-            relatedOrderId: order.id,
-          });
+      try {
+        const { identifiers } = await queryRunner.manager
+          .createQueryBuilder()
+          .insert()
+          .into(OrderEntity)
+          .values({ ...value, number: generatedNumber })
+          .execute();
 
-          // notif to telegram
-          this.telegrafBotService.sendNotification(
-            `💌 اعتبار به معرف\n💰 ${walletUSD} دلار\n\n👱🏻‍♂️ ${
-              referrerCustomer.firstName || ''
-            } ${referrerCustomer.lastName || ''}\n📞 ${
-              referrerCustomer.mobile
-            }`,
-          );
+        return identifiers[0].id;
+      } catch (err) {
+        if (isOrderNumberUniqueViolation(err) && attempt < maxAttempts - 1) {
+          continue;
         }
-
-        if (buyPercentToReferrerCreditIRT > 0) {
-          const walletIRT = (buyPercentToReferrerCreditIRT * orderAmount) / 100;
-          referrerCustomer.walletIRT += walletIRT;
-          await referrerCustomer.save();
-
-          await this.customerService.addWalletHistory({
-            walletIRT,
-            customerId: referrerCustomer.id,
-            type: WalletHistoryType.buy,
-            relatedCustomerId: order.customerId,
-            relatedOrderId: order.id,
-          });
-
-          // notif to telegram
-          this.telegrafBotService.sendNotification(
-            `💌 اعتبار به معرف\n💰 ${digit(walletIRT)} تومان\n\n👱🏻‍♂️ ${
-              referrerCustomer.firstName || ''
-            } ${referrerCustomer.lastName || ''}\n📞 ${
-              referrerCustomer.mobile
-            }`,
-          );
-        }
-
-        if (buyPercentToReferrerCreditTRY > 0) {
-          const walletTRY = (buyPercentToReferrerCreditTRY * orderAmount) / 100;
-          referrerCustomer.walletTRY += walletTRY;
-          await referrerCustomer.save();
-
-          await this.customerService.addWalletHistory({
-            walletTRY,
-            customerId: referrerCustomer.id,
-            type: WalletHistoryType.buy,
-            relatedCustomerId: order.customerId,
-            relatedOrderId: order.id,
-          });
-
-          // notif to telegram
-          this.telegrafBotService.sendNotification(
-            `💌 اعتبار به معرف\n💰 ${walletTRY} لیر\n\n👱🏻‍♂️ ${
-              referrerCustomer.firstName || ''
-            } ${referrerCustomer.lastName || ''}\n📞 ${
-              referrerCustomer.mobile
-            }`,
-          );
-        }
+        throw err;
       }
     }
 
-    // if (email) {
-    //   try {
-    //     const resultMail = await this.mail.sendNewOrderToAdmin({
-    //       to: email,
-    //       data: {
-    //         amount: order.finalAmount,
-    //         number: order.number,
-    //         currency: company.defaultCurrency,
-    //         companyName: company.locales?.[0]?.name || null,
-    //         companyLang: company.defaultLanguage,
-    //       },
-    //     });
-    //     console.log('SUCCESS ORDER MAIL', { orderId }, email, resultMail);
-    //   } catch (e) {
-    //     console.log('ERROR ORDER MAIL', { orderId }, email, e);
-    //   }
-    // }
-
-    // // Sending SMS
-    // let finalAmount = order.finalAmount;
-    // if (company.defaultCurrency === Currencies.IRR) {
-    //   finalAmount = parseInt(`${order.finalAmount}`, 10);
-    // }
-    // const smsResult = await this.kavenegarService.notifyAdminToNewOrder(
-    //   company.admin.mobile,
-    //   `${order.customer.firstName || ''} ${order.customer.lastName || ''}`,
-    //   order.customer.mobile,
-    //   `${finalAmount}`,
-    // );
-
-    // await this.companyService.updateSmsUsedCount(
-    //   company.id,
-    //   smsResult?.cost || 0,
-    // );
+    this.error.methodNotAllowed(['خطایی رخ داده است']);
   }
 
   /**
    * -------------------------------------------------------
    */
-  private async _generateOrderNumber() {
-    const orderNumber = moment().locale('fa').format('YYYYMM'); // 140101
+  private async _generateOrderNumber(
+    queryRunner?: QueryRunner,
+    collisionOffset = 0,
+  ): Promise<string> {
+    const manager = queryRunner?.manager ?? this.orderRepository.manager;
+    const orderNumber = moment().locale('fa').format('YYYYMM');
 
-    const lastOrder = await this.orderRepository.findOne({
-      order: { id: 'DESC' },
-    });
+    const lastOrder = await manager
+      .createQueryBuilder(OrderEntity, 'order')
+      .orderBy('order.id', 'DESC')
+      .getOne();
 
     if (!lastOrder) {
-      return `${orderNumber}1`;
+      return `${orderNumber}${1 + collisionOffset}`;
     }
 
-    const lastCounter = +lastOrder.number.substring(6);
+    const lastCounter = +lastOrder.number.substring(6) || 0;
 
-    return `${orderNumber}${lastCounter + 1}`;
+    return `${orderNumber}${lastCounter + 1 + collisionOffset}`;
   }
 
   /**
@@ -919,60 +1740,142 @@ export class OrderService {
   /**
    * -------------------------------------------------------
    */
-  async getRecordById(id: number, relations = null) {
+  async getRecordById(id: number, relations = null, customerId: number = null) {
+    const where: any = { id };
+    if (customerId != null) {
+      where.customerId = customerId;
+    }
+
     return await this.orderRepository.findOne({
-      where: { id },
+      where,
       ...(relations !== null && relations),
     });
   }
 
   /**
    * -------------------------------------------------------
-   * Deleting the unpaid order (pending) after 24 hours
+   * Deleting unpaid pending orders after configured timeout.
+   * Phase C1: ENV-driven timeout + bounded batch, per-order isolation,
+   * inventory release via delete() (exactly-once while pending).
+   *
+   * Candidate SQL excludes rows with financial-preservation evidence so
+   * protected prefixes cannot starve later eligible orders across cron runs.
+   * In-run keyset (createdAt, id) still progresses past transient delete
+   * failures within one invocation. Final delete() re-checks under locks.
    */
   async handleDeleteUnpaid() {
-    const pastTime = moment().subtract(24, 'hours').toDate();
+    const config = loadUnpaidOrderCleanupConfig();
+    const pastTime = moment()
+      .subtract(config.timeoutHours, 'hours')
+      .toDate();
 
-    const orders = await this.orderRepository.find({
-      status: OrderStatus.pending,
-      createdAt: LessThan(pastTime),
-    });
+    const maxRelease = config.batchSize;
+    /** Scan budget among already-eligible candidates (not protected rows). */
+    const maxScan = config.batchSize * 10;
+    const pageSize = config.batchSize;
 
-    try {
-      for (let i = 0; i < orders.length; i++) {
-        const order = orders[i];
-        await this.delete(order.id);
+    let released = 0;
+    let failed = 0;
+    let scanned = 0;
+    let cursorCreatedAt: Date | null = null;
+    let cursorId: number | null = null;
+
+    while (released < maxRelease && scanned < maxScan) {
+      const take = Math.min(pageSize, maxScan - scanned);
+      const qb = this.orderRepository
+        .createQueryBuilder('o')
+        .select(['o.id', 'o.createdAt'])
+        .where('o.status = :status', { status: OrderStatus.pending })
+        .andWhere('o.createdAt < :pastTime', { pastTime })
+        .andWhere('o.successfulTransactionId IS NULL')
+        .andWhere(
+          `NOT EXISTS (
+            SELECT 1 FROM order_payment_finalization f
+            WHERE f.orderId = o.id
+          )`,
+        )
+        .andWhere(
+          `NOT EXISTS (
+            SELECT 1 FROM transaction t
+            WHERE t.orderId = o.id
+              AND (
+                t.status IN (:...preservedStatuses)
+                OR t.paidAt IS NOT NULL
+              )
+          )`,
+          {
+            preservedStatuses: FINANCIALLY_PRESERVED_TRANSACTION_STATUSES,
+          },
+        )
+        .andWhere(
+          `NOT EXISTS (
+            SELECT 1 FROM payment_submission ps
+            WHERE ps.orderId = o.id
+              AND ps.purpose = 'ORDER_PAYMENT'
+              AND ps.status IN ('SUBMITTED','UNDER_REVIEW')
+              AND ps.holdExpiresAt > NOW()
+          )`,
+        )
+        .orderBy('o.createdAt', 'ASC')
+        .addOrderBy('o.id', 'ASC')
+        .take(take);
+
+      if (cursorCreatedAt != null && cursorId != null) {
+        qb.andWhere(
+          '(o.createdAt > :cAt OR (o.createdAt = :cAt AND o.id > :cId))',
+          { cAt: cursorCreatedAt, cId: cursorId },
+        );
       }
-    } catch (e) {}
 
-    return true;
+      const page = await qb.getMany();
+      if (page.length === 0) {
+        break;
+      }
+
+      for (const order of page) {
+        scanned += 1;
+        try {
+          await this.delete(order.id);
+          released += 1;
+        } catch {
+          failed += 1;
+        }
+
+        cursorCreatedAt = order.createdAt;
+        cursorId = order.id;
+
+        if (released >= maxRelease || scanned >= maxScan) {
+          break;
+        }
+      }
+
+      if (page.length < take) {
+        break;
+      }
+    }
+
+    return {
+      processed: scanned,
+      released,
+      failed,
+    };
   }
 
   /**
    * -------------------------------------------------------
+   * Admin order rewrite: restore old lines then remove them.
+   * Caller must prove the order currently owns an active reservation
+   * (pending + financially releasable) before invoking.
+   * Uses the same XOR restore rule as unpaid release.
    */
-  private async _deleteItemsAndRollbackQuantity(orderItems: OrderItemEntity[]) {
+  private async _deleteItemsAndRollbackQuantity(
+    orderItems: OrderItemEntity[],
+    queryRunner: QueryRunner,
+  ) {
+    await this.restoreReservedInventory(orderItems, queryRunner);
+
     for (let i = 0; i < orderItems.length; i++) {
-      const orderItem = orderItems[i];
-
-      // rollback productAttributeValue stock quantity
-      if (orderItem.productAttributeValue) {
-        if (orderItem.productAttributeValue.quantity !== -1) {
-          await this.productService.updateAttributeQuantity(
-            orderItem.productAttributeValue.id,
-            orderItem.productAttributeValue.quantity + orderItem.quantity,
-          );
-        }
-      }
-      // rollback product stock quantity
-      else if (orderItem.product.quantity !== -1) {
-        await this.productService.updateQuantity(
-          orderItem.product.id,
-          orderItem.product.quantity + orderItem.quantity,
-        );
-      }
-
-      await orderItem.remove();
+      await queryRunner.manager.remove(orderItems[i]);
     }
   }
 }

@@ -25,4 +25,27 @@ export class CreateUpdateProductAttrValueDto {
   @ApiProperty({ required: false })
   @IsOptional()
   discountedPrice: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  purchaseCost: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  landedUnitCost: number;
+
+  @ApiProperty({ required: false, enum: ['USD', 'TRY', 'IRT'] })
+  @IsOptional()
+  costCurrency: 'USD' | 'TRY' | 'IRT';
+
+  @ApiProperty({
+    required: false,
+    enum: ['manual_admin', 'import_manual', 'calculated', 'unknown_legacy'],
+  })
+  @IsOptional()
+  costSource:
+    | 'manual_admin'
+    | 'import_manual'
+    | 'calculated'
+    | 'unknown_legacy';
 }

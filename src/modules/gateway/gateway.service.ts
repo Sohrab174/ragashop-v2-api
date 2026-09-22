@@ -12,12 +12,16 @@ import {
 import { CreateGatewayDto } from './dto/create-gateway.dto';
 import { UpdateGatewayDto } from './dto/update-gateway.dto';
 import { getLastDisplayOrder } from '../../utils/last-display-order';
+import { SettingEntity } from '../setting/entities/setting.entity';
 
 @Injectable()
 export class GatewayService {
   constructor(
     @InjectRepository(GatewayEntity)
     private gatewayRepository: Repository<GatewayEntity>,
+
+    @InjectRepository(SettingEntity)
+    private settingRepository: Repository<SettingEntity>,
 
     private error: ErrorService,
   ) {}
@@ -70,8 +74,14 @@ export class GatewayService {
   /**
    * -------------------------------------------------------
    * GET /gateways
+   * C2A launch gate: empty list when onlineGatewayPaymentsEnabled is false.
    */
   async getAll() {
+    const setting = await this.settingRepository.findOne({ where: { id: 1 } });
+    if (setting && !setting.onlineGatewayPaymentsEnabled) {
+      return [];
+    }
+
     const items = await this.gatewayRepository
       .createQueryBuilder('gateway')
       .andWhere({ status: GatewayStatus.active, isDeleted: false })

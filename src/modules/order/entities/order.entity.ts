@@ -29,6 +29,7 @@ export enum OrderStatus {
 
 @Index('fk_order_city1_idx', ['cityId'], {})
 @Index('fk_order_customer1_idx', ['customerId'], {})
+@Index('uq_order_number', ['number'], { unique: true })
 @Entity('order')
 export class OrderEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
@@ -39,6 +40,16 @@ export class OrderEntity extends BaseEntity {
 
   @Column('int', { name: 'customerId', nullable: true })
   customerId: number | null;
+
+  @Column('int', { name: 'successfulTransactionId', nullable: true })
+  successfulTransactionId: number | null;
+
+  @ManyToOne(() => TransactionEntity, {
+    onDelete: 'NO ACTION',
+    onUpdate: 'NO ACTION',
+  })
+  @JoinColumn([{ name: 'successfulTransactionId', referencedColumnName: 'id' }])
+  successfulTransaction: TransactionEntity | null;
 
   @Column('decimal', {
     name: 'amount',
@@ -85,6 +96,57 @@ export class OrderEntity extends BaseEntity {
   })
   finalAmount: number;
 
+  /**
+   * Currency of amount/discount/shipping/tax/finalAmount (F1).
+   * Modern checkout writes TRY. IRT means Iranian Toman.
+   */
+  @Column('enum', {
+    name: 'commercialCurrency',
+    enum: ['USD', 'TRY', 'IRT'],
+    nullable: true,
+  })
+  commercialCurrency: 'USD' | 'TRY' | 'IRT' | null;
+
+  /** Effective Toman per 1 commercial currency unit at Order create (F1). */
+  @Column('decimal', {
+    name: 'fxRateToIrt',
+    nullable: true,
+    precision: 20,
+    scale: 6,
+    transformer: new DecimalTransformer(),
+  })
+  fxRateToIrt: number | null;
+
+  @Column('datetime', { name: 'fxCapturedAt', nullable: true })
+  fxCapturedAt: Date | null;
+
+  @Column('varchar', { name: 'fxRateSource', nullable: true, length: 32 })
+  fxRateSource: string | null;
+
+  @Column('datetime', { name: 'financialConfirmedAt', nullable: true })
+  financialConfirmedAt: Date | null;
+
+  @Column('enum', {
+    name: 'profitabilityStatus',
+    enum: ['complete', 'incomplete_missing_cogs', 'legacy_incomplete'],
+    nullable: true,
+  })
+  profitabilityStatus:
+    | 'complete'
+    | 'incomplete_missing_cogs'
+    | 'legacy_incomplete'
+    | null;
+
+  /** Latest known carrier cost (ops); trail via financial events later. */
+  @Column('decimal', {
+    name: 'shippingCostActual',
+    nullable: true,
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  shippingCostActual: number | null;
+
   @Column('varchar', { name: 'firstName', nullable: true, length: 45 })
   firstName: string | null;
 
@@ -97,7 +159,7 @@ export class OrderEntity extends BaseEntity {
   @Column('varchar', { name: 'location', nullable: true, length: 45 })
   location: string | null;
 
-  @Column('varchar', { name: 'addressDetails', nullable: true, length: 45 })
+  @Column('varchar', { name: 'addressDetails', nullable: true, length: 255 })
   addressDetails: string | null;
 
   @Column('varchar', { name: 'postalCode', nullable: true, length: 45 })
@@ -108,6 +170,18 @@ export class OrderEntity extends BaseEntity {
 
   @Column('int', { name: 'cityId', nullable: true })
   cityId: number | null;
+
+  /** Opaque secret for guest order confirmation reads (not sequential). */
+  @Column('varchar', { name: 'guestAccessToken', nullable: true, length: 64 })
+  guestAccessToken: string | null;
+
+  /** Owner-scoped checkout idempotency digest (SHA-256 hex); unique when set. */
+  @Column('varchar', {
+    name: 'checkoutIdempotencyKey',
+    nullable: true,
+    length: 64,
+  })
+  checkoutIdempotencyKey: string | null;
 
   @Column('text', { name: 'description', nullable: true })
   description: string | null;

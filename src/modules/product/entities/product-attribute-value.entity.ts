@@ -9,15 +9,21 @@ import {
   OneToMany,
 } from 'typeorm';
 import { ProductEntity } from './product.entity';
+import { ProductCurrency } from '../product-currency';
 import { AttributeValueEntity } from '../../attribute/entities/attribute-value.entity';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 import { IncredibleOfferEntity } from '../../incredible-offer/entities/Incredible-offer.entity';
 import { OrderItemEntity } from '../../order/entities/order-item.entity';
 
-@Index('idx_attributeValue_attributeId', ['attributeValueId'], {})
+@Index('idx_pav_attributeValueId', ['attributeValueId'], {})
 @Index('idx_pav_productId', ['productId'], {})
 @Index('idx_pav_isDeleted', ['isDeleted'], {})
+@Index(
+  'idx_pav_productId_isDeleted_attributeValueId',
+  ['productId', 'isDeleted', 'attributeValueId'],
+  {},
+)
 @Entity('product_attribute_value')
 export class ProductAttributeValueEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
@@ -64,6 +70,40 @@ export class ProductAttributeValueEntity extends BaseEntity {
     transformer: new DecimalTransformer(),
   })
   discountPercent: number | null;
+
+  @Column('decimal', {
+    name: 'purchaseCost',
+    nullable: true,
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  purchaseCost: number | null;
+
+  @Column('decimal', {
+    name: 'landedUnitCost',
+    nullable: true,
+    precision: 20,
+    scale: 2,
+    transformer: new DecimalTransformer(),
+  })
+  landedUnitCost: number | null;
+
+  @Column('enum', {
+    name: 'costCurrency',
+    enum: ProductCurrency,
+    nullable: true,
+  })
+  costCurrency: ProductCurrency | null;
+
+  @Column('varchar', { name: 'costSource', nullable: true, length: 32 })
+  costSource: string | null;
+
+  @Column('datetime', { name: 'costUpdatedAt', nullable: true })
+  costUpdatedAt: Date | null;
+
+  @Column('int', { name: 'costUpdatedByUserId', nullable: true })
+  costUpdatedByUserId: number | null;
 
   @Column('tinyint', {
     name: 'starred',

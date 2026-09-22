@@ -1,6 +1,11 @@
 import axios from 'axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigurationService } from '../../config/configuration.service';
+import {
+  PaypingPaymentRequestError,
+  buildPaypingPaymentRequestErrorFromAxios,
+  buildPaypingVerificationErrorFromAxios,
+} from './payping-verification-result';
 
 @Injectable()
 export class PaypingService {
@@ -12,12 +17,32 @@ export class PaypingService {
     this.sandboxMerchant = 'O0F8s_4O7cMyTrs4-cqpd3qDWxsgXGndzwfKtLGXHBA';
 
     this.axios = axios.create({
-      // baseURL: 'https://api.payping.ir/v2',
       baseURL: 'http://195.177.255.138:1313/https://api.payping.ir/v2',
     });
 
-    // this.redirectUrl = 'https://api.payping.ir/v2/pay/gotoipg';
-    this.redirectUrl = (code) => `https://ragaex.co/payping.php?token=${code}`;
+    this.redirectUrl = (code: string) =>
+      `https://ragaex.co/payping.php?token=${encodeURIComponent(code)}`;
+  }
+
+  getRedirectUrl(code: string): string {
+    if (!code || typeof code !== 'string' || !/^[A-Za-z0-9_-]+$/.test(code)) {
+      throw new PaypingPaymentRequestError({
+        kind: 'payping_payment_request_error',
+        providerResponseReceived: false,
+        isTimeout: false,
+        isNetworkError: false,
+        message: 'توکن درگاه نامعتبر است',
+      });
+    }
+    return this.redirectUrl(code);
+  }
+
+  /**
+   * clientRefId = SP<transactionId> is used for traceability only.
+   * PayPing idempotency is NOT assumed — callers must not blindly retry.
+   */
+  getClientRefId(transactionId: number): string {
+    return `SP${transactionId}`;
   }
 
   /**
@@ -25,8 +50,8 @@ export class PaypingService {
    */
   async paymentRequest(merchant, amount, transactionId, callbackUrl) {
     const payload = {
-      clientRefId: `SP${transactionId}`,
-      Amount: Math.round(amount), // Toman
+      clientRefId: this.getClientRefId(transactionId),
+      Amount: Math.round(amount),
       Description: '',
       returnUrl: callbackUrl,
       payerIdentity: `raga-${Date.now()}`,
@@ -37,18 +62,18 @@ export class PaypingService {
       }`,
     };
 
-    console.log({ payload, headers });
-
     try {
-      const { data } = await this.axios.post('/pay', payload, {
-        headers,
-      });
+      const { data } = await this.axios.post('/pay', payload, { headers });
 
-      if (!data) {
-        throw 'تراکنش ناموفق بود - شرح خطا: عدم وجود کد ارجاع';
+      if (!data?.code) {
+        throw buildPaypingPaymentRequestErrorFromAxios({
+          response: {
+            status: 200,
+            data: { Error: 'missing_authority_code' },
+          },
+          message: 'missing_authority_code',
+        });
       }
-
-      console.log('data', data);
 
       return {
         authority: data.code,
@@ -57,11 +82,18 @@ export class PaypingService {
         message: '',
       };
     } catch (e) {
-      console.log('PAYPING', e?.response?.data || e);
-      throw typeof e === 'string'
-        ? e
-        : e?.response?.data?.Error ||
-            'در اتصال به درگاه مشکلی پیش آمد، لطفا مجدد تلاش نمایید';
+      if (e instanceof PaypingPaymentRequestError) {
+        throw e;
+      }
+
+      if (typeof e === 'string') {
+        throw buildPaypingPaymentRequestErrorFromAxios({
+          message: e,
+          code: 'ERR_PAYPING_STRING',
+        });
+      }
+
+      throw buildPaypingPaymentRequestErrorFromAxios(e);
     }
   }
 
@@ -69,10 +101,6 @@ export class PaypingService {
    * @param amount Amount on Toman
    */
   async paymentVerification(merchant, referenceNumber, amount) {
-    if (!referenceNumber) {
-      throw 'متاسفانه سامانه قادر به دریافت کد پیگیری نمی‌باشد! نتیجه درخواست';
-    }
-
     try {
       await this.axios.post(
         '/pay/verify',
@@ -97,8 +125,7 @@ export class PaypingService {
 
       return 'پرداخت با موفقیت انجام شد';
     } catch (e) {
-      console.log('PAYPING', e?.response?.data || e);
-      throw e?.response?.data?.Error || 'تراکنش ناموفق بود';
+      throw buildPaypingVerificationErrorFromAxios(e, referenceNumber);
     }
   }
 }

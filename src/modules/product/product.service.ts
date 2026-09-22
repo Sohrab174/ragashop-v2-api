@@ -1,5 +1,6 @@
 import { Body, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { getEffectiveCrawlerBaseUrl } from '@ragashop/marketplace-identity-lease';
 import {
   getConnection,
   Repository,
@@ -8,6 +9,7 @@ import {
   Not,
   LessThanOrEqual,
   MoreThanOrEqual,
+  QueryRunner,
 } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import * as path from 'path';
@@ -19,11 +21,16 @@ import {
   paginationResult,
   sleep,
 } from '../../utils';
+import { containsPersianScript } from '../../utils/persian-script.util';
 import { CategoryService } from '../category/category.service';
 import { CategoryStatus } from '../category/entities/category.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductEntity, ProductStatus } from './entities/product.entity';
+import {
+  applyDiscoveryEligibilityFilters,
+  discoveryEligibilitySql,
+} from './discovery-eligibility';
 import {
   ProductGalleryEntity,
   ProductGalleryType,
@@ -55,6 +62,19 @@ import { UpdateGroupProductDto } from './dto/update-group-product.dto';
 import axios from 'axios';
 // import { Cache } from 'cache-manager';
 import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-offer.entity';
+import {
+  PRODUCT_DELETION_PATCH,
+  assertProductEligibleForChildMutation,
+  groupMutationEligibilityWhere,
+  productUpdateEligibilityWhere,
+} from './product-lifecycle.util';
+import { ProductChildMutationLockService } from './product-child-mutation-lock.service';
+import { loadOrderReferencedPavIds } from './pav-reference.util';
+import { selectCanonicalActivePav } from './pav-selection.util';
+import {
+  galleryLogicalKey,
+  isAdminOwnedDescription,
+} from './product-child-sync.util';
 
 @Injectable()
 export class ProductService {
@@ -82,7 +102,8 @@ export class ProductService {
 
     private crawlerService: CrawlerService,
     private translatorService: TranslatorService,
-    private readonly fileStorage: FileStorageService, // @Inject(CACHE_MANAGER) private cache: Cache,
+    private readonly fileStorage: FileStorageService,
+    private readonly productChildMutationLockService: ProductChildMutationLockService,
   ) {}
 
   /**
@@ -496,6 +517,7 @@ export class ProductService {
       where: {
         isDeleted: false,
         categoryId: Not(1),
+        status: ProductStatus.active,
         sourceGroupId: product.sourceGroupId,
         id: Not(product.id),
       },
@@ -568,21 +590,21 @@ export class ProductService {
 
   /**
    * -------------------------------------------------------
-   * GET /products/link
+   * Legacy link import — disabled; use POST /marketplace-imports
    */
-  async getByLink(link: string) {
-    let data;
-    try {
-      data = await axios.post('http://127.0.0.1:9019/product/search', {
-        url: link,
-      });
-    } catch (error) {
-      console.error('Error fetching product by link:', error);
-      throw error;
-    }
-    console.log('search endpont res:', data.data);
+  async getByLink(_link: string) {
+    this.error.methodNotAllowed([
+      'این مسیر دیگر پشتیبانی نمی‌شود. لطفاً از جستجوی محصول در سایت استفاده کنید.',
+    ]);
+  }
 
-    return data.data;
+  private getCrawlerBaseUrl(): string {
+    return getEffectiveCrawlerBaseUrl(process.env);
+  }
+
+  private getCrawlerHeaders(): Record<string, string> {
+    const secret = process.env.CRAWLER_INTERNAL_SECRET;
+    return secret ? { 'x-crawler-secret': secret } : {};
   }
 
   /**
@@ -654,6 +676,7 @@ export class ProductService {
       .andWhere({ isDeleted: false })
       .andWhere('product.price > 0')
       .andWhere('product.categoryId != 1');
+    applyDiscoveryEligibilityFilters(builder, 'product');
 
     if (categoryIds.length > 0) {
       builder.andWhere('product.categoryId IN (:...categoryIds)', {
@@ -905,11 +928,14 @@ export class ProductService {
             .from(ProductEntity, 'p')
             .where(' p.status = :status', {
               status: ProductStatus.active,
-            }),
+            })
+            .andWhere('p.isDeleted = :isDeleted', { isDeleted: false })
+            .andWhere('p.categoryId != 1')
+            .andWhere('p.price > 0')
+            .andWhere(discoveryEligibilitySql('p')),
         'product',
       )
       .andWhere('product.row_num <= :num', { num: limitPerCategory })
-      .andWhere({ isDeleted: false })
       .getRawMany();
 
     // Not found
@@ -917,7 +943,7 @@ export class ProductService {
       return [];
     }
 
-    const productList = await this.productRepository
+    const summaryBuilder = this.productRepository
       .createQueryBuilder('product')
       .innerJoin('product.category', 'category', 'category.status = :status', {
         status: CategoryStatus.active,
@@ -946,39 +972,14 @@ export class ProductService {
       .addSelect('attributeValue.extraValue')
       .addSelect('attribute.id')
       .andWhere({ status: ProductStatus.active })
-
       .andWhere('product.id IN (:...ids)', {
         ids: targetProductList.map((p) => p.id),
       })
       .andWhere({ isDeleted: false })
-      .andWhere('product.categoryId != 1')
+      .andWhere('product.categoryId != 1');
+    applyDiscoveryEligibilityFilters(summaryBuilder, 'product');
 
-      // GPT SAYS: In general, when you use a subquery in MySQL, the subquery is executed for each row in the outer query.
-      // .andWhere(
-      //   (qb) => {
-      //     const subQuery = qb
-      //       .subQuery()
-      //       .select('target_product.id')
-      //       .from(
-      //         (subQuery) =>
-      //           subQuery
-      //             .select(
-      //               'p.id, ROW_NUMBER() OVER (PARTITION BY p.categoryId ORDER BY displayOrder ASC) as row_num',
-      //             )
-      //             .from(ProductEntity, 'p')
-      //             .where('p.companyId = :companyId AND p.status = :status', {
-      //               companyId,
-      //               status: ProductStatus.active,
-      //             }),
-      //         'target_product',
-      //       )
-      //       .where('target_product.row_num <= :num', { num: limitPerCategory })
-      //       .getQuery();
-      //     return `product.id IN (${subQuery})`;
-      //   },
-      // { limit: limitPerCategory },
-      // )
-
+    const productList = await summaryBuilder
       .orderBy('product.displayOrder', 'ASC')
       .getMany();
 
@@ -991,88 +992,155 @@ export class ProductService {
    * -------------------------------------------------------
    * POST & PUT /products/attribute/admin
    */
-  async addUpdateProductAttributeValue(dto: CreateUpdateProductAttrValueDto) {
-    const product = await this.productRepository
-      .createQueryBuilder('product')
-      .andWhere({ id: dto.productId })
-      .getOne();
+  async addUpdateProductAttributeValue(
+    dto: CreateUpdateProductAttrValueDto,
+    user?: UserEntity,
+  ) {
+    return this.productChildMutationLockService.withProductChildLock(
+      dto.productId,
+      async () => {
+        const product = await this.productRepository
+          .createQueryBuilder('product')
+          .andWhere({ id: dto.productId })
+          .getOne();
 
-    const attributeValue = await this.attributeService.getRecordById(
-      dto.attributeValueId,
-    );
+        const attributeValue = await this.attributeService.getRecordById(
+          dto.attributeValueId,
+        );
 
-    if (!product || !attributeValue) {
-      this.error.unprocessableEntity(['این درخواست نامعتبر است']);
-    }
+        if (!attributeValue) {
+          this.error.unprocessableEntity(['این درخواست نامعتبر است']);
+        }
 
-    // Updating the product attribute value
-    const productAttrValue = await this.productAttributeValueRepository.findOne(
-      {
-        productId: dto.productId,
-        attributeValueId: dto.attributeValueId,
-        isDeleted: false,
+        assertProductEligibleForChildMutation(product, this.error);
+
+        const referencedPavIds = await loadOrderReferencedPavIds(
+          this.productAttributeValueRepository.manager,
+          dto.productId,
+        );
+
+        const existingForValue =
+          await this.productAttributeValueRepository.find({
+            where: {
+              productId: dto.productId,
+              attributeValueId: dto.attributeValueId,
+            },
+          });
+
+        const productAttrValue = selectCanonicalActivePav(
+          existingForValue,
+          referencedPavIds,
+        ) as ProductAttributeValueEntity | null;
+
+        await this.checkDuplicateProductNumber(
+          'attribute',
+          dto.number,
+          product.id,
+          productAttrValue?.id,
+        );
+
+        if (productAttrValue) {
+          if (dto.number !== undefined) {
+            productAttrValue.number = dto.number;
+          }
+          if (dto.quantity !== undefined) {
+            productAttrValue.quantity = dto.quantity;
+          }
+          if (dto.price !== undefined) {
+            productAttrValue.price = dto.price;
+          }
+          if (dto.discountedPrice !== undefined) {
+            productAttrValue.discountedPrice = dto.discountedPrice;
+          }
+          if (dto.price !== undefined || dto.discountedPrice !== undefined) {
+            let discountPercent = 0;
+            const price = productAttrValue.price;
+            const discountedPrice = productAttrValue.discountedPrice;
+            if (price && discountedPrice != null && price > 0) {
+              discountPercent = ((price - discountedPrice) / price) * 100;
+            }
+            productAttrValue.discountPercent = discountPercent;
+          }
+          if (dto.purchaseCost !== undefined) {
+            productAttrValue.purchaseCost = dto.purchaseCost;
+            productAttrValue.costUpdatedAt = new Date();
+            productAttrValue.costUpdatedByUserId = user?.id ?? null;
+            productAttrValue.costSource =
+              dto.costSource || productAttrValue.costSource || 'manual_admin';
+          }
+          if (dto.landedUnitCost !== undefined) {
+            productAttrValue.landedUnitCost = dto.landedUnitCost;
+            productAttrValue.costUpdatedAt = new Date();
+            productAttrValue.costUpdatedByUserId = user?.id ?? null;
+            productAttrValue.costSource =
+              dto.costSource || productAttrValue.costSource || 'manual_admin';
+          }
+          if (dto.costCurrency !== undefined) {
+            productAttrValue.costCurrency = dto.costCurrency as any;
+            productAttrValue.costUpdatedAt = new Date();
+            productAttrValue.costUpdatedByUserId = user?.id ?? null;
+          }
+          if (dto.costSource !== undefined) {
+            productAttrValue.costSource = dto.costSource;
+            productAttrValue.costUpdatedAt = new Date();
+            productAttrValue.costUpdatedByUserId = user?.id ?? null;
+          }
+
+          await productAttrValue.save();
+
+          return { id: productAttrValue.id };
+        }
+
+        if (
+          !(await this._isValidCreateNewAttributeValue(
+            dto.productId,
+            dto.attributeValueId,
+          ))
+        ) {
+          this.error.unprocessableEntity([
+            'امکان تعریف بیش از یک ویژگی چندگانه وجود ندارد',
+          ]);
+        }
+
+        let discountPercent = 0;
+        if (dto.price && dto.discountedPrice != null && dto.price > 0) {
+          discountPercent =
+            ((dto.price - dto.discountedPrice) / dto.price) * 100;
+        }
+
+        const { identifiers } = await this.productAttributeValueRepository
+          .createQueryBuilder()
+          .insert()
+          .values({
+            productId: dto.productId,
+            attributeValueId: dto.attributeValueId,
+            number: dto.number || null,
+            quantity:
+              dto.quantity === undefined || dto.quantity === null
+                ? -1
+                : dto.quantity,
+            price: dto.price || null,
+            discountedPrice: dto.discountedPrice || null,
+            discountPercent,
+            purchaseCost: dto.purchaseCost ?? null,
+            landedUnitCost: dto.landedUnitCost ?? null,
+            costCurrency: (dto.costCurrency as any) || null,
+            costSource: dto.costSource || null,
+            costUpdatedAt:
+              dto.purchaseCost != null || dto.landedUnitCost != null
+                ? new Date()
+                : null,
+            costUpdatedByUserId:
+              dto.purchaseCost != null || dto.landedUnitCost != null
+                ? user?.id ?? null
+                : null,
+            isDeleted: false,
+          })
+          .execute();
+
+        return { id: identifiers[0].id };
       },
     );
-
-    await this.checkDuplicateProductNumber(
-      'attribute',
-      dto.number,
-      product.id,
-      productAttrValue?.id,
-    );
-
-    // Exist product attribute value
-    if (productAttrValue) {
-      if (dto.number !== undefined) {
-        productAttrValue.number = dto.number;
-      }
-      if (dto.quantity !== undefined) {
-        productAttrValue.quantity = dto.quantity;
-      }
-      if (dto.price !== undefined) {
-        productAttrValue.price = dto.price;
-      }
-      if (dto.discountedPrice !== undefined) {
-        productAttrValue.discountedPrice = dto.discountedPrice;
-      }
-
-      await productAttrValue.save();
-
-      return { id: productAttrValue.id };
-    }
-
-    // Creating a new product attribute value
-    if (
-      !(await this._isValidCreateNewAttributeValue(
-        dto.productId,
-        dto.attributeValueId,
-      ))
-    ) {
-      this.error.unprocessableEntity([
-        'امکان تعریف بیش از یک ویژگی چندگانه وجود ندارد',
-      ]);
-    }
-
-    const { identifiers } = await this.productAttributeValueRepository
-      .createQueryBuilder()
-      .insert()
-      .values({
-        productId: dto.productId,
-        attributeValueId: dto.attributeValueId,
-        number: dto.number || null,
-        quantity:
-          dto.quantity === undefined || dto.quantity === null
-            ? -1
-            : dto.quantity,
-        price: dto.price || null,
-        discountedPrice: dto.discountedPrice || null,
-        isDeleted: false,
-      })
-      .execute();
-
-    const newProductAttValueId = identifiers[0].id;
-
-    return { id: newProductAttValueId };
   }
 
   /**
@@ -1081,19 +1149,29 @@ export class ProductService {
    */
   async deleteProductAttributeValue(id: number, user: UserEntity) {
     const productAttrValue = await this.productAttributeValueRepository.findOne(
-      {
-        where: { id },
-      },
+      { where: { id } },
     );
 
     if (!productAttrValue) {
       this.error.unprocessableEntity(['مقدار مشخصه محصول موردنظر پیدا نشد']);
     }
 
-    productAttrValue.isDeleted = true;
-    await productAttrValue.save();
-
-    return true;
+    return this.productChildMutationLockService.withProductChildLock(
+      productAttrValue.productId,
+      async () => {
+        const row = await this.productAttributeValueRepository.findOne({
+          where: { id },
+        });
+        if (!row) {
+          this.error.unprocessableEntity([
+            'مقدار مشخصه محصول موردنظر پیدا نشد',
+          ]);
+        }
+        row.isDeleted = true;
+        await row.save();
+        return true;
+      },
+    );
   }
 
   /**
@@ -1149,16 +1227,21 @@ export class ProductService {
     const newProductId = identifiers[0].id;
 
     if (dto.descriptions.length > 0) {
-      await this.descriptionRepository
-        .createQueryBuilder()
-        .insert()
-        .values(
-          dto.descriptions.map((d) => ({
-            content: d.content,
-            productId: newProductId,
-          })),
-        )
-        .execute();
+      await this.productChildMutationLockService.withProductChildLock(
+        newProductId,
+        async () => {
+          await this.descriptionRepository
+            .createQueryBuilder()
+            .insert()
+            .values(
+              dto.descriptions.map((d) => ({
+                content: d.content,
+                productId: newProductId,
+              })),
+            )
+            .execute();
+        },
+      );
     }
 
     return { id: newProductId };
@@ -1169,15 +1252,6 @@ export class ProductService {
    * PUT /products/admin
    */
   async update(dto: UpdateProductDto, user: UserEntity) {
-    const product = await this.productRepository.findOne({
-      where: { id: dto.id },
-      relations: ['productDescriptions'],
-    });
-
-    if (!product) {
-      this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
-    }
-
     const existCategory = await this.categoryService.getRecordById(
       dto.categoryId,
     );
@@ -1185,69 +1259,140 @@ export class ProductService {
       this.error.unprocessableEntity(['دسته بندی انتخابی معتبر نمی باشد']);
     }
 
-    // Checking duplicate product number
-    await this.checkDuplicateProductNumber('product', dto.number, product.id);
+    await this.checkDuplicateProductNumber('product', dto.number, dto.id);
 
-    // Updating the product
-    if (dto.status !== undefined) product.status = dto.status;
-    if (dto.price !== undefined) product.price = dto.price;
-    if (dto.discountedPrice !== undefined)
-      product.discountedPrice = dto.discountedPrice;
-    if (dto.coverId !== undefined) product.coverId = dto.coverId;
-    if (dto.categoryId !== undefined) product.categoryId = dto.categoryId;
-    if (dto.quantity !== undefined) product.quantity = dto.quantity;
-    if (dto.number !== undefined) product.number = dto.number;
-    if (dto.name !== undefined) product.name = dto.name;
-    if (dto.description !== undefined) product.description = dto.description;
-    if (dto.gender !== undefined) product.gender = dto.gender;
+    return this.productChildMutationLockService.withProductChildLock(
+      dto.id,
+      async () => {
+        const product = await this.productRepository.findOne({
+          where: { id: dto.id },
+          relations: ['productDescriptions'],
+        });
 
-    await product.save();
+        if (!product) {
+          this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
+        }
 
-    if (dto.descriptions !== undefined) {
-      const existDescriptionIds = dto.descriptions
-        .filter((d) => !!d?.id)
-        .map((d) => d.id);
+        assertProductEligibleForChildMutation(product, this.error);
 
-      const deleteDescriptionIds = product.productDescriptions
-        .filter((pd) => !existDescriptionIds.includes(pd.id))
-        .map((d) => d.id);
-      if (deleteDescriptionIds.length > 0) {
-        await this.descriptionRepository
-          .createQueryBuilder()
-          .update()
-          .set({ isDeleted: true })
-          .where('id IN (:...ids)', { ids: deleteDescriptionIds })
-          .execute();
-      }
+        const patch: Partial<ProductEntity> = {};
+        if (dto.status !== undefined) patch.status = dto.status;
+        if (dto.price !== undefined) patch.price = dto.price;
+        if (dto.discountedPrice !== undefined) {
+          patch.discountedPrice = dto.discountedPrice;
+        }
+        if (dto.coverId !== undefined) patch.coverId = dto.coverId;
+        if (dto.categoryId !== undefined) patch.categoryId = dto.categoryId;
+        if (dto.quantity !== undefined) patch.quantity = dto.quantity;
+        if (dto.number !== undefined) patch.number = dto.number;
+        if (dto.name !== undefined) patch.name = dto.name;
+        if (dto.description !== undefined) patch.description = dto.description;
+        if (dto.gender !== undefined) patch.gender = dto.gender;
+        if (dto.purchaseCost !== undefined) {
+          patch.purchaseCost = dto.purchaseCost;
+          patch.costUpdatedAt = new Date();
+          patch.costUpdatedByUserId = user?.id ?? null;
+          if (dto.costSource !== undefined) {
+            patch.costSource = dto.costSource;
+          } else if (!product.costSource) {
+            patch.costSource = 'manual_admin';
+          }
+        }
+        if (dto.landedUnitCost !== undefined) {
+          patch.landedUnitCost = dto.landedUnitCost;
+          patch.costUpdatedAt = new Date();
+          patch.costUpdatedByUserId = user?.id ?? null;
+          if (dto.costSource !== undefined) {
+            patch.costSource = dto.costSource;
+          } else if (!product.costSource) {
+            patch.costSource = 'manual_admin';
+          }
+        }
+        if (dto.costCurrency !== undefined) {
+          patch.costCurrency = dto.costCurrency as any;
+          patch.costUpdatedAt = new Date();
+          patch.costUpdatedByUserId = user?.id ?? null;
+        }
+        if (dto.costSource !== undefined && dto.purchaseCost === undefined && dto.landedUnitCost === undefined) {
+          patch.costSource = dto.costSource;
+          patch.costUpdatedAt = new Date();
+          patch.costUpdatedByUserId = user?.id ?? null;
+        }
 
-      const updateDescriptions = product.productDescriptions.filter((pd) =>
-        existDescriptionIds.includes(pd.id),
-      );
-      for (const desc of updateDescriptions) {
-        await this.descriptionRepository
-          .createQueryBuilder()
-          .update()
-          .set({ content: desc.content })
-          .where({ id: desc.id })
-          .execute();
-      }
+        if (Object.keys(patch).length > 0) {
+          const updateResult = await this.productRepository
+            .createQueryBuilder()
+            .update()
+            .set(patch)
+            .where(productUpdateEligibilityWhere(dto.id))
+            .execute();
 
-      const newDescriptions = dto.descriptions.filter((d) => !d?.id);
-      if (newDescriptions.length > 0) {
-        await this.descriptionRepository
-          .createQueryBuilder()
-          .insert()
-          .values(
-            newDescriptions.map((d) => ({
-              content: d.content,
-              productId: product.id,
-            })),
-          )
-          .execute();
-      }
-    }
+          if (!updateResult.affected) {
+            this.error.unprocessableEntity(['محصول حذف شده است.']);
+          }
+        }
 
-    return true;
+        if (dto.descriptions !== undefined) {
+          const reloaded = await this.productRepository.findOne({
+            where: { id: dto.id },
+            relations: ['productDescriptions'],
+          });
+          assertProductEligibleForChildMutation(reloaded, this.error);
+
+          const existDescriptionIds = dto.descriptions
+            .filter((d) => !!d?.id)
+            .map((d) => d.id);
+
+          const deleteDescriptionIds = reloaded.productDescriptions
+            .filter(
+              (pd) =>
+                isAdminOwnedDescription(pd) &&
+                !existDescriptionIds.includes(pd.id),
+            )
+            .map((d) => d.id);
+          if (deleteDescriptionIds.length > 0) {
+            await this.descriptionRepository
+              .createQueryBuilder()
+              .update()
+              .set({ isDeleted: true })
+              .where('id IN (:...ids)', { ids: deleteDescriptionIds })
+              .execute();
+          }
+
+          const updateDescriptions = dto.descriptions.filter(
+            (d) =>
+              d?.id &&
+              isAdminOwnedDescription(
+                reloaded.productDescriptions.find((pd) => pd.id === d.id) || {},
+              ),
+          );
+          for (const desc of updateDescriptions) {
+            await this.descriptionRepository
+              .createQueryBuilder()
+              .update()
+              .set({ content: desc.content })
+              .where({ id: desc.id })
+              .execute();
+          }
+
+          const newDescriptions = dto.descriptions.filter((d) => !d?.id);
+          if (newDescriptions.length > 0) {
+            await this.descriptionRepository
+              .createQueryBuilder()
+              .insert()
+              .values(
+                newDescriptions.map((d) => ({
+                  content: d.content,
+                  productId: dto.id,
+                })),
+              )
+              .execute();
+          }
+        }
+
+        return true;
+      },
+    );
   }
 
   /**
@@ -1267,7 +1412,7 @@ export class ProductService {
         ...(dto.gender && { gender: dto.gender }),
         ...(dto.categoryId && { categoryId: dto.categoryId }),
       })
-      .where({ id: In(dto.ids) })
+      .where({ id: In(dto.ids), ...groupMutationEligibilityWhere() })
       .execute();
   }
 
@@ -1281,61 +1426,96 @@ export class ProductService {
     type: ProductGalleryType,
     user: UserEntity,
   ) {
-    let product = null;
-    if (dto.productId) {
-      product = await this.productRepository
-        .createQueryBuilder('product')
-        .leftJoinAndSelect('product.productGalleries', 'productGalleries')
-        .andWhere({ id: dto.productId })
-        .getOne();
-
-      if (!product) {
-        this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
-      }
-
-      // Removing the prev cover before adding the new cover
-      if (dto.isCover && product.coverId) {
-        await this.deleteGallery(product.coverId, user);
-      } else {
-        if (product.productGalleries.length > 0) {
-          await this.deleteGallery(product.productGalleries[0].id, user);
-        }
-      }
-    }
-
     const pathFile = `/products/${file.filename}`;
 
-    // Creating a new gallery
-    const { identifiers } = await this.galleryRepository
-      .createQueryBuilder()
-      .insert()
-      .values({
-        pathFile,
-        type,
-        productId: dto?.productId || null,
-        createdAt: new Date(),
-      })
-      .execute();
+    if (!dto.productId) {
+      const { identifiers } = await this.galleryRepository
+        .createQueryBuilder()
+        .insert()
+        .values({
+          pathFile,
+          type,
+          productId: null,
+          createdAt: new Date(),
+        })
+        .execute();
 
-    const newGalleryId = identifiers[0].id;
+      const newGalleryId = identifiers[0].id;
 
-    // generate thumbnail
+      if (type === ProductGalleryType.photo) {
+        await generateThumbnail(file.path);
+        await optimizeImage(file.path);
+      }
+
+      return { id: newGalleryId, pathFile, type };
+    }
+
     if (type === ProductGalleryType.photo) {
       await generateThumbnail(file.path);
       await optimizeImage(file.path);
     }
 
-    // Settting cover product
-    if (type === ProductGalleryType.photo && dto.isCover && product) {
-      await this.productRepository
-        .createQueryBuilder()
-        .update()
-        .set({ coverId: newGalleryId })
-        .where({ id: product.id })
-        .execute();
-    }
+    return this.productChildMutationLockService.withProductChildLock(
+      dto.productId,
+      async () => {
+        const product = await this.productRepository
+          .createQueryBuilder('product')
+          .leftJoinAndSelect('product.productGalleries', 'productGalleries')
+          .andWhere({ id: dto.productId })
+          .getOne();
 
-    return { id: newGalleryId, pathFile, type };
+        if (!product) {
+          this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
+        }
+
+        assertProductEligibleForChildMutation(product, this.error);
+
+        const logicalKey = galleryLogicalKey(dto.productId, pathFile);
+        const duplicate = (product.productGalleries || []).find(
+          (g) => galleryLogicalKey(product.id, g.pathFile) === logicalKey,
+        );
+        if (duplicate) {
+          return {
+            id: duplicate.id,
+            pathFile: duplicate.pathFile,
+            type: duplicate.type,
+          };
+        }
+
+        if (dto.isCover && product.coverId) {
+          await this.deleteGalleryAlreadyLocked(product.coverId, user);
+        } else if (product.productGalleries.length > 0) {
+          await this.deleteGalleryAlreadyLocked(
+            product.productGalleries[0].id,
+            user,
+          );
+        }
+
+        const { identifiers } = await this.galleryRepository
+          .createQueryBuilder()
+          .insert()
+          .values({
+            pathFile,
+            type,
+            productId: dto.productId,
+            createdAt: new Date(),
+          })
+          .execute();
+
+        const newGalleryId = identifiers[0].id;
+
+        if (type === ProductGalleryType.photo && dto.isCover) {
+          await this.productRepository
+            .createQueryBuilder()
+            .update()
+            .set({ coverId: newGalleryId })
+            .where({ id: product.id })
+            .execute();
+        }
+
+        return { id: newGalleryId, pathFile, type };
+      },
+    );
   }
 
   /**
@@ -1343,88 +1523,112 @@ export class ProductService {
    * DELETE /products/:id/admin
    */
   async delete(id: number, user: UserEntity) {
-    const product = await this.productRepository.findOne({
-      where: { id },
-      relations: ['productGalleries', 'productAttributeValues'],
-    });
+    return this.productChildMutationLockService.withProductChildLock(
+      id,
+      async () => {
+        const product = await this.productRepository.findOne({
+          where: { id },
+          relations: ['productGalleries', 'productAttributeValues'],
+        });
 
-    if (!product) {
-      this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
-    }
+        if (!product) {
+          this.error.unprocessableEntity(['محصول مورد نظر یافت نشد!']);
+        }
 
-    product.isDeleted = true;
-    await product.save();
+        if (product.isDeleted) {
+          return true;
+        }
 
-    // // Rollbacking the product locales if an error occurs
-    // const queryRunner = getConnection().createQueryRunner();
-    // await queryRunner.connect();
-    // await queryRunner.startTransaction();
+        const queryRunner =
+          this.productRepository.manager.connection.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-    // const oldGalleryPaths = [];
-    // const oldFilePaths = [];
+        try {
+          const locked = await queryRunner.manager
+            .createQueryBuilder(ProductEntity, 'product')
+            .setLock('pessimistic_write')
+            .where('product.id = :id', { id })
+            .getOne();
 
-    // try {
-    //   product.coverId = null;
-    //   await queryRunner.manager.save(product);
+          if (!locked || locked.isDeleted) {
+            await queryRunner.commitTransaction();
+            return true;
+          }
 
-    //   for (let i = 0; i < product.productAttributeValues.length; i++) {
-    //     const productAttributeValue = product.productAttributeValues[i];
-    //     // Removing the product attribute value
-    //     await queryRunner.manager.remove(productAttributeValue);
-    //   }
+          await queryRunner.manager
+            .createQueryBuilder()
+            .update('product_attribute_value')
+            .set({ isDeleted: true })
+            .where('productId = :id AND isDeleted = 0', { id })
+            .execute();
 
-    //   for (let i = 0; i < product.productGalleries.length; i++) {
-    //     const gallery = product.productGalleries[i];
-    //     oldGalleryPaths.push(gallery.pathFile);
-    //     // Removing the product gallery
-    //     await queryRunner.manager.remove(gallery);
-    //   }
+          await queryRunner.manager
+            .createQueryBuilder()
+            .update('product_description')
+            .set({ isDeleted: true })
+            .where(
+              "productId = :id AND isDeleted = 0 AND (source IS NULL OR source = '')",
+              { id },
+            )
+            .execute();
 
-    //   // Removing the product
-    //   await queryRunner.manager.remove(product);
+          await queryRunner.manager
+            .createQueryBuilder()
+            .update('product')
+            .set({ coverId: null })
+            .where('id = :id', { id })
+            .execute();
 
-    //   await queryRunner.commitTransaction();
-    // } catch (err) {
-    //   await queryRunner.rollbackTransaction();
+          await queryRunner.manager
+            .createQueryBuilder()
+            .delete()
+            .from('product_gallery')
+            .where('productId = :id', { id })
+            .execute();
 
-    //   this.error.methodNotAllowed([
-    //     'برخی از سفارشات مربوط به این محصول هستند، لطفا ابتدا سفارشات این محصول را حذف کنید',
-    //   ]);
-    // } finally {
-    //   await queryRunner.release();
-    // }
+          await queryRunner.manager
+            .createQueryBuilder()
+            .update('product')
+            .set(PRODUCT_DELETION_PATCH)
+            .where({ id })
+            .execute();
 
-    // oldGalleryPaths.forEach((pathFile) => {
-    //   fs.unlink(path.join(__dirname, '../../..', 'uploads', pathFile), (e) =>
-    //     console.log(e),
-    //   );
-    // });
+          await queryRunner.manager
+            .createQueryBuilder()
+            .update('product_favorite')
+            .set({ isDeleted: true })
+            .where({ productId: id, isDeleted: false })
+            .execute();
 
-    // oldFilePaths.forEach((pathFile) => {
-    //   fs.unlink(path.join(__dirname, '../../..', 'uploads', pathFile), (e) =>
-    //     console.log(e),
-    //   );
-    // });
+          await queryRunner.commitTransaction();
+        } catch (err) {
+          await queryRunner.rollbackTransaction();
+          throw err;
+        } finally {
+          await queryRunner.release();
+        }
 
-    return true;
+        return true;
+      },
+    );
   }
 
   /**
    * -------------------------------------------------------
    * DELETE /products/gallery/:id/admin
    */
-  async deleteGallery(galleryId: number, user: UserEntity) {
-    const gallery = await this.galleryRepository
-      .createQueryBuilder('gallery')
-      .leftJoinAndSelect('gallery.product', 'product')
-      .where({ id: galleryId })
-      .getOne();
-
-    if (!gallery) {
-      this.error.unprocessableEntity(['گالری محصول مورد نظر یافت نشد']);
-    }
-
-    if (gallery.product && gallery.product.coverId === +galleryId) {
+  /**
+   * Internal gallery delete — caller must already hold Product child lock when productId is set.
+   */
+  private async performGalleryDbDelete(gallery: {
+    id: number;
+    productId: number | null;
+    pathFile: string;
+    type: ProductGalleryType;
+    product?: { coverId?: number | null };
+  }): Promise<{ pathFile: string; type: ProductGalleryType }> {
+    if (gallery.product && gallery.product.coverId === +gallery.id) {
       await this.productRepository
         .createQueryBuilder()
         .update()
@@ -1436,27 +1640,87 @@ export class ProductService {
     await this.galleryRepository
       .createQueryBuilder()
       .delete()
-      .where({ id: galleryId })
+      .where({ id: gallery.id })
       .execute();
 
-    fs.unlink(
-      path.join(__dirname, '../../..', 'uploads', gallery.pathFile),
-      (e) => console.log(e),
-    );
+    return { pathFile: gallery.pathFile, type: gallery.type };
+  }
 
-    // Removing the thumb
-    if (gallery.type === ProductGalleryType.photo) {
-      fs.unlink(
-        path.join(
-          __dirname,
-          '../../..',
-          'uploads',
-          applyPathToThumbPath(gallery.pathFile),
-        ),
-        (e) => console.log(e),
-      );
+  private async removeGalleryFiles(
+    pathFile: string,
+    type: ProductGalleryType,
+  ): Promise<void> {
+    const uploadsRoot = path.join(__dirname, '../../..', 'uploads');
+    const targets = [path.join(uploadsRoot, pathFile)];
+    if (type === ProductGalleryType.photo) {
+      targets.push(path.join(uploadsRoot, applyPathToThumbPath(pathFile)));
     }
 
+    for (const target of targets) {
+      try {
+        await fs.promises.unlink(target);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
+  }
+
+  private async deleteGalleryAlreadyLocked(
+    galleryId: number,
+    user: UserEntity,
+  ) {
+    const gallery = await this.galleryRepository
+      .createQueryBuilder('gallery')
+      .leftJoinAndSelect('gallery.product', 'product')
+      .where({ id: galleryId })
+      .getOne();
+
+    if (!gallery) {
+      this.error.unprocessableEntity(['گالری محصول مورد نظر یافت نشد']);
+    }
+
+    const cleanup = await this.performGalleryDbDelete(gallery);
+    await this.removeGalleryFiles(cleanup.pathFile, cleanup.type);
+    return true;
+  }
+
+  async deleteGallery(galleryId: number, user: UserEntity) {
+    const gallery = await this.galleryRepository
+      .createQueryBuilder('gallery')
+      .leftJoinAndSelect('gallery.product', 'product')
+      .where({ id: galleryId })
+      .getOne();
+
+    if (!gallery) {
+      this.error.unprocessableEntity(['گالری محصول مورد نظر یافت نشد']);
+    }
+
+    if (gallery.productId) {
+      let cleanup: { pathFile: string; type: ProductGalleryType } | null = null;
+      await this.productChildMutationLockService.withProductChildLock(
+        gallery.productId,
+        async () => {
+          const reloaded = await this.galleryRepository
+            .createQueryBuilder('gallery')
+            .leftJoinAndSelect('gallery.product', 'product')
+            .where({ id: galleryId })
+            .getOne();
+          if (!reloaded) {
+            this.error.unprocessableEntity(['گالری محصول مورد نظر یافت نشد']);
+          }
+          cleanup = await this.performGalleryDbDelete(reloaded);
+        },
+      );
+      if (cleanup) {
+        await this.removeGalleryFiles(cleanup.pathFile, cleanup.type);
+      }
+      return true;
+    }
+
+    const cleanup = await this.performGalleryDbDelete(gallery);
+    await this.removeGalleryFiles(cleanup.pathFile, cleanup.type);
     return true;
   }
 
@@ -1733,6 +1997,106 @@ export class ProductService {
   }
 
   /**
+   * Atomically decrement product stock. Unlimited stock (quantity === -1) is a no-op.
+   */
+  async decrementQuantity(
+    productId: number,
+    decrementBy: number,
+    queryRunner?: QueryRunner,
+  ): Promise<boolean> {
+    const manager = queryRunner?.manager ?? this.productRepository.manager;
+
+    const result = await manager
+      .createQueryBuilder()
+      .update(ProductEntity)
+      .set({ quantity: () => 'quantity - :decrementBy' })
+      .where('id = :id AND quantity >= :decrementBy')
+      .setParameters({ id: productId, decrementBy })
+      .execute();
+
+    if (result.affected > 0) {
+      return true;
+    }
+
+    const product = await manager.findOne(ProductEntity, {
+      where: { id: productId },
+      select: ['quantity'],
+    });
+
+    return product?.quantity === -1;
+  }
+
+  /**
+   * Atomically decrement variant stock. Unlimited stock (quantity === -1) is a no-op.
+   */
+  async decrementAttributeQuantity(
+    productAttributeValueId: number,
+    decrementBy: number,
+    queryRunner?: QueryRunner,
+  ): Promise<boolean> {
+    const manager =
+      queryRunner?.manager ?? this.productAttributeValueRepository.manager;
+
+    const result = await manager
+      .createQueryBuilder()
+      .update(ProductAttributeValueEntity)
+      .set({ quantity: () => 'quantity - :decrementBy' })
+      .where('id = :id AND quantity >= :decrementBy')
+      .setParameters({ id: productAttributeValueId, decrementBy })
+      .execute();
+
+    if (result.affected > 0) {
+      return true;
+    }
+
+    const attributeValue = await manager.findOne(ProductAttributeValueEntity, {
+      where: { id: productAttributeValueId },
+      select: ['quantity'],
+    });
+
+    return attributeValue?.quantity === -1;
+  }
+
+  /**
+   * Atomically restore product stock inside a transaction.
+   */
+  async incrementQuantity(
+    productId: number,
+    incrementBy: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = queryRunner?.manager ?? this.productRepository.manager;
+
+    await manager
+      .createQueryBuilder()
+      .update(ProductEntity)
+      .set({ quantity: () => 'quantity + :incrementBy' })
+      .where('id = :id AND quantity != -1')
+      .setParameters({ id: productId, incrementBy })
+      .execute();
+  }
+
+  /**
+   * Atomically restore variant stock inside a transaction.
+   */
+  async incrementAttributeQuantity(
+    productAttributeValueId: number,
+    incrementBy: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager =
+      queryRunner?.manager ?? this.productAttributeValueRepository.manager;
+
+    await manager
+      .createQueryBuilder()
+      .update(ProductAttributeValueEntity)
+      .set({ quantity: () => 'quantity + :incrementBy' })
+      .where('id = :id AND quantity != -1')
+      .setParameters({ id: productAttributeValueId, incrementBy })
+      .execute();
+  }
+
+  /**
    * -------------------------------------------------------
    */
   private mappingProduct(item, tryToToman: number) {
@@ -1883,82 +2247,9 @@ export class ProductService {
    * -------------------------------------------------------
    */
   async getProductsPagesByCrawler() {
-    const storage = this.fileStorage.load();
-    const categories = storage.trendyolCategories;
-    const keys = Object.keys(categories);
-    const category = keys[Math.floor(Math.random() * keys.length)];
-    const page = categories[category];
-
-    const crawledProducts = await this.crawlerService.getProductByPage(
-      page,
-      category,
-    );
-
-    if (crawledProducts.length === 0) return;
-
-    for (const product of crawledProducts.filter((p) => !!p?.sourceId)) {
-      const existingProduct = await this.productRepository.count({
-        sourceId: product.sourceId,
-        source: product.source,
-      });
-      if (existingProduct > 0) continue;
-
-      const { identifiers } = await this.productRepository
-        .createQueryBuilder()
-        .insert()
-        .values({
-          categoryId: 1,
-          source: product.source,
-          sourceId: product.sourceId,
-          sourceName: product.sourceName,
-          // name: await this._findOrTranslateProduct(product.sourceName),
-          name: product.sourceName,
-          sourceUrl: product.sourceUrl,
-          sourceGroupId: product.sourceGroupId,
-          price: product.price,
-          discountedPrice: product.discountedPrice,
-          discountPercent: 0,
-          tax: 0,
-          currency: product.currency,
-          quantity: -1,
-          star: 0,
-          starCountPerson: 0,
-          lastCrawlingAt: new Date(),
-          createdAt: new Date(),
-        })
-        .execute();
-
-      const productId = identifiers[0].id;
-
-      if (product.coverPath) {
-        const { identifiers } = await this.galleryRepository
-          .createQueryBuilder()
-          .insert()
-          .values({
-            productId,
-            type: ProductGalleryType.photo,
-            source: product.source,
-            pathFile: product.coverPath,
-            createdAt: new Date(),
-          })
-          .execute();
-        const coverId = identifiers[0].id;
-
-        await this.productRepository
-          .createQueryBuilder()
-          .update()
-          .set({ coverId })
-          .where({ id: productId })
-          .execute();
-      }
-
-      console.log('INSERT product id', productId);
-
-      sleep(100);
-    }
-
-    categories[category] = +page + 1;
-    this.fileStorage.save(storage);
+    this.error.methodNotAllowed([
+      'این مسیر دیگر پشتیبانی نمی‌شود. ایجاد محصول بازار از API غیرفعال شده است؛ از سرویس Crawler با Phase 1C identity استفاده کنید.',
+    ]);
   }
 
   /**
@@ -2052,9 +2343,18 @@ export class ProductService {
    */
   async getProductByCrawler(product: ProductEntity) {
     try {
-      return await axios.post('http://127.0.0.1:9019/product', {
-        product: product,
-      });
+      return await axios.post(
+        `${this.getCrawlerBaseUrl()}/product`,
+        {
+          product: product,
+        },
+        {
+          headers: this.getCrawlerHeaders(),
+          timeout:
+            parseInt(process.env.CRAWLER_REQUEST_TIMEOUT_MS || '120000', 10) ||
+            120000,
+        },
+      );
     } catch (error) {
       console.log('Error in getProductByCrawler:', product.sourceId);
       if (String(error).includes('400')) {
@@ -2464,15 +2764,27 @@ export class ProductService {
           productId: IsNull(),
         },
       });
-      fs.unlink(
-        path.join(__dirname, '../../..', 'uploads', foundPhoto.pathFile),
-        (e) => console.log(e),
-      );
+      if (!foundPhoto) continue;
+      try {
+        await fs.promises.unlink(
+          path.join(__dirname, '../../..', 'uploads', foundPhoto.pathFile),
+        );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+          throw error;
+        }
+      }
 
-      foundPhoto.remove();
+      await foundPhoto.remove();
     }
 
-    fs.unlink(file.path, (e) => console.log(e));
+    try {
+      await fs.promises.unlink(file.path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
 
     return results;
   }
@@ -2487,120 +2799,196 @@ export class ProductService {
     fields: any = {},
     results,
   ) {
-    const attributeValueId = await this.attributeService.getRecordByName(
-      attributeName,
-      attributeValue,
+    return this.productChildMutationLockService.withProductChildLock(
+      productId,
+      async () => {
+        const product = await this.productRepository.findOne({
+          where: { id: productId },
+          select: ['id', 'isDeleted'],
+        });
+        assertProductEligibleForChildMutation(product, this.error);
+
+        const attributeValueId = await this.attributeService.getRecordByName(
+          attributeName,
+          attributeValue,
+        );
+
+        if (!attributeValueId) {
+          results.push({
+            number: fields.number,
+            name: fields.name,
+            attributeName,
+            attributeValue,
+            success: false,
+            message: 'ویژگی مورد نظر یافت نشد',
+          });
+          return;
+        }
+
+        const referencedPavIds = await loadOrderReferencedPavIds(
+          this.productAttributeValueRepository.manager,
+          productId,
+        );
+
+        const existingForValue =
+          await this.productAttributeValueRepository.find({
+            where: { productId, attributeValueId },
+          });
+
+        const canonical = selectCanonicalActivePav(
+          existingForValue,
+          referencedPavIds,
+        ) as ProductAttributeValueEntity | null;
+
+        if (canonical) {
+          canonical.attributeValueId = attributeValueId;
+          canonical.price = fields.price || null;
+          canonical.discountedPrice = fields.discountedPrice || null;
+          canonical.quantity = fields.quantity || -1;
+          if (fields.number) {
+            canonical.number = `${fields.number}`.trim();
+          }
+          await canonical.save();
+
+          results.push({
+            number: fields.number,
+            name: fields.name,
+            attributeName,
+            attributeValue,
+            success: true,
+            message: 'ویژگی با موفقیت به روز شد',
+          });
+          return;
+        }
+
+        const foundByNumber = fields.number
+          ? await this.productAttributeValueRepository.findOne({
+              number: `${fields.number}`.trim(),
+              isDeleted: false,
+            })
+          : null;
+
+        if (foundByNumber && foundByNumber.productId === productId) {
+          foundByNumber.attributeValueId = attributeValueId;
+          foundByNumber.price = fields.price || null;
+          foundByNumber.discountedPrice = fields.discountedPrice || null;
+          foundByNumber.quantity = fields.quantity || -1;
+          await foundByNumber.save();
+          results.push({
+            number: fields.number,
+            name: fields.name,
+            attributeName,
+            attributeValue,
+            success: true,
+            message: 'ویژگی با موفقیت به روز شد',
+          });
+          return;
+        }
+
+        await this.productAttributeValueRepository
+          .createQueryBuilder()
+          .insert()
+          .values({
+            ...fields,
+            productId,
+            attributeValueId,
+            isDeleted: false,
+          })
+          .execute();
+
+        results.push({
+          number: fields.number,
+          name: fields.name,
+          attributeName,
+          attributeValue,
+          success: true,
+          message: ['ویژگی با موفقیت ایجاد شد'],
+        });
+      },
     );
-
-    if (!attributeValueId) {
-      results.push({
-        number: fields.number,
-        name: fields.name,
-        attributeName,
-        attributeValue,
-        success: false,
-        message: 'ویژگی مورد نظر یافت نشد',
-      });
-      return;
-    }
-
-    const foundProductAttributeValue =
-      await this.productAttributeValueRepository.findOne({
-        number: `${fields.number}`.trim(),
-        isDeleted: false,
-      });
-
-    if (foundProductAttributeValue) {
-      foundProductAttributeValue.attributeValueId = attributeValueId;
-      foundProductAttributeValue.price = fields.price || null;
-      foundProductAttributeValue.discountedPrice =
-        fields.discountedPrice || null;
-      foundProductAttributeValue.quantity = fields.quantity || -1;
-      await foundProductAttributeValue.save();
-
-      results.push({
-        number: fields.number,
-        name: fields.name,
-        attributeName,
-        attributeValue,
-        success: true,
-        message: 'ویژگی با موفقیت به روز شد',
-      });
-      return;
-    }
-
-    await this.productAttributeValueRepository
-      .createQueryBuilder()
-      .insert()
-      .values({
-        ...fields,
-        productId,
-        attributeValueId,
-        isDeleted: false,
-      })
-      .execute();
-
-    results.push({
-      number: fields.number,
-      name: fields.name,
-      attributeName,
-      attributeValue,
-      success: true,
-      message: ['ویژگی با موفقیت ایجاد شد'],
-    });
   }
 
   /**
    * -------------------------------------------------------
    */
   private async _importExcelPhoto(number, photos, productId) {
-    if (!number) return;
+    if (!number || !productId) return;
 
-    const product = await this.productRepository.findOne(productId);
-    let hasCover = product?.coverId ? true : false;
+    return this.productChildMutationLockService.withProductChildLock(
+      productId,
+      async () => {
+        const product = await this.productRepository.findOne(productId, {
+          relations: ['productGalleries'],
+        });
+        assertProductEligibleForChildMutation(product, this.error);
+        let hasCover = product?.coverId ? true : false;
 
-    // linking the product to photos
-    for (const photo of photos.filter((p) => !p.isAdded)) {
-      if (
-        photo.originalPhotoName.split('.')?.[0]?.split(' ')?.[0] === `${number}`
-      ) {
-        await this.galleryRepository
-          .createQueryBuilder()
-          .update()
-          .set({ productId })
-          .where({
-            id: photo.galleryId,
-            productId: IsNull(),
-          })
-          .execute();
+        const existingKeys = new Set(
+          (product?.productGalleries || []).map((g) =>
+            galleryLogicalKey(productId, g.pathFile),
+          ),
+        );
 
-        photo.isAdded = true;
+        // linking the product to photos
+        for (const photo of photos.filter((p) => !p.isAdded)) {
+          if (
+            photo.originalPhotoName.split('.')?.[0]?.split(' ')?.[0] ===
+            `${number}`
+          ) {
+            const galleryRow = await this.galleryRepository.findOne({
+              where: { id: photo.galleryId, productId: IsNull() },
+            });
+            if (!galleryRow) continue;
 
-        // linking the photo cover (first photo) to product
-        if (!hasCover) {
-          product.coverId = photo.galleryId;
-          await product.save();
+            const logicalKey = galleryLogicalKey(
+              productId,
+              galleryRow.pathFile,
+            );
+            if (existingKeys.has(logicalKey)) {
+              photo.isAdded = true;
+              continue;
+            }
 
-          hasCover = true;
+            await this.galleryRepository
+              .createQueryBuilder()
+              .update()
+              .set({ productId })
+              .where({
+                id: photo.galleryId,
+                productId: IsNull(),
+              })
+              .execute();
+
+            existingKeys.add(logicalKey);
+            photo.isAdded = true;
+
+            // linking the photo cover (first photo) to product
+            if (!hasCover) {
+              product.coverId = photo.galleryId;
+              await product.save();
+
+              hasCover = true;
+            }
+          }
         }
-      }
-    }
+      },
+    );
   }
 
   /**
    * -------------------------------------------------------
    */
   private async _findOrTranslateProduct(sourceName) {
-    const exist = await this.productRepository
+    const candidates = await this.productRepository
       .createQueryBuilder('product')
       .select(['product.id', 'product.name'])
       .where('product.sourceName = :sourceName', { sourceName })
-      .andWhere('product.name REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]',
-      })
-      .getOne();
+      .orderBy('product.id', 'ASC')
+      .take(20)
+      .getMany();
 
-    if (exist) {
+    const exist = candidates.find((row) => containsPersianScript(row.name));
+    if (exist?.name) {
       return exist.name;
     }
 
@@ -2619,14 +3007,18 @@ export class ProductService {
       .where('description.sourceContent IN (:...sourceContents)', {
         sourceContents,
       })
-      .andWhere('description.content REGEXP :persianPattern', {
-        persianPattern: '[\\u0600-\\u06FF]', // Persian characters
-      })
+      .take(200)
       .getMany();
 
     const existingMap = new Map<string, string>();
     for (const item of existing) {
-      existingMap.set(item.sourceContent, item.content);
+      if (
+        item.sourceContent &&
+        item.content &&
+        containsPersianScript(item.content)
+      ) {
+        existingMap.set(item.sourceContent, item.content);
+      }
     }
 
     const untranslated: string[] = [];
@@ -2870,11 +3262,20 @@ export class ProductService {
   async getProductsByCrawler(url: string, count) {
     const { catId, gender } = this.parseTrendyolUrl(url);
     try {
-      const { data } = await axios.post('http://127.0.0.1:9019/product/page', {
-        count,
-        catId,
-        gender,
-      });
+      const { data } = await axios.post(
+        `${this.getCrawlerBaseUrl()}/product/page`,
+        {
+          count,
+          catId,
+          gender,
+        },
+        {
+          headers: this.getCrawlerHeaders(),
+          timeout:
+            parseInt(process.env.CRAWLER_REQUEST_TIMEOUT_MS || '120000', 10) ||
+            120000,
+        },
+      );
       return data;
     } catch (error) {
       console.log('Error in getProductsByCrawler:', error);
@@ -2886,11 +3287,17 @@ export class ProductService {
     const { catId, gender } = this.parseTrendyolUrl(url);
     try {
       const { data } = await axios.post(
-        'http://127.0.0.1:9019/product/sample',
+        `${this.getCrawlerBaseUrl()}/product/sample`,
         {
           count,
           catId,
           gender,
+        },
+        {
+          headers: this.getCrawlerHeaders(),
+          timeout:
+            parseInt(process.env.CRAWLER_REQUEST_TIMEOUT_MS || '120000', 10) ||
+            120000,
         },
       );
       return data;

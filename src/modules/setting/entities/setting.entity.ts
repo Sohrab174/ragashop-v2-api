@@ -1,5 +1,6 @@
 import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
+import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
 
 @Entity('setting')
 export class SettingEntity extends BaseEntity {
@@ -143,4 +144,54 @@ export class SettingEntity extends BaseEntity {
     transformer: new DecimalTransformer(),
   })
   changePercentTryToRial: number;
+
+  /** Last successful TGJU ingestion time (F1). */
+  @Column('datetime', { name: 'tryToRialFetchedAt', nullable: true })
+  tryToRialFetchedAt: Date | null;
+
+  /** Rate source label; production = TGJU (F1). */
+  @Column('varchar', {
+    name: 'tryToRialSource',
+    nullable: true,
+    length: 32,
+    default: () => "'TGJU'",
+  })
+  tryToRialSource: string | null;
+
+  /** Hours after order create for customer to submit first receipt (C2A). */
+  @Column('int', {
+    name: 'manualPaymentSubmitDeadlineHours',
+    default: () => "'24'",
+  })
+  manualPaymentSubmitDeadlineHours: number;
+
+  /** Hours a SUBMITTED/UNDER_REVIEW hold blocks unpaid inventory release (C2A). */
+  @Column('int', {
+    name: 'manualPaymentReviewHoldHours',
+    default: () => "'48'",
+  })
+  manualPaymentReviewHoldHours: number;
+
+  /** Hours after reject for customer to resubmit (C2A). */
+  @Column('int', {
+    name: 'manualPaymentResubmitGraceHours',
+    default: () => "'24'",
+  })
+  manualPaymentResubmitGraceHours: number;
+
+  /** When false, public GET /gateways returns empty (PayPing launch gate). */
+  @Column('tinyint', {
+    name: 'onlineGatewayPaymentsEnabled',
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  onlineGatewayPaymentsEnabled: boolean;
+
+  /** When false, transaction service rejects wallet spend amounts. */
+  @Column('tinyint', {
+    name: 'walletSpendEnabled',
+    default: () => "'0'",
+    transformer: new BooleanTransformer(),
+  })
+  walletSpendEnabled: boolean;
 }

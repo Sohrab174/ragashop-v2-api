@@ -17,6 +17,8 @@ import { DeleteIncredibleOfferDto } from './dto/delete-incredible-offer.dto';
 import { AttributeTypes } from '../attribute/entities/attribute.entity';
 import { IncredibleOfferImportExcelDto } from './dto/incredible-offer-import-excel.dto';
 import { ErrorService } from '../../error/error.service';
+import { applyDiscoveryEligibilityFilters } from '../product/discovery-eligibility';
+import { ProductStatus } from '../product/entities/product.entity';
 
 @Injectable()
 export class IncredibleOfferService {
@@ -204,7 +206,7 @@ export class IncredibleOfferService {
    * GET /incredible-offers
    */
   async getAll(page = 1, limit = 20, showRandom = false) {
-    const builder = this._builder();
+    const builder = this._customerDiscoveryBuilder();
 
     const now = new Date();
     builder.andWhere('offer.fromDate <= :now', { now });
@@ -318,6 +320,21 @@ export class IncredibleOfferService {
         'attribute.type',
       ]);
 
+    return builder;
+  }
+
+  /** Customer discovery listing — applies A4 product eligibility. */
+  private _customerDiscoveryBuilder() {
+    const builder = this._builder()
+      .andWhere('product.status = :productStatus', {
+        productStatus: ProductStatus.active,
+      })
+      .andWhere('product.isDeleted = :productDeleted', {
+        productDeleted: false,
+      })
+      .andWhere('product.price > 0')
+      .andWhere('product.categoryId != 1');
+    applyDiscoveryEligibilityFilters(builder, 'product');
     return builder;
   }
 }

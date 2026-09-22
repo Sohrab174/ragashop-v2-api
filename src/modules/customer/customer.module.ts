@@ -16,6 +16,8 @@ import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
 import { SettingModule } from '../setting/setting.module';
 import { WalletHistoryEntity } from './entities/wallet-history.entity';
 import { VatansmsModule } from '../../sms/vatansms/vatansms.module';
+import { CustomerMobileIdentityService } from './customer-mobile-identity.service';
+import { SecurityModule } from '../../security/security.module';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { VatansmsModule } from '../../sms/vatansms/vatansms.module';
     AmootsmsModule,
     VatansmsModule,
     SettingModule,
+    SecurityModule,
     // KavenegarModule,
     PassportModule,
     forwardRef(() => OrderModule),
@@ -41,7 +44,15 @@ import { VatansmsModule } from '../../sms/vatansms/vatansms.module';
     }),
   ],
   controllers: [CustomerController],
-  providers: [CustomerService, CustomerJwtStrategy],
-  exports: [CustomerService, CustomerJwtStrategy],
+  providers: [
+    CustomerService,
+    CustomerJwtStrategy,
+    CustomerMobileIdentityService,
+  ],
+  exports: [
+    CustomerService,
+    CustomerJwtStrategy,
+    CustomerMobileIdentityService,
+  ],
 })
 export class CustomerModule {}

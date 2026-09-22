@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { MANUAL_PAYMENT_TIMING_BOUNDS } from '../../manual-payment/manual-payment.types';
 
 export class UpdateSettingDto {
   @ApiProperty({ required: false })
@@ -95,4 +97,38 @@ export class UpdateSettingDto {
   @ApiProperty({ required: false })
   @IsOptional()
   buyPercentToReferrerCreditTRY: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(MANUAL_PAYMENT_TIMING_BOUNDS.submitDeadlineHours.min)
+  @Max(MANUAL_PAYMENT_TIMING_BOUNDS.submitDeadlineHours.max)
+  manualPaymentSubmitDeadlineHours?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(MANUAL_PAYMENT_TIMING_BOUNDS.reviewHoldHours.min)
+  @Max(MANUAL_PAYMENT_TIMING_BOUNDS.reviewHoldHours.max)
+  manualPaymentReviewHoldHours?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(MANUAL_PAYMENT_TIMING_BOUNDS.resubmitGraceHours.min)
+  @Max(MANUAL_PAYMENT_TIMING_BOUNDS.resubmitGraceHours.max)
+  manualPaymentResubmitGraceHours?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  onlineGatewayPaymentsEnabled?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  walletSpendEnabled?: boolean;
 }

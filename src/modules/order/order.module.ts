@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductModule } from '../product/product.module';
 import { OrderItemEntity } from './entities/order-item.entity';
@@ -11,19 +11,30 @@ import { OrderStatusEntity } from './entities/order-status.entity';
 import { AddressModule } from '../address/address.module';
 import { SettingModule } from '../setting/setting.module';
 import { TelegrafBotModule } from '../../thirdParty/telegraf/telegraf-bot.module';
-// import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { OrderPaymentFinalizationEntity } from './entities/order-payment-finalization.entity';
+import { ReferralAwardEntity } from '../customer/entities/referral-award.entity';
+import { FinanceModule } from '../finance/finance.module';
+import { ManualPaymentModule } from '../manual-payment/manual-payment.module';
+import { PaymentSubmissionEntity } from '../manual-payment/entities/payment-submission.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([OrderEntity, OrderItemEntity, OrderStatusEntity]),
+    TypeOrmModule.forFeature([
+      OrderEntity,
+      OrderItemEntity,
+      OrderStatusEntity,
+      ReferralAwardEntity,
+      OrderPaymentFinalizationEntity,
+      PaymentSubmissionEntity,
+    ]),
     ProductModule,
     MailModule,
     CustomerModule,
     AddressModule,
     SettingModule,
     TelegrafBotModule,
-    // DiscountCouponModule,
-    // AmootsmsModule,
+    FinanceModule,
+    forwardRef(() => ManualPaymentModule),
   ],
   controllers: [OrderController],
   providers: [OrderService],

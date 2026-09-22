@@ -32,3 +32,18 @@ export class CityController {
     return successfulResult([], list);
   }
 }
+
+@ApiTags('Province')
+@Controller('provinces')
+export class ProvinceController {
+  constructor(private cityService: CityService) {}
+
+  /**
+   * GET /provinces
+   */
+  @Get()
+  async getAll() {
+    const list = await this.cityService.getProvinces();
+    return successfulResult([], list);
+  }
+}

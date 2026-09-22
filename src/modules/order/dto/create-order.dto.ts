@@ -1,21 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
-import { convertPersianToEnglishDigit } from '../../../utils/persianNumbers';
+import { OrderProductItemQuantityBase } from '../utils/order-item.validators';
 
-export class ProductItem {
-  @ApiProperty()
-  @IsNotEmpty()
-  productId: number;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  quantity: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  productAttributeValueId: number;
-}
+export class ProductItem extends OrderProductItemQuantityBase {}
 
 export class CreateOrderDto {
   @ApiProperty({ type: [ProductItem] })
