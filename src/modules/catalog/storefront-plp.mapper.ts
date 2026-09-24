@@ -19,6 +19,7 @@ import {
 } from './storefront-plp.pricing';
 import { listingCardAvailableFromSourceAvailability } from '../product/discovery-eligibility';
 import { SourceCommercialAvailability } from '../source-availability';
+import { canonicalBrandName } from './canonical-brand-name';
 
 export type StorefrontPlpProductItem = {
   id: number;
@@ -85,7 +86,7 @@ export function mapStorefrontPlpProduct(
   const compareTry = hasSale ? listPrice : null;
   const discount = visibleDiscountPercent(item.price, item.discountedPrice);
 
-  const brandName = item.brand?.name || item.brand?.sourceName || null;
+  const brandName = canonicalBrandName(item.brand);
 
   return {
     id: item.id,

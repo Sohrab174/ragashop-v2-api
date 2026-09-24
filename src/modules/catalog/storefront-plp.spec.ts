@@ -235,7 +235,7 @@ describe('storefront-plp.mapper', () => {
         discountedPrice: 80,
         discountPercent: 20,
         cover: { pathFile: '/p/a.jpg' },
-        brand: { name: 'Brand', sourceName: 'SRC' },
+        brand: { name: 'برند ترجمه‌شده', sourceName: 'Stradivarius' },
       },
       10,
     );
@@ -244,7 +244,7 @@ describe('storefront-plp.mapper', () => {
       id: 5,
       name: 'Shoe',
       image: '/p/a.jpg',
-      brand: 'Brand',
+      brand: 'Stradivarius',
       price: 800,
       compareAtPrice: 1000,
       discount: 20,

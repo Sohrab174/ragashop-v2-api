@@ -2,6 +2,7 @@ import {
   applyResolvedImages,
   collectSourceSubtreeIds,
   buildSourceChildrenMap,
+  normalizeCategoryLabel,
   resolveCanonicalPresentationImages,
   sortSourceMappings,
 } from './canonical-presentation-image';
@@ -82,6 +83,253 @@ describe('canonical-presentation-image', () => {
     );
     expect(map.get(2)).toBe('/products/apparel.jpg');
     expect(map.get(1)).toBe('/products/apparel.jpg');
+  });
+
+  it('uses name-matched source when mapping is owned by a parallel leaf', () => {
+    const map = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 1,
+          parentId: null,
+          name: 'زنانه',
+          displayOrder: 1,
+          imagePath: null,
+        },
+        {
+          id: 10,
+          parentId: 1,
+          name: 'پیراهن',
+          displayOrder: 1,
+          imagePath: null,
+        },
+        {
+          id: 6,
+          parentId: null,
+          name: 'مردانه',
+          displayOrder: 2,
+          imagePath: null,
+        },
+        {
+          id: 11,
+          parentId: 6,
+          name: 'پیراهن',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      // Only one leaf may own UNIQUE(sourceCategoryId)
+      [{ canonicalCategoryId: 11, sourceCategoryId: 18, source: 'trendyol' }],
+      [{ id: 18, parentId: null, iconPath: '/icons/shirt.jpg', name: 'پیراهن' }],
+      [],
+    );
+    expect(map.get(11)).toBe('/icons/shirt.jpg');
+    // Neutral-named source is allowed as weaker fallback for the parallel root.
+    expect(map.get(10)).toBe('/icons/shirt.jpg');
+  });
+
+  it('rejects women-exclusive source imagery under men context', () => {
+    const map = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 6,
+          parentId: null,
+          name: 'مردانه',
+          displayOrder: 1,
+          imagePath: null,
+        },
+        {
+          id: 8,
+          parentId: 6,
+          name: 'کفش',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [
+        { id: 79, parentId: null, iconPath: null, name: 'کفش', displayOrder: 1 },
+        {
+          id: 215,
+          parentId: 79,
+          iconPath: '/icons/heels.jpg',
+          name: 'کفش پاشنه بلند',
+          displayOrder: 1,
+        },
+        {
+          id: 80,
+          parentId: 79,
+          iconPath: '/icons/sneakers.jpg',
+          name: 'کفش ورزشی',
+          displayOrder: 2,
+        },
+      ],
+      [],
+    );
+    // Heels are women-exclusive; sneakers are context-safe.
+    expect(map.get(8)).toBe('/icons/sneakers.jpg');
+    expect(map.get(8)).not.toBe('/icons/heels.jpg');
+  });
+
+  it('returns neutral when only incompatible source imagery exists', () => {
+    const map = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 6,
+          parentId: null,
+          name: 'مردانه',
+          displayOrder: 1,
+          imagePath: null,
+        },
+        {
+          id: 8,
+          parentId: 6,
+          name: 'کفش',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [
+        { id: 79, parentId: null, iconPath: null, name: 'کفش' },
+        {
+          id: 215,
+          parentId: 79,
+          iconPath: '/icons/heels.jpg',
+          name: 'کفش پاشنه بلند',
+        },
+      ],
+      [{ categoryId: 215, pathFile: '/products/heels.jpg' }],
+    );
+    expect(map.get(8)).toBeNull();
+  });
+
+  it('does not let women-exclusive name match win for men', () => {
+    const map = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 6,
+          parentId: null,
+          name: 'مردانه',
+          displayOrder: 1,
+          imagePath: null,
+        },
+        {
+          id: 99,
+          parentId: 6,
+          name: 'دامن',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [{ id: 25, parentId: null, iconPath: '/icons/skirt.jpg', name: 'دامن' }],
+      [],
+    );
+    expect(map.get(99)).toBeNull();
+  });
+
+  it('matches normalized labels (کت و مانتو ≈ کت مانتو)', () => {
+    const map = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 23,
+          parentId: null,
+          name: 'کت و مانتو',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [
+        {
+          id: 22,
+          parentId: null,
+          iconPath: null,
+          name: 'کت مانتو',
+        },
+      ],
+      [{ categoryId: 22, pathFile: '/products/coat.jpg' }],
+    );
+    expect(map.get(23)).toBe('/products/coat.jpg');
+  });
+
+  it('does not borrow an unrelated source name', () => {
+    const map = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 18,
+          parentId: null,
+          name: 'پیراهن',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [
+        {
+          id: 99,
+          parentId: null,
+          iconPath: '/icons/blouse.jpg',
+          name: 'بلوز',
+        },
+      ],
+      [],
+    );
+    expect(map.get(18)).toBeNull();
+  });
+
+  it('matches "label و …" source names without matching "کیف پول"', () => {
+    const eyewear = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 36,
+          parentId: null,
+          name: 'عینک',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [
+        {
+          id: 126,
+          parentId: null,
+          iconPath: null,
+          name: 'عینک و لوازم جانبی عینک',
+        },
+      ],
+      [{ categoryId: 126, pathFile: '/products/glasses.jpg' }],
+    );
+    expect(eyewear.get(36)).toBe('/products/glasses.jpg');
+
+    const bag = resolveCanonicalPresentationImages(
+      [
+        {
+          id: 33,
+          parentId: null,
+          name: 'کیف',
+          displayOrder: 1,
+          imagePath: null,
+        },
+      ],
+      [],
+      [
+        {
+          id: 116,
+          parentId: null,
+          iconPath: '/icons/wallet.jpg',
+          name: 'کیف پول و کارت‌نگهدار',
+        },
+      ],
+      [],
+    );
+    expect(bag.get(33)).toBeNull();
+  });
+
+  it('normalizeCategoryLabel collapses spacing and و', () => {
+    expect(normalizeCategoryLabel('کت و مانتو')).toBe(
+      normalizeCategoryLabel('کت مانتو'),
+    );
   });
 
   it('returns null when nothing resolves', () => {

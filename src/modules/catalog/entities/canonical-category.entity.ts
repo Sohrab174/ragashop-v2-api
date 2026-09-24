@@ -48,6 +48,17 @@ export class CanonicalCategoryEntity extends BaseEntity {
   imagePath: string | null;
 
   /**
+   * CAT-2 — dedicated discovery/merchandising image for category tiles.
+   * Preferred over imagePath when present (Admin-managed cutouts).
+   */
+  @Column('varchar', {
+    name: 'discoveryImagePath',
+    nullable: true,
+    length: 255,
+  })
+  discoveryImagePath: string | null;
+
+  /**
    * Optional audience hint for future merchandising — not used as virtual roots.
    * Nullable; not required for navigation.
    */

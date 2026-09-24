@@ -11,6 +11,7 @@ import { buildStorefrontPdpGallery } from './storefront-pdp.gallery';
 import { buildStorefrontPdpDescription } from './storefront-pdp.description';
 import { mapStorefrontPdpAttributesAndOptions } from './storefront-pdp.options';
 import { resolveStorefrontPdpAvailability } from './storefront-pdp.availability';
+import { canonicalBrandName } from './canonical-brand-name';
 import type {
   StorefrontPdpBreadcrumbItem,
   StorefrontPdpProduct,
@@ -106,7 +107,7 @@ export function mapStorefrontPdpProduct(
     product.discountedPrice,
   );
 
-  const brandName = product.brand?.name || product.brand?.sourceName || null;
+  const brandName = canonicalBrandName(product.brand);
 
   const { options, attributes } = mapStorefrontPdpAttributesAndOptions(
     product.productAttributeValues,

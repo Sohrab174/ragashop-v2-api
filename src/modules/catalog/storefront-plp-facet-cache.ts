@@ -30,6 +30,8 @@ export function buildStorefrontPlpFacetCacheKey(input: {
   sourceCategoryIds: number[];
   filters: StorefrontPlpFilters;
   tryToToman: number;
+  /** CAT-3B — audience gender filter must be part of facet identity. */
+  audienceGenders?: string[] | null;
 }): string {
   const cats = [...input.sourceCategoryIds].sort((a, b) => a - b).join(',');
   const brands = [...input.filters.brandIds].sort((a, b) => a - b).join(',');
@@ -41,7 +43,10 @@ export function buildStorefrontPlpFacetCacheKey(input: {
   const rate = Number.isFinite(input.tryToToman)
     ? String(input.tryToToman)
     : '1';
-  return `cats=${cats}|brands=${brands}|min=${min}|max=${max}|attrs=${attrs}|rate=${rate}`;
+  const genders = input.audienceGenders?.length
+    ? [...input.audienceGenders].sort().join(',')
+    : '';
+  return `cats=${cats}|brands=${brands}|min=${min}|max=${max}|attrs=${attrs}|rate=${rate}|genders=${genders}`;
 }
 
 function clonePayload(

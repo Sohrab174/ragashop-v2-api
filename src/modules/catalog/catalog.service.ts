@@ -19,6 +19,7 @@ import {
 } from './canonical-hierarchy.validation';
 import {
   applyResolvedImages,
+  normalizeCategoryLabel,
   resolveCanonicalPresentationImages,
 } from './canonical-presentation-image';
 import {
@@ -81,8 +82,14 @@ import {
 } from '../category/entities/category.entity';
 import {
   ProductEntity,
+  ProductGender,
   ProductStatus,
 } from '../product/entities/product.entity';
+import {
+  eligibleProductGendersForAudience,
+  isAdultAudienceBrowse,
+  resolveCanonicalBrowseAudience,
+} from './canonical-audience-policy';
 import {
   ProductGalleryEntity,
   ProductGalleryType,
@@ -131,7 +138,15 @@ export class CatalogService {
   async getStorefrontNavigation(): Promise<StorefrontNavigationNode[]> {
     const rows = await this.canonicalRepository.find({
       where: { status: CanonicalCategoryStatus.active },
-      select: ['id', 'parentId', 'name', 'imagePath', 'displayOrder'],
+      select: [
+        'id',
+        'parentId',
+        'name',
+        'imagePath',
+        'discoveryImagePath',
+        'audience',
+        'displayOrder',
+      ],
       order: { displayOrder: 'ASC', id: 'ASC' },
     });
 
@@ -140,6 +155,8 @@ export class CatalogService {
       parentId: row.parentId,
       name: row.name,
       imagePath: row.imagePath,
+      discoveryImagePath: row.discoveryImagePath,
+      audience: row.audience,
       displayOrder: row.displayOrder,
     }));
 
@@ -158,6 +175,8 @@ export class CatalogService {
       parentId: number | null;
       name: string;
       imagePath?: string | null;
+      discoveryImagePath?: string | null;
+      audience?: string | null;
       displayOrder?: number;
     }>,
   ) {
@@ -228,7 +247,50 @@ export class CatalogService {
 
       const coverLookupIds: number[] = [];
       const coverSeen = new Set<number>();
-      for (const sourceId of sourceIds) {
+
+      // Presentation name-match: UNIQUE(sourceCategoryId) leaves parallel
+      // leaves unmapped — still need covers for exact/normalized label hits.
+      const nameMatchedSourceIds: number[] = [];
+      const exactNameToIds = new Map<string, number[]>();
+      const normNameToIds = new Map<string, number[]>();
+      for (const row of sourceTaxonomy) {
+        const label = String(row.name || '').trim();
+        if (!label) continue;
+        const exactList = exactNameToIds.get(label) || [];
+        exactList.push(row.id);
+        exactNameToIds.set(label, exactList);
+        const normalized = normalizeCategoryLabel(label);
+        if (!normalized) continue;
+        const normList = normNameToIds.get(normalized) || [];
+        normList.push(row.id);
+        normNameToIds.set(normalized, normList);
+      }
+      for (const canonical of flat) {
+        const label = String(canonical.name || '').trim();
+        if (!label) continue;
+        for (const id of exactNameToIds.get(label) || []) {
+          nameMatchedSourceIds.push(id);
+        }
+        const normalized = normalizeCategoryLabel(label);
+        if (normalized) {
+          for (const id of normNameToIds.get(normalized) || []) {
+            nameMatchedSourceIds.push(id);
+          }
+        }
+        const andPrefix = `${label} و`;
+        for (const row of sourceTaxonomy) {
+          const sourceName = String(row.name || '').trim();
+          if (sourceName.startsWith(andPrefix)) {
+            nameMatchedSourceIds.push(row.id);
+          }
+        }
+      }
+
+      const lookupRoots = [
+        ...new Set([...sourceIds, ...nameMatchedSourceIds]),
+      ].sort((a, b) => a - b);
+
+      for (const sourceId of lookupRoots) {
         const queue = [sourceId];
         const seen = new Set<number>();
         while (queue.length && coverLookupIds.length < 2000) {
@@ -424,11 +486,19 @@ export class CatalogService {
       );
     }
 
+    // CAT-3B — adult audience roots: structural scope ∩ product.gender
+    const audienceGenders = await this._resolveAdultAudienceGenders(
+      category.id,
+    );
+
     const tryToToman = await this.settingService.getTryToToman();
     const sourceCategoryIds = scope.sourceCategoryIds;
     const filters = await this._sanitizeStorefrontPlpFilters(query.filters);
 
-    const listingBuilder = this._buildEligibleProductBuilder(sourceCategoryIds)
+    const listingBuilder = this._buildEligibleProductBuilder(
+      sourceCategoryIds,
+      audienceGenders,
+    )
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.brand', 'brand')
       .addSelect(STOREFRONT_EFFECTIVE_PRICE_SQL, 'mainPrice')
@@ -445,6 +515,7 @@ export class CatalogService {
       sourceCategoryIds,
       filters,
       tryToToman,
+      audienceGenders,
     });
     const cachedFacets = getStorefrontPlpFacetCache(facetCacheKey);
 
@@ -459,6 +530,7 @@ export class CatalogService {
             sourceCategoryIds,
             filters,
             tryToToman,
+            audienceGenders,
           ).then((payload) => {
             setStorefrontPlpFacetCache(facetCacheKey, payload);
             return payload;
@@ -699,10 +771,27 @@ export class CatalogService {
   }
 
   /**
+   * CAT-3B — resolve adult audience gender filter for a canonical category.
+   * Returns null for kids/neutral (no gender intersection; structural only).
+   */
+  private async _resolveAdultAudienceGenders(
+    canonicalCategoryId: number,
+  ): Promise<ProductGender[] | null> {
+    const rows = await this.canonicalRepository.find({
+      select: ['id', 'parentId', 'name', 'audience'],
+    });
+    const audience = resolveCanonicalBrowseAudience(canonicalCategoryId, rows);
+    if (!isAdultAudienceBrowse(audience)) return null;
+    return eligibleProductGendersForAudience(audience);
+  }
+
+  /**
    * Shared eligible Product population for listing + facets (PLP-1 + A4 discovery).
+   * CAT-3B: optional audienceGenders intersects product.gender before pagination.
    */
   private _buildEligibleProductBuilder(
     sourceCategoryIds: number[],
+    audienceGenders?: ProductGender[] | null,
   ): SelectQueryBuilder<ProductEntity> {
     const qb = this.productRepository
       .createQueryBuilder('product')
@@ -721,13 +810,23 @@ export class CatalogService {
       .andWhere('product.categoryId IN (:...sourceCategoryIds)', {
         sourceCategoryIds,
       });
+    if (audienceGenders?.length) {
+      qb.andWhere('product.gender IN (:...audienceGenders)', {
+        audienceGenders,
+      });
+    }
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
   /** Eligible id projection used by facet temp-table materialization. */
   private _buildEligibleProductIdBuilder(
-    manager: { getRepository: (entity: typeof ProductEntity) => Repository<ProductEntity> },
+    manager: {
+      getRepository: (
+        entity: typeof ProductEntity,
+      ) => Repository<ProductEntity>;
+    },
     sourceCategoryIds: number[],
+    audienceGenders?: ProductGender[] | null,
   ): SelectQueryBuilder<ProductEntity> {
     const qb = manager
       .getRepository(ProductEntity)
@@ -746,6 +845,11 @@ export class CatalogService {
       .andWhere('product.categoryId IN (:...sourceCategoryIds)', {
         sourceCategoryIds,
       });
+    if (audienceGenders?.length) {
+      qb.andWhere('product.gender IN (:...audienceGenders)', {
+        audienceGenders,
+      });
+    }
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
@@ -789,6 +893,7 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpFiltersPayload> {
     const hasSelectedAttrs = filters.attributes.some(
       (g) => g.valueIds.length > 0,
@@ -801,13 +906,29 @@ export class CatalogService {
         sourceCategoryIds,
         filters,
         tryToToman,
+        audienceGenders,
       );
     }
 
     const [brands, price, attributes] = await Promise.all([
-      this._computeBrandFacets(sourceCategoryIds, filters, tryToToman),
-      this._computePriceFacet(sourceCategoryIds, filters, tryToToman),
-      this._computeAttributeFacets(sourceCategoryIds, filters, tryToToman),
+      this._computeBrandFacets(
+        sourceCategoryIds,
+        filters,
+        tryToToman,
+        audienceGenders,
+      ),
+      this._computePriceFacet(
+        sourceCategoryIds,
+        filters,
+        tryToToman,
+        audienceGenders,
+      ),
+      this._computeAttributeFacets(
+        sourceCategoryIds,
+        filters,
+        tryToToman,
+        audienceGenders,
+      ),
     ]);
 
     return { brands, price, attributes };
@@ -822,17 +943,20 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpFiltersPayload> {
     const [brandPrice, attributes] = await Promise.all([
       this._computeBrandPriceFacetsWithAttrMatch(
         sourceCategoryIds,
         filters,
         tryToToman,
+        audienceGenders,
       ),
       this._aggregateAttributeFacetsSelectedPath(
         sourceCategoryIds,
         filters,
         tryToToman,
+        audienceGenders,
       ),
     ]);
     return {
@@ -850,6 +974,7 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<{
     brands: StorefrontPlpBrandFacet[];
     price: StorefrontPlpPriceFacet;
@@ -863,6 +988,7 @@ export class CatalogService {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
         sourceCategoryIds,
+        audienceGenders,
       );
 
       const [eligibleSql, eligibleParams] = eligibleQb.getQueryAndParameters();
@@ -955,7 +1081,7 @@ export class CatalogService {
       }> = await manager.query(`
         SELECT
           product.brandId AS id,
-          COALESCE(NULLIF(brand.name, ''), brand.sourceName) AS name,
+          COALESCE(NULLIF(brand.sourceName, ''), brand.name) AS name,
           COUNT(DISTINCT product.id) AS count
         FROM plp_bp_brand e
         INNER JOIN product product ON product.id = e.id
@@ -1018,11 +1144,15 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpBrandFacet[]> {
-    const qb = this._buildEligibleProductBuilder(sourceCategoryIds)
+    const qb = this._buildEligibleProductBuilder(
+      sourceCategoryIds,
+      audienceGenders,
+    )
       .innerJoin('product.brand', 'brand')
       .select('product.brandId', 'id')
-      .addSelect(`COALESCE(NULLIF(brand.name, ''), brand.sourceName)`, 'name')
+      .addSelect(`COALESCE(NULLIF(brand.sourceName, ''), brand.name)`, 'name')
       .addSelect('COUNT(DISTINCT product.id)', 'count')
       .andWhere('product.brandId IS NOT NULL')
       .groupBy('product.brandId')
@@ -1059,8 +1189,12 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpPriceFacet> {
-    const qb = this._buildEligibleProductBuilder(sourceCategoryIds)
+    const qb = this._buildEligibleProductBuilder(
+      sourceCategoryIds,
+      audienceGenders,
+    )
       .select(`MIN(${STOREFRONT_EFFECTIVE_PRICE_SQL})`, 'minTry')
       .addSelect(`MAX(${STOREFRONT_EFFECTIVE_PRICE_SQL})`, 'maxTry');
 
@@ -1098,11 +1232,13 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpAttributeFacet[]> {
     return this.productRepository.manager.transaction(async (manager) => {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
         sourceCategoryIds,
+        audienceGenders,
       );
 
       applyStorefrontPlpFilters(eligibleQb, filters, tryToToman, {
@@ -1254,6 +1390,7 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpAttributeFacet[]> {
     const selectedAttrIds = filters.attributes
       .filter((g) => g.valueIds.length > 0)
@@ -1265,6 +1402,7 @@ export class CatalogService {
         sourceCategoryIds,
         filters,
         tryToToman,
+        audienceGenders,
       );
     }
 
@@ -1274,6 +1412,7 @@ export class CatalogService {
       sourceCategoryIds,
       filters,
       tryToToman,
+      audienceGenders,
     );
   }
 
@@ -1296,6 +1435,7 @@ export class CatalogService {
     sourceCategoryIds: number[],
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpAttributeFacet[]> {
     const selectedGroups = filters.attributes.filter(
       (g) => g.valueIds.length > 0,
@@ -1305,6 +1445,7 @@ export class CatalogService {
         sourceCategoryIds,
         filters,
         tryToToman,
+        audienceGenders,
       );
     }
 
@@ -1316,6 +1457,7 @@ export class CatalogService {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
         sourceCategoryIds,
+        audienceGenders,
       );
 
       applyStorefrontPlpFilters(eligibleQb, filters, tryToToman, {
@@ -1692,6 +1834,7 @@ export class CatalogService {
     parentId?: number | null;
     displayOrder?: number;
     imagePath?: string | null;
+    discoveryImagePath?: string | null;
     audience?: string | null;
     status?: CanonicalCategoryStatus;
     isLocalPrototype?: boolean;
@@ -1711,6 +1854,7 @@ export class CatalogService {
       parentId,
       displayOrder: input.displayOrder ?? 1,
       imagePath: input.imagePath ?? null,
+      discoveryImagePath: input.discoveryImagePath ?? null,
       audience: input.audience ?? null,
       status: input.status ?? CanonicalCategoryStatus.active,
       isLocalPrototype: input.isLocalPrototype ?? false,
@@ -1718,6 +1862,51 @@ export class CatalogService {
     });
 
     return this.canonicalRepository.save(entity);
+  }
+
+  /**
+   * CAT-2 Admin — update canonical category presentation / hierarchy fields.
+   * Additive; does not delete or remapping products.
+   */
+  async updateCanonicalCategory(
+    id: number,
+    input: {
+      name?: string;
+      parentId?: number | null;
+      displayOrder?: number;
+      imagePath?: string | null;
+      discoveryImagePath?: string | null;
+      audience?: string | null;
+      status?: CanonicalCategoryStatus;
+    },
+  ): Promise<CanonicalCategoryEntity> {
+    const entity = await this.canonicalRepository.findOne({ where: { id } });
+    if (!entity) {
+      throw new Error(`Canonical category ${id} not found`);
+    }
+
+    if (input.parentId !== undefined) {
+      await this.assertValidParent(id, input.parentId);
+      entity.parentId = input.parentId;
+    }
+    if (input.name !== undefined) entity.name = input.name;
+    if (input.displayOrder !== undefined) {
+      entity.displayOrder = input.displayOrder;
+    }
+    if (input.imagePath !== undefined) entity.imagePath = input.imagePath;
+    if (input.discoveryImagePath !== undefined) {
+      entity.discoveryImagePath = input.discoveryImagePath;
+    }
+    if (input.audience !== undefined) entity.audience = input.audience;
+    if (input.status !== undefined) entity.status = input.status;
+
+    return this.canonicalRepository.save(entity);
+  }
+
+  async listCanonicalCategoriesAdmin(): Promise<CanonicalCategoryEntity[]> {
+    return this.canonicalRepository.find({
+      order: { displayOrder: 'ASC', id: 'ASC' },
+    });
   }
 }
 

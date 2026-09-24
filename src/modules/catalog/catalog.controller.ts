@@ -1,16 +1,24 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
+  Put,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { successfulResult } from '../../utils';
+import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
+import { Roles } from '../auth/role/role.decorator';
+import { RolesGuard } from '../auth/role/role.guard';
+import { UserRoles } from '../user/entities/user.entity';
 import { SearchService } from '../search/search.service';
 import { parseStorefrontSearchQuery } from '../search/storefront-search.query';
 import { parseStorefrontSuggestionQuery } from '../search/storefront-suggestion.query';
 import { CatalogService } from './catalog.service';
+import { CanonicalCategoryStatus } from './entities/canonical-category.entity';
 import { parseStorefrontPlpQuery } from './storefront-plp.query';
 
 @ApiTags('Catalog')
@@ -30,6 +38,78 @@ export class CatalogController {
   async getNavigation() {
     const tree = await this.catalogService.getStorefrontNavigation();
     return successfulResult([], tree);
+  }
+
+  /**
+   * CAT-2 — GET /catalog/canonical/admin
+   * List canonical categories for Admin hierarchy / discovery-image management.
+   */
+  @Get('canonical/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  async listCanonicalAdmin() {
+    const rows = await this.catalogService.listCanonicalCategoriesAdmin();
+    return successfulResult(
+      [],
+      rows.map((row) => ({
+        id: row.id,
+        parentId: row.parentId,
+        name: row.name,
+        status: row.status,
+        displayOrder: row.displayOrder,
+        imagePath: row.imagePath,
+        discoveryImagePath: row.discoveryImagePath,
+        audience: row.audience,
+        isLocalPrototype: row.isLocalPrototype,
+      })),
+    );
+  }
+
+  /**
+   * CAT-2 — PUT /catalog/canonical/:id/admin
+   * Update name/parent/order/status/discovery image without frontend deploys.
+   */
+  @Put('canonical/:id/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  async updateCanonicalAdmin(
+    @Param('id') id?: string,
+    @Body()
+    body?: {
+      name?: string;
+      parentId?: number | null;
+      displayOrder?: number;
+      imagePath?: string | null;
+      discoveryImagePath?: string | null;
+      audience?: string | null;
+      status?: CanonicalCategoryStatus;
+    },
+  ) {
+    const categoryId = Number(id);
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      throw new BadRequestException('شناسه دسته نامعتبر است.');
+    }
+    try {
+      const updated = await this.catalogService.updateCanonicalCategory(
+        categoryId,
+        body ?? {},
+      );
+      return successfulResult([], {
+        id: updated.id,
+        parentId: updated.parentId,
+        name: updated.name,
+        status: updated.status,
+        displayOrder: updated.displayOrder,
+        imagePath: updated.imagePath,
+        discoveryImagePath: updated.discoveryImagePath,
+      });
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'به‌روزرسانی دسته ناموفق بود.',
+      );
+    }
   }
 
   /**
