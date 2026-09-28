@@ -27,17 +27,19 @@ import { CustomerForgotDto } from './dto/customer-forgot.dto';
 import { CustomerResendOtpDto } from './dto/customer-resend-otp.dto';
 import { CustomerLoginMobileDto } from './dto/customer-login-mobile.dto';
 import { CustomerLoginVerifyDto } from './dto/customer-login-verify.dto';
-import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
+import { OtpDeliveryService } from '../../sms/otp-delivery/otp-delivery.service';
 import { SettingService } from '../setting/setting.service';
 import {
   WalletHistoryEntity,
   WalletHistoryType,
 } from './entities/wallet-history.entity';
-import { VatansmsService } from '../../sms/vatansms/vatansms.service';
 import { CustomerMobileIdentityService } from './customer-mobile-identity.service';
 import { resolveCustomerByMobileDuplicates } from './customer-identity-resolver';
 import { isNormalizedCustomerMobile } from '../../utils/mobile-normalization';
 import { buildCustomerProfilePatch } from './customer-profile';
+
+const CUSTOMER_BANNED_MESSAGE =
+  'حساب کاربری شما مسدود شده است، با پشتیبانی تماس حاصل نمایید';
 
 @Injectable()
 export class CustomerService {
@@ -52,8 +54,7 @@ export class CustomerService {
     private jwtService: JwtService,
     private error: ErrorService,
     private mail: MailService,
-    private amootsmsService: AmootsmsService,
-    private vatansmsService: VatansmsService,
+    private otpDelivery: OtpDeliveryService,
     private settingService: SettingService,
     // private kavenegarService: KavenegarService,
 
@@ -107,46 +108,59 @@ export class CustomerService {
       this.error.unprocessableEntity(['شماره موبایل نامعتبر است']);
     }
 
-    const otpState =
+    // A code already delivered within the resend window is reused silently.
+    const precheck =
       await this.customerMobileIdentityService.withNormalizedMobileLock(
         normalizedMobile,
         async () => {
-          const candidates = await this.findCustomersByNormalizedMobile(
+          const customer = await this.resolveUnambiguousCustomerByMobile(
             normalizedMobile,
           );
-          const resolved = resolveCustomerByMobileDuplicates(candidates);
-          if (resolved.ambiguous) {
-            this.error.unprocessableEntity([
-              'حساب کاربری مبهم است، با پشتیبانی تماس بگیرید',
-            ]);
-          }
-
-          let customer = resolved.customer;
-          let isNewUser = false;
+          const isNewUser =
+            !customer || (!customer.firstName && !customer.lastName);
 
           if (customer) {
-            if (!customer.firstName && !customer.lastName) {
-              isNewUser = true;
-            }
-
-            if (customer.status === CustomerStatus.banned) {
-              this.error.methodNotAllowed([
-                'حساب کاربری شما مسدود شده است، با پشتیبانی تماس حاصل نمایید',
-              ]);
-            } else if (
+            this.assertCustomerNotBanned(customer);
+            if (
               moment(customer.expireRandomHash)
                 .subtract(2, 'minutes')
                 .isAfter(moment())
             ) {
-              return {
-                mobile: customer.mobile,
-                isNewUser,
-                randomHash: customer.randomHash,
-                skipSms: true,
-              };
+              return { mobile: customer.mobile, isNewUser, skipSms: true };
             }
+          }
+
+          return { mobile: normalizedMobile, isNewUser, skipSms: false };
+        },
+      );
+
+    if (precheck.skipSms) {
+      return { mobile: precheck.mobile, isNewUser: precheck.isNewUser };
+    }
+
+    // Deliver first; the code becomes usable only after a confirmed send.
+    // The provider call stays outside the named lock (slow external work).
+    const randomHash = await this.otpDelivery.issueCode(() =>
+      this._generateVerifyCode(),
+    );
+    await this.otpDelivery.deliverOrThrow(normalizedMobile, randomHash);
+
+    const isNewUser =
+      await this.customerMobileIdentityService.withNormalizedMobileLock(
+        normalizedMobile,
+        async () => {
+          let customer = await this.resolveUnambiguousCustomerByMobile(
+            normalizedMobile,
+          );
+          let newUser = false;
+
+          if (customer) {
+            if (!customer.firstName && !customer.lastName) {
+              newUser = true;
+            }
+            this.assertCustomerNotBanned(customer);
           } else {
-            isNewUser = true;
+            newUser = true;
             customer = new CustomerEntity();
             customer.mobile = normalizedMobile;
             customer.status = CustomerStatus.inactive;
@@ -163,39 +177,36 @@ export class CustomerService {
             customer.buyPercentToReferrerCreditTRY = null;
           }
 
-          const randomHash =
-            this.config.app.nodeEnv === 'production'
-              ? await this._generateVerifyCode()
-              : '11111';
-
           customer.randomHash = randomHash;
           customer.expireRandomHash = moment().add(5, 'minutes').toDate();
           await customer.save();
 
-          return {
-            mobile: normalizedMobile,
-            isNewUser,
-            randomHash,
-            skipSms: false,
-          };
+          return newUser;
         },
       );
 
-    if (!otpState.skipSms) {
-      if (normalizedMobile.substring(0, 3) === '+98') {
-        await this.amootsmsService.sendOTP(
-          normalizedMobile,
-          otpState.randomHash,
-        );
-      } else if (normalizedMobile.substring(0, 3) === '+90') {
-        await this.vatansmsService.sendOTP(
-          normalizedMobile,
-          otpState.randomHash,
-        );
-      }
-    }
+    return { mobile: normalizedMobile, isNewUser };
+  }
 
-    return { mobile: otpState.mobile, isNewUser: otpState.isNewUser };
+  private async resolveUnambiguousCustomerByMobile(
+    normalizedMobile: string,
+  ): Promise<CustomerEntity | null> {
+    const candidates = await this.findCustomersByNormalizedMobile(
+      normalizedMobile,
+    );
+    const resolved = resolveCustomerByMobileDuplicates(candidates);
+    if (resolved.ambiguous) {
+      this.error.unprocessableEntity([
+        'حساب کاربری مبهم است، با پشتیبانی تماس بگیرید',
+      ]);
+    }
+    return resolved.customer;
+  }
+
+  private assertCustomerNotBanned(customer: CustomerEntity): void {
+    if (customer.status === CustomerStatus.banned) {
+      this.error.methodNotAllowed([CUSTOMER_BANNED_MESSAGE]);
+    }
   }
 
   /**
@@ -242,6 +253,8 @@ export class CustomerService {
         'کد تایید نامعتبر یا منقضی شده است',
       ]);
     }
+
+    this.assertCustomerNotBanned(customer);
 
     if (!customer.addresses) {
       customer = await this.customerRepository.findOne({
@@ -582,8 +595,8 @@ export class CustomerService {
             }
             newCustomer.mobile = normalizedMobile;
             newCustomer.status = CustomerStatus.inactive;
-            newCustomer.randomHash = await this._generateVerifyCode();
-            newCustomer.expireRandomHash = moment().add(5, 'minutes').toDate();
+            newCustomer.randomHash = null;
+            newCustomer.expireRandomHash = null;
             newCustomer.createdAt = new Date();
 
             const { identifiers } = await this.customerRepository
@@ -595,7 +608,6 @@ export class CustomerService {
             return {
               kind: 'created' as const,
               id: identifiers[0].id,
-              randomHash: newCustomer.randomHash,
             };
           },
         );
@@ -608,20 +620,27 @@ export class CustomerService {
         });
       }
 
-      if (normalizedMobile.substring(0, 3) === '+98') {
-        await this.amootsmsService.sendOTP(
-          normalizedMobile,
-          signupResult.randomHash,
-        );
-      } else if (normalizedMobile.substring(0, 3) === '+90') {
-        await this.vatansmsService.sendOTP(
-          normalizedMobile,
-          signupResult.randomHash,
-        );
-      }
+      const randomHash = await this.otpDelivery.issueCode(() =>
+        this._generateVerifyCode(),
+      );
+      await this.otpDelivery.deliverOrThrow(normalizedMobile, randomHash);
+      await this.customerRepository.update(
+        { id: signupResult.id },
+        {
+          randomHash,
+          expireRandomHash: moment().add(5, 'minutes').toDate(),
+        },
+      );
 
       return { id: signupResult.id };
     }
+
+    // Email-only signup has no SMS channel; outside fixed developer mode this
+    // fails closed before any row or code is stored.
+    const randomHash = await this.otpDelivery.issueCode(() =>
+      this._generateVerifyCode(),
+    );
+    await this.otpDelivery.deliverOrThrow(null, randomHash);
 
     const newCustomer = new CustomerEntity();
     for (const key in dto) {
@@ -629,7 +648,7 @@ export class CustomerService {
     }
 
     newCustomer.status = CustomerStatus.inactive;
-    newCustomer.randomHash = await this._generateVerifyCode();
+    newCustomer.randomHash = randomHash;
     newCustomer.expireRandomHash = moment().add(5, 'minutes').toDate();
     newCustomer.createdAt = new Date();
 
@@ -675,6 +694,8 @@ export class CustomerService {
       this.error.unprocessableEntity(['درخواست نامعتبر است']);
     }
 
+    this.assertCustomerNotBanned(customer);
+
     if (
       moment(customer.expireRandomHash).subtract(2, 'minutes').isAfter(moment())
     ) {
@@ -683,18 +704,17 @@ export class CustomerService {
       ]);
     }
 
-    customer.randomHash = await this._generateVerifyCode();
+    const randomHash = await this.otpDelivery.issueCode(() =>
+      this._generateVerifyCode(),
+    );
+    const destination = customer.mobile
+      ? this.customerMobileIdentityService.normalizeMobile(customer.mobile)
+      : null;
+    await this.otpDelivery.deliverOrThrow(destination, randomHash);
+
+    customer.randomHash = randomHash;
     customer.expireRandomHash = moment().add(5, 'minutes').toDate();
     await customer.save();
-
-    // Sending SMS
-    if (dto.mobile.substring(0, 3) === '+98') {
-      await this.amootsmsService.sendOTP(dto.mobile, customer.randomHash);
-    }
-    // Sending SMS To Turk Number
-    else if (dto.mobile.substring(0, 3) === '+90') {
-      await this.vatansmsService.sendOTP(dto.mobile, customer.randomHash);
-    }
 
     return true;
   }
@@ -751,6 +771,7 @@ export class CustomerService {
         delete item.password;
         delete item.previousPassword;
         delete item.randomHash;
+        delete item.expireRandomHash;
         return item;
       }),
       pagination: paginationResult(page, limit, totalItems),
@@ -771,6 +792,11 @@ export class CustomerService {
     if (!customer) {
       this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
     }
+
+    delete customer.password;
+    delete customer.previousPassword;
+    delete customer.randomHash;
+    delete customer.expireRandomHash;
 
     return customer;
   }

@@ -42,4 +42,8 @@ export class ErrorService {
   notFound(messages: string[], data = {}): never {
     this.httpError(messages, data, HttpStatus.NOT_FOUND);
   }
+
+  serviceUnavailable(messages: string[], data = {}): never {
+    this.httpError(messages, data, HttpStatus.SERVICE_UNAVAILABLE);
+  }
 }

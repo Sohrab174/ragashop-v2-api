@@ -12,10 +12,9 @@ import { CustomerController } from './customer.controller';
 import { CustomerService } from './customer.service';
 import { CustomerEntity } from './entities/customer.entity';
 import { CustomerJwtStrategy } from './jwt/jwt.strategy';
-import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { OtpDeliveryModule } from '../../sms/otp-delivery/otp-delivery.module';
 import { SettingModule } from '../setting/setting.module';
 import { WalletHistoryEntity } from './entities/wallet-history.entity';
-import { VatansmsModule } from '../../sms/vatansms/vatansms.module';
 import { CustomerMobileIdentityService } from './customer-mobile-identity.service';
 import { SecurityModule } from '../../security/security.module';
 
@@ -25,8 +24,7 @@ import { SecurityModule } from '../../security/security.module';
     UserModule,
     ErrorModule,
     MailModule,
-    AmootsmsModule,
-    VatansmsModule,
+    OtpDeliveryModule,
     SettingModule,
     SecurityModule,
     // KavenegarModule,

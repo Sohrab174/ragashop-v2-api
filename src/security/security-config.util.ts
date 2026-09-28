@@ -9,6 +9,27 @@ export function isProductionEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.NODE_ENV || '').trim().toLowerCase() === 'production';
 }
 
+const FIXED_DEV_OTP_NODE_ENVS: ReadonlySet<string> = new Set([
+  'development',
+  'local',
+  'test',
+]);
+
+/**
+ * The fixed developer OTP is allowed only for an exact lower-case developer
+ * NODE_ENV. Unset, unknown, staging, production, padded, or mis-cased values
+ * fail closed and require real SMS delivery.
+ */
+export function isFixedDevOtpAllowed(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const raw = env.NODE_ENV;
+  if (typeof raw !== 'string' || isProductionEnv(env)) {
+    return false;
+  }
+  return FIXED_DEV_OTP_NODE_ENVS.has(raw);
+}
+
 export function parseBooleanEnv(
   raw: string | undefined,
   fallback: boolean,

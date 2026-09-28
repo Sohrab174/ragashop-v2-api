@@ -159,6 +159,27 @@ describe('checkout-totals', () => {
     });
     expect(totals.shippingTry).toBe(0);
   });
+
+  it('applies uncapped percent when maxShippingCost is 0 (no-cap semantics)', () => {
+    const totals = computeCheckoutTotals(1000, {
+      shippingPercent: 5,
+      maxShippingCost: 0,
+      taxPercent: 0,
+    });
+    // 5% of 1000 = 50; max 0 is falsy → no cap in TRY
+    expect(totals.shippingTry).toBe(50);
+    expect(totals.payableTry).toBe(1050);
+  });
+
+  it('caps shipping in TRY units without inventing flat fee', () => {
+    const totals = computeCheckoutTotals(200, {
+      shippingPercent: 10,
+      maxShippingCost: 15,
+      taxPercent: 0,
+    });
+    // 10% of 200 = 20, capped at 15 TRY
+    expect(totals.shippingTry).toBe(15);
+  });
 });
 
 describe('checkout-phone', () => {

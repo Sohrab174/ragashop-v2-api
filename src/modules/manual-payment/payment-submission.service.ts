@@ -5,6 +5,7 @@ import { ErrorService } from '../../error/error.service';
 import { OrderService } from '../order/order.service';
 import { OrderEntity } from '../order/entities/order.entity';
 import { OrderPaymentFinalizationEntity } from '../order/entities/order-payment-finalization.entity';
+import { notifyPostPaymentBestEffort } from '../order/utils/post-payment-notify';
 import {
   isOrderAlreadyPaid,
   isOrderPaymentInitiatable,
@@ -993,7 +994,7 @@ export class PaymentSubmissionService {
     }
 
     if (notifyOrderId != null) {
-      await this.orderService.sendPostPaymentNotifications(notifyOrderId);
+      await notifyPostPaymentBestEffort(this.orderService, notifyOrderId);
     }
 
     return result;

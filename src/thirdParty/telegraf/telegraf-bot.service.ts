@@ -17,19 +17,27 @@ export class TelegrafBotService {
     return true;
   }
 
+  /** Best-effort: never rejects; one failed recipient does not stop the rest. */
   async sendNotification(
     message: string,
     telegramIds: number[] = null,
     markdown = false,
-  ) {
+  ): Promise<void> {
     if (!this.bot) {
       return;
     }
     telegramIds = telegramIds || BOT_ADMIN_IDS;
     for (let i = 0; i < telegramIds.length; i++) {
-      await this.bot.telegram.sendMessage(telegramIds[i], message, {
-        ...(markdown && { parse_mode: 'Markdown' }),
-      });
+      try {
+        await this.bot.telegram.sendMessage(telegramIds[i], message, {
+          ...(markdown && { parse_mode: 'Markdown' }),
+        });
+      } catch (e) {
+        // Do not log the message body, recipient, or token-bearing request data.
+        console.error('Telegram notification failed', {
+          errorCode: e?.response?.error_code ?? e?.code ?? null,
+        });
+      }
     }
   }
 }

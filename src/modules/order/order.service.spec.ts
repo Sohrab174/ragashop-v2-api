@@ -246,7 +246,74 @@ describe('OrderService (Phase 1A security)', () => {
 
     expect(insertedOrder).toBeTruthy();
     expect(insertedOrder.shipping).not.toBe(99999);
+    // 10% of 10000 = 1000, capped at maxShippingCost 5000 → 1000 TRY
+    expect(insertedOrder.shipping).toBe(1000);
     expect(mockSettingService.getByAdmin).toHaveBeenCalled();
+  });
+
+  it('applies maxShippingCost cap in TRY for customer orders', async () => {
+    mockProductService.findByIds.mockResolvedValue([
+      {
+        id: 1,
+        price: 100000,
+        discountedPrice: null,
+        quantity: -1,
+        status: ProductStatus.active,
+        isDeleted: false,
+        productAttributeValues: [],
+      },
+    ]);
+
+    mockSettingService.getByAdmin.mockResolvedValue({
+      taxPercent: 0,
+      shippingPercent: 10,
+      maxShippingCost: 500,
+    });
+
+    await service.addUpdate(
+      {
+        productItems: [{ productId: 1, quantity: 1 }],
+        addressId: 1,
+        firstName: 'Ali',
+        lastName: 'Test',
+      },
+      42,
+    );
+
+    // 10% of 100000 = 10000, capped at 500 TRY
+    expect(insertedOrder.shipping).toBe(500);
+  });
+
+  it('leaves shipping uncapped when maxShippingCost is 0', async () => {
+    mockProductService.findByIds.mockResolvedValue([
+      {
+        id: 1,
+        price: 10000,
+        discountedPrice: null,
+        quantity: -1,
+        status: ProductStatus.active,
+        isDeleted: false,
+        productAttributeValues: [],
+      },
+    ]);
+
+    mockSettingService.getByAdmin.mockResolvedValue({
+      taxPercent: 0,
+      shippingPercent: 10,
+      maxShippingCost: 0,
+    });
+
+    await service.addUpdate(
+      {
+        productItems: [{ productId: 1, quantity: 1 }],
+        addressId: 1,
+        firstName: 'Ali',
+        lastName: 'Test',
+      },
+      42,
+    );
+
+    expect(insertedOrder.shipping).toBe(1000);
   });
 
   it('scopes getRecordById to customer when customerId is provided', async () => {

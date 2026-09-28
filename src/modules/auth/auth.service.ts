@@ -12,7 +12,8 @@ import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthForgotDto } from './dto/auth-forgot.dto';
 import { MailService } from '../../mail/mail.service';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
-import { AmootsmsService } from '../../sms/amootsms/amootsms.service';
+import { OtpDeliveryService } from '../../sms/otp-delivery/otp-delivery.service';
+import { normalizeCustomerMobile } from '../../utils/mobile-normalization';
 
 @Injectable()
 export class AuthService {
@@ -20,9 +21,8 @@ export class AuthService {
     private userService: UserService,
     private error: ErrorService,
     private mail: MailService,
-    // private amootsmsService: AmootsmsService,
     // private kavenegarService: KavenegarService,
-    private amootsmsService: AmootsmsService,
+    private otpDelivery: OtpDeliveryService,
     private config: ConfigurationService,
     private jwtService: JwtService,
   ) {}
@@ -132,14 +132,19 @@ export class AuthService {
       ]);
     }
 
-    user.randomHash = await this._generateVerifyCode();
+    const randomHash = await this.otpDelivery.issueCode(() =>
+      this._generateVerifyCode(),
+    );
+    await this.otpDelivery.deliverOrThrow(
+      user.mobile ? normalizeCustomerMobile(user.mobile) : null,
+      randomHash,
+    );
+
+    user.randomHash = randomHash;
     user.expireRandomHash = moment().add(5, 'minutes').toDate();
     await user.save();
 
-    // Sending SMS
-    await this.amootsmsService.sendOTP(user.mobile, user.randomHash);
-
-    return user;
+    return true;
   }
 
   /**

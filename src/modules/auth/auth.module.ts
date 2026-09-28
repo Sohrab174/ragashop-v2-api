@@ -9,7 +9,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt/jwt.strategy';
 import { MailModule } from '../../mail/mail.module';
-import { AmootsmsModule } from '../../sms/amootsms/amootsms.module';
+import { OtpDeliveryModule } from '../../sms/otp-delivery/otp-delivery.module';
 import { SecurityModule } from '../../security/security.module';
 
 @Module({
@@ -17,7 +17,7 @@ import { SecurityModule } from '../../security/security.module';
     UserModule,
     PassportModule,
     MailModule,
-    AmootsmsModule,
+    OtpDeliveryModule,
     SecurityModule,
     // KavenegarModule,
     JwtModule.registerAsync({

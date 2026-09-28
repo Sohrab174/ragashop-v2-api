@@ -603,6 +603,75 @@ describe('TransactionService (Phase 1A fix pass)', () => {
     expect(mockOrderService.finalizeOrderPaymentAtomic).toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      'rejects',
+      () =>
+        jest.fn(async () => {
+          throw new Error('telegram down');
+        }),
+    ],
+    [
+      'throws synchronously',
+      () =>
+        jest.fn(() => {
+          throw new Error('sync notify failure');
+        }),
+    ],
+  ])(
+    'wallet-only payment stays paid when the post-payment notifier %s',
+    async (_label, makeNotifier) => {
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      mockOrderService.sendPostPaymentNotifications = makeNotifier();
+      const walletCustomer = {
+        id: 10,
+        walletTRY: 100,
+        walletIRT: 0,
+        isDeleted: false,
+      };
+
+      mockQueryRunner.manager.findOne = jest
+        .fn()
+        .mockResolvedValueOnce({
+          id: 100,
+          customerId: 10,
+          finalAmount: 100,
+          commercialCurrency: 'TRY',
+          fxRateToIrt: 3500,
+          status: OrderStatus.pending,
+        })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(walletCustomer);
+
+      mockQueryRunner.manager.createQueryBuilder = jest.fn(() => ({
+        insert: jest.fn().mockReturnThis(),
+        into: jest.fn().mockReturnThis(),
+        values: jest.fn(() => ({
+          execute: jest.fn().mockResolvedValue({ identifiers: [{ id: 201 }] }),
+        })),
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        setParameters: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      }));
+
+      const result = await service.add(
+        { ...baseDto, usedWalletTRY: true },
+        walletCustomer as any,
+        '127.0.0.1',
+      );
+
+      expect(result).toEqual({ transactionId: 201, bankUrl: null, paid: true });
+      expect(
+        mockOrderService.sendPostPaymentNotifications,
+      ).toHaveBeenCalledWith(100);
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+      expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
+      (console.error as unknown as jest.SpyInstance).mockRestore();
+    },
+  );
+
   it('hybrid wallet+gateway stores settlement amount with reduced wallet cover', async () => {
     const inserted: any[] = [];
     const walletCustomer = {

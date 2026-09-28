@@ -40,6 +40,7 @@ import {
   isPaypingVerificationError,
 } from '../../gateway/payping/payping-verification-result';
 import { parseStrictPositiveInt } from '../order/utils/commerce-input.validator';
+import { notifyPostPaymentBestEffort } from '../order/utils/post-payment-notify';
 import { OrderPaymentFinalizationEntity } from '../order/entities/order-payment-finalization.entity';
 import {
   assertFin1SettlementEvidence,
@@ -445,7 +446,7 @@ export class TransactionService {
     }
 
     if (walletOnlyPaid) {
-      await this.orderService.sendPostPaymentNotifications(paidOrderId);
+      await notifyPostPaymentBestEffort(this.orderService, paidOrderId);
       return { transactionId: newTransactionId, bankUrl: null, paid: true };
     }
 
@@ -1119,13 +1120,7 @@ export class TransactionService {
     }
 
     if (newlyPaid) {
-      try {
-        await this.orderService.sendPostPaymentNotifications(
-          transaction.orderId,
-        );
-      } catch (notifyErr) {
-        console.log('POST PAYMENT NOTIFY ERROR', notifyErr);
-      }
+      await notifyPostPaymentBestEffort(this.orderService, transaction.orderId);
     }
 
     if (claim === 'same_transaction') {

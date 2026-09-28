@@ -34,8 +34,9 @@ export class VatansmsService {
   /**
    * *************************************************
    */
-  async sendOTP(mobile, code) {
-    await this._send(
+  /** Resolves true only when the provider confirms the OTP was accepted. */
+  async sendOTP(mobile: string, code: string): Promise<boolean> {
+    const result = await this._send(
       [mobile],
       `Verification Code: ${code}
 
@@ -43,6 +44,7 @@ This code is confidential.
 RagaShop.co
 `,
     );
+    return result != null && result !== 'Error';
   }
 
   /**
@@ -61,12 +63,13 @@ RagaShop.co
       });
 
       if (data?.status !== 'success') {
+        console.error('VatanSMS send rejected by provider');
         return 'Error';
       }
 
       return data;
     } catch (e) {
-      console.error('VatanSMS send failed', { mobiles });
+      console.error('VatanSMS send failed');
       return null;
     }
   }

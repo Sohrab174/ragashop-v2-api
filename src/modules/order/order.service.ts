@@ -14,6 +14,7 @@ import { ProductService } from '../product/product.service';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderItemEntity } from './entities/order-item.entity';
 import { OrderEntity, OrderStatus } from './entities/order.entity';
+import { toCustomerOrderView } from './customer-order-view';
 import { MailService } from '../../mail/mail.service';
 import { ConfigurationService } from '../../config/configuration.service';
 import { CustomerService } from '../customer/customer.service';
@@ -27,6 +28,8 @@ import { OrderPaymentFinalizationEntity } from './entities/order-payment-finaliz
 import { SettingEntity } from '../setting/entities/setting.entity';
 import { ProductStatus } from '../product/entities/product.entity';
 import { TelegrafBotService } from '../../thirdParty/telegraf/telegraf-bot.service';
+import { maskMobileForOps } from '../../thirdParty/telegraf/telegram-privacy';
+import { notifyPostPaymentBestEffort } from './utils/post-payment-notify';
 import {
   parseStrictPositiveInt,
   validateAdminMoney,
@@ -611,11 +614,12 @@ export class OrderService {
       .getManyAndCount();
 
     return {
-      items: items.map((item) => ({
-        ...item,
-        countItems:
-          item.orderItems?.reduce((acc, item) => acc + item.quantity, 0) || 0,
-      })),
+      items: items.map((item) =>
+        toCustomerOrderView(item as unknown as Record<string, unknown>, {
+          countItems:
+            item.orderItems?.reduce((acc, line) => acc + line.quantity, 0) || 0,
+        }),
+      ),
       pagination: paginationResult(page, limit, totalItems),
     };
   }
@@ -696,7 +700,7 @@ export class OrderService {
       this.error.unprocessableEntity(['سفارش موردنظر پیدا نشد']);
     }
 
-    return order;
+    return toCustomerOrderView(order as unknown as Record<string, unknown>);
   }
 
   /**
@@ -1369,60 +1373,78 @@ export class OrderService {
    * Side effects only — must run outside critical financial transactions.
    */
   async sendPostPaymentNotifications(orderId: number): Promise<void> {
-    const order = await this.orderRepository.findOne({
-      where: { id: orderId },
-      relations: ['customer'],
-    });
+    try {
+      const order = await this.orderRepository.findOne({
+        where: { id: orderId },
+        relations: ['customer'],
+      });
 
-    if (!order) {
-      return;
-    }
+      if (!order) {
+        return;
+      }
 
-    this.telegrafBotService.sendNotification(
-      `✅ سفارش جدید\n💰 ${digit(order.finalAmount)} تومان\n\n👱🏻‍♂️ ${
-        order.customer.firstName || ''
-      } ${order.customer.lastName || ''}\n📞 ${order.customer.mobile}`,
-    );
-
-    const award = await this.referralAwardRepository.findOne({
-      where: { orderId },
-    });
-
-    if (!award) {
-      return;
-    }
-
-    const referrerCustomer = await this.customerService.getActiveById(
-      award.referrerCustomerId,
-    );
-
-    if (!referrerCustomer) {
-      return;
-    }
-
-    if (award.walletUSD > 0) {
-      this.telegrafBotService.sendNotification(
-        `💌 اعتبار به معرف\n💰 ${award.walletUSD} دلار\n\n👱🏻‍♂️ ${
-          referrerCustomer.firstName || ''
-        } ${referrerCustomer.lastName || ''}\n📞 ${referrerCustomer.mobile}`,
+      const customer = order.customer;
+      this.dispatchOpsNotification(
+        `✅ سفارش جدید\n🧾 ${order.number || order.id}\n💰 ${digit(
+          order.finalAmount,
+        )} تومان\n\n👱🏻‍♂️ ${customer?.firstName || ''} ${
+          customer?.lastName || ''
+        }\n📞 ${maskMobileForOps(customer?.mobile)}`,
       );
-    }
 
-    if (award.walletIRT > 0) {
-      this.telegrafBotService.sendNotification(
-        `💌 اعتبار به معرف\n💰 ${digit(award.walletIRT)} تومان\n\n👱🏻‍♂️ ${
-          referrerCustomer.firstName || ''
-        } ${referrerCustomer.lastName || ''}\n📞 ${referrerCustomer.mobile}`,
-      );
-    }
+      const award = await this.referralAwardRepository.findOne({
+        where: { orderId },
+      });
 
-    if (award.walletTRY > 0) {
-      this.telegrafBotService.sendNotification(
-        `💌 اعتبار به معرف\n💰 ${award.walletTRY} لیر\n\n👱🏻‍♂️ ${
-          referrerCustomer.firstName || ''
-        } ${referrerCustomer.lastName || ''}\n📞 ${referrerCustomer.mobile}`,
+      if (!award) {
+        return;
+      }
+
+      const referrerCustomer = await this.customerService.getActiveById(
+        award.referrerCustomerId,
       );
+
+      if (!referrerCustomer) {
+        return;
+      }
+
+      const referrerLine = `👱🏻‍♂️ ${referrerCustomer.firstName || ''} ${
+        referrerCustomer.lastName || ''
+      }\n📞 ${maskMobileForOps(referrerCustomer.mobile)}`;
+
+      if (award.walletUSD > 0) {
+        this.dispatchOpsNotification(
+          `💌 اعتبار به معرف\n💰 ${award.walletUSD} دلار\n\n${referrerLine}`,
+        );
+      }
+
+      if (award.walletIRT > 0) {
+        this.dispatchOpsNotification(
+          `💌 اعتبار به معرف\n💰 ${digit(
+            award.walletIRT,
+          )} تومان\n\n${referrerLine}`,
+        );
+      }
+
+      if (award.walletTRY > 0) {
+        this.dispatchOpsNotification(
+          `💌 اعتبار به معرف\n💰 ${award.walletTRY} لیر\n\n${referrerLine}`,
+        );
+      }
+    } catch {
+      console.error('Post-payment notification preparation failed', {
+        orderId,
+      });
     }
+  }
+
+  /** Fire-and-forget; payment results must never depend on ops chat delivery. */
+  private dispatchOpsNotification(message: string): void {
+    void Promise.resolve()
+      .then(() => this.telegrafBotService.sendNotification(message))
+      .catch(() => {
+        console.error('Post-payment notification dispatch failed');
+      });
   }
 
   /**
@@ -1523,7 +1545,7 @@ export class OrderService {
     }
 
     if (notify) {
-      await this.sendPostPaymentNotifications(orderId);
+      await notifyPostPaymentBestEffort(this, orderId);
     }
 
     return notify ? 'finalized' : 'idempotent';

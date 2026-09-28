@@ -40,6 +40,7 @@ import {
   resolveTimingHours,
 } from './manual-payment.types';
 import { OrderPaymentFinalizationEntity } from '../order/entities/order-payment-finalization.entity';
+import { computeSettlementFromOrderSnapshot } from '../finance/settlement-money';
 
 describe('PaymentSubmissionService (C2A fix pass)', () => {
   let service: PaymentSubmissionService;
@@ -242,10 +243,9 @@ describe('PaymentSubmissionService (C2A fix pass)', () => {
         .mockResolvedValueOnce(null) // initial scoped lookup
         .mockResolvedValueOnce(null); // recovery scoped lookup (not owned)
 
-      mockQb.execute
-        .mockRejectedValueOnce(
-          Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 }),
-        );
+      mockQb.execute.mockRejectedValueOnce(
+        Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY', errno: 1062 }),
+      );
 
       await expect(
         service.createSubmissionWithEvidence({
@@ -357,9 +357,7 @@ describe('PaymentSubmissionService (C2A fix pass)', () => {
         }),
       ).rejects.toMatchObject({
         response: {
-          messages: expect.arrayContaining([
-            expect.stringMatching(/محدوده/),
-          ]),
+          messages: expect.arrayContaining([expect.stringMatching(/محدوده/)]),
         },
       });
       expect(receiptStorage.storeBuffer).not.toHaveBeenCalled();
@@ -375,7 +373,9 @@ describe('PaymentSubmissionService (C2A fix pass)', () => {
         holdExpiresAt: past,
         activeLockKey: 'ORDER_PAYMENT:10',
       };
-      mockQueryRunner.manager.findOne = jest.fn(async () => ({ ...row })) as any;
+      mockQueryRunner.manager.findOne = jest.fn(async () => ({
+        ...row,
+      })) as any;
       mockQueryRunner.manager.save = jest.fn(async (e) => e);
 
       const did = await service.expireSubmissionIfNeededDurable(3);
@@ -399,6 +399,67 @@ describe('PaymentSubmissionService (C2A fix pass)', () => {
 
       const did = await service.expireSubmissionIfNeededDurable(3);
       expect(did).toBe(false);
+    });
+  });
+
+  describe('approveAtomic post-payment notification is best-effort', () => {
+    it.each([
+      [
+        'rejects',
+        () =>
+          jest.fn(async () => {
+            throw new Error('telegram down');
+          }),
+      ],
+      [
+        'throws synchronously',
+        () =>
+          jest.fn(() => {
+            throw new Error('sync notify failure');
+          }),
+      ],
+    ])('stays approved when the notifier %s', async (_label, makeNotifier) => {
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      const expectedAmount = computeSettlementFromOrderSnapshot(
+        eligibleOrder as any,
+      ).settlementAmount;
+      const submission = {
+        id: 1,
+        status: PaymentSubmissionStatus.UNDER_REVIEW,
+        orderId: eligibleOrder.id,
+        customerId: eligibleOrder.customerId,
+        expectedAmount,
+        activeEvidenceId: null,
+        rail: ManualPaymentRail.CARD_TO_CARD,
+      };
+      submissionRepository.findOne.mockResolvedValue({ ...submission });
+      jest
+        .spyOn(service, 'expireSubmissionIfNeededDurable')
+        .mockResolvedValue(false);
+      jest
+        .spyOn(service as any, 'appendReviewEvent')
+        .mockResolvedValue(undefined);
+      mockQueryRunner.manager.findOne = jest.fn(async (entity) => {
+        if (entity === PaymentSubmissionEntity) return { ...submission };
+        if (entity === OrderEntity) return { ...eligibleOrder };
+        return null;
+      }) as any;
+      mockQueryRunner.manager.save = jest.fn(async (e) => e);
+      orderService.finalizeOrderPaymentAtomic = jest
+        .fn()
+        .mockResolvedValue('finalized');
+      orderService.sendPostPaymentNotifications = makeNotifier();
+
+      const res = await service.approveAtomic(1, { id: 2, role: 'admin' });
+
+      expect(res.result).toBe('approved');
+      expect(res.submission.status).toBe(PaymentSubmissionStatus.APPROVED);
+      expect(orderService.sendPostPaymentNotifications).toHaveBeenCalledWith(
+        eligibleOrder.id,
+      );
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
+      jest.restoreAllMocks();
     });
   });
 });

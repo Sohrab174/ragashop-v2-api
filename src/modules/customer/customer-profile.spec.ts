@@ -84,7 +84,6 @@ describe('CustomerService.updateMe', () => {
       null,
       null,
       null,
-      null,
     );
     return { service, sets, wheres, repository };
   }
