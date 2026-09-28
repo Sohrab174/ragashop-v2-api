@@ -62,6 +62,20 @@ export class CreateCheckoutOrderDto {
   @MaxLength(45)
   postalCode?: string;
 
+  @ApiProperty({
+    required: false,
+    description: 'WGS84 latitude (-90..90). Optional map pin.',
+  })
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({
+    required: false,
+    description: 'WGS84 longitude (-180..180). Optional map pin.',
+  })
+  @IsOptional()
+  longitude?: number;
+
   @ApiProperty({ description: 'City id from /cities' })
   @Type(() => Number)
   @IsInt()

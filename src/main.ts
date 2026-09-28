@@ -38,9 +38,11 @@ async function bootstrap() {
         'Accept',
         'Authorization',
         'X-Cart-Session',
+        'X-Order-Access-Token',
+        'Idempotency-Key',
         'X-RagaShop-Import-Token',
       ],
-      exposedHeaders: ['X-Cart-Session'],
+      exposedHeaders: ['X-Cart-Session', 'X-Order-Access-Token'],
     },
   });
   const config = app.get(ConfigurationService);

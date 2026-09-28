@@ -412,6 +412,8 @@ export class OrderService {
           fxRateSource: fxRate.source || FX_RATE_SOURCE_TGJU,
           address: address.address,
           location: address.location,
+          latitude: address.latitude ?? null,
+          longitude: address.longitude ?? null,
           addressDetails: address.details,
           postalCode: address.postalCode,
           phone: address.phone,

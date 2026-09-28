@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Get,
   Post,
   Delete,
   Put,
@@ -22,6 +23,19 @@ import { CustomerJwtAuthGuard } from '../customer/jwt/jwt.guard';
 @Controller('addresses')
 export class AddressController {
   constructor(private addressService: AddressService) {}
+
+  /**
+   * -------------------------------------------------------
+   * GET /addresses/me
+   * Customer id is taken from the JWT, never from the query string.
+   */
+  @Get('me')
+  @ApiBearerAuth()
+  @UseGuards(CustomerJwtAuthGuard)
+  async list(@Customer() customer: CustomerEntity) {
+    const list = await this.addressService.listForCustomer(customer.id);
+    return successfulResult([], list);
+  }
 
   /**
    * -------------------------------------------------------
@@ -50,8 +64,8 @@ export class AddressController {
     @Body() dto: UpdateAddressDto,
     @Customer() customer: CustomerEntity,
   ) {
-    await this.addressService.update(dto, customer.id);
-    return successfulResult(['آدرس شما با موفقیت به روز شد']);
+    const updated = await this.addressService.update(dto, customer.id);
+    return successfulResult(['آدرس شما با موفقیت به روز شد'], updated);
   }
 
   /**

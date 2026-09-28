@@ -43,6 +43,7 @@ import { MarketplaceImportModule } from './modules/marketplace-import/marketplac
 import { ManualPaymentModule } from './modules/manual-payment/manual-payment.module';
 import { CatalogLifecycleModule } from './modules/catalog-lifecycle/catalog-lifecycle.module';
 import { StorefrontHomeModule } from './modules/storefront-home/storefront-home.module';
+import { SupportModule } from './modules/support/support.module';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { TelegrafConfigService } from './thirdParty/telegraf/telegraf-config.service';
 import { redisStore } from 'cache-manager-redis-yet';
@@ -112,6 +113,7 @@ import { redisStore } from 'cache-manager-redis-yet';
     CatalogLifecycleModule,
     ManualPaymentModule,
     StorefrontHomeModule,
+    SupportModule,
     // DiscountCouponModule,
   ],
   providers: [

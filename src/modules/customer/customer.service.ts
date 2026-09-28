@@ -37,6 +37,7 @@ import { VatansmsService } from '../../sms/vatansms/vatansms.service';
 import { CustomerMobileIdentityService } from './customer-mobile-identity.service';
 import { resolveCustomerByMobileDuplicates } from './customer-identity-resolver';
 import { isNormalizedCustomerMobile } from '../../utils/mobile-normalization';
+import { buildCustomerProfilePatch } from './customer-profile';
 
 @Injectable()
 export class CustomerService {
@@ -352,12 +353,29 @@ export class CustomerService {
    * --------------------------------------------------------
    */
   async updateMe(customerId: number, dto: CustomerUpdateMeDto) {
-    return await this.customerRepository
+    const built = buildCustomerProfilePatch(
+      dto as unknown as Record<string, unknown>,
+    );
+    if (built.status === 'error') {
+      this.error.unprocessableEntity([built.message]);
+    }
+
+    const existing = await this.customerRepository.findOne({
+      id: customerId,
+      isDeleted: false,
+    });
+    if (!existing) {
+      this.error.unprocessableEntity(['مشتری مورد نظر یافت نشد']);
+    }
+
+    await this.customerRepository
       .createQueryBuilder()
       .update()
-      .set(dto)
+      .set(built.patch)
       .where({ id: customerId, isDeleted: false })
       .execute();
+
+    return true;
   }
 
   /**

@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { DecimalTransformer } from '../../../utils/transformers/DecimalTransformer';
+import { GeoCoordinateTransformer } from '../../../utils/transformers/GeoCoordinateTransformer';
 import { CustomerEntity } from '../../customer/entities/customer.entity';
 import { TransactionEntity } from '../../transaction/entities/transaction.entity';
 import { OrderItemEntity } from './order-item.entity';
@@ -156,8 +157,29 @@ export class OrderEntity extends BaseEntity {
   @Column('text', { name: 'address', nullable: true })
   address: string | null;
 
+  /** Legacy compact pin snapshot: "lat,lng". Prefer latitude/longitude. */
   @Column('varchar', { name: 'location', nullable: true, length: 45 })
   location: string | null;
+
+  /** Immutable delivery pin — copied at order create; never backfilled from Address. */
+  @Column('decimal', {
+    name: 'latitude',
+    nullable: true,
+    precision: 10,
+    scale: 7,
+    transformer: new GeoCoordinateTransformer(),
+  })
+  latitude: number | null;
+
+  /** Immutable delivery pin — copied at order create; never backfilled from Address. */
+  @Column('decimal', {
+    name: 'longitude',
+    nullable: true,
+    precision: 10,
+    scale: 7,
+    transformer: new GeoCoordinateTransformer(),
+  })
+  longitude: number | null;
 
   @Column('varchar', { name: 'addressDetails', nullable: true, length: 255 })
   addressDetails: string | null;

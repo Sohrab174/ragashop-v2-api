@@ -42,6 +42,8 @@ export enum UserCapabilityName {
   bank_destination_manage = 'bank_destination.manage',
   /** Manual TGJU TRY→IRR refresh / FX last-known-good mutation */
   settings_fx_refresh = 'settings.fx_refresh',
+  /** Read, reply, and change status on customer support requests. */
+  support_manage = 'support.manage',
 }
 
 export const RECEIPT_ALLOWED_MIME_TYPES = [

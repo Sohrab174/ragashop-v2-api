@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { BooleanTransformer } from '../../../utils/transformers/BooleanTransformer';
+import { GeoCoordinateTransformer } from '../../../utils/transformers/GeoCoordinateTransformer';
 import { CustomerEntity } from '../../customer/entities/customer.entity';
 import { CityEntity } from '../../city/entities/city.entity';
 
@@ -33,11 +34,49 @@ export class AddressEntity extends BaseEntity {
   @Column('int', { name: 'cityId', nullable: true })
   cityId: number | null;
 
+  /**
+   * Legacy compact pin: "lat,lng". Kept in sync with latitude/longitude for
+   * Admin Map.ir markers. Prefer the decimal columns for new reads/writes.
+   */
   @Column('varchar', { name: 'location', nullable: true, length: 45 })
   location: string | null;
 
+  @Column('decimal', {
+    name: 'latitude',
+    nullable: true,
+    precision: 10,
+    scale: 7,
+    transformer: new GeoCoordinateTransformer(),
+  })
+  latitude: number | null;
+
+  @Column('decimal', {
+    name: 'longitude',
+    nullable: true,
+    precision: 10,
+    scale: 7,
+    transformer: new GeoCoordinateTransformer(),
+  })
+  longitude: number | null;
+
   @Column('varchar', { name: 'phone', nullable: true, length: 45 })
   phone: string | null;
+
+  /** Recipient given name. Null on legacy rows created before ACCOUNT-1. */
+  @Column('varchar', {
+    name: 'recipientFirstName',
+    nullable: true,
+    length: 45,
+  })
+  recipientFirstName: string | null;
+
+  /** Recipient family name. Null on legacy rows created before ACCOUNT-1. */
+  @Column('varchar', {
+    name: 'recipientLastName',
+    nullable: true,
+    length: 45,
+  })
+  recipientLastName: string | null;
 
   @Column('varchar', { name: 'postalCode', nullable: true, length: 45 })
   postalCode: string | null;

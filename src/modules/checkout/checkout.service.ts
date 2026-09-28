@@ -32,6 +32,14 @@ import {
 import { isValidCheckoutPhone, normalizeCheckoutPhone } from './checkout-phone';
 import { computeCheckoutTotals } from './checkout-totals';
 import {
+  formatLocationString,
+  resolveGeoInput,
+} from '../address/address-geo';
+import {
+  normalizePostalCode,
+  postalCodeFieldError,
+} from '../address/address-postal';
+import {
   mapLinesToStorefrontDisplay,
   resolveCheckoutLines,
   type CheckoutProductRow,
@@ -97,6 +105,9 @@ export type StorefrontCheckoutOrder = {
     address: string | null;
     addressDetails: string | null;
     postalCode: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    location: string | null;
     cityId: number | null;
     cityName: string | null;
     provinceName: string | null;
@@ -337,7 +348,9 @@ export class CheckoutService {
         fxRateSource: fxRate.source || FX_RATE_SOURCE_TGJU,
         shippingCostActual: null,
         address: delivery.address,
-        location: null,
+        location: delivery.location,
+        latitude: delivery.latitude,
+        longitude: delivery.longitude,
         addressDetails: delivery.addressDetails,
         postalCode: delivery.postalCode,
         phone: delivery.phone,
@@ -579,6 +592,9 @@ export class CheckoutService {
         address: order.address,
         addressDetails: order.addressDetails,
         postalCode: order.postalCode,
+        latitude: order.latitude,
+        longitude: order.longitude,
+        location: order.location,
         cityId: order.cityId,
         cityName: order.city?.name ?? null,
         provinceName: order.city?.province?.name ?? null,
@@ -637,7 +653,9 @@ export class CheckoutService {
     const addressDetails = dto.addressDetails
       ? String(dto.addressDetails).trim()
       : null;
-    const postalCode = dto.postalCode ? String(dto.postalCode).trim() : null;
+    const postalError = postalCodeFieldError(dto.postalCode);
+    const normalizedPostal = normalizePostalCode(dto.postalCode);
+    const postalCode = normalizedPostal === 'invalid' ? null : normalizedPostal;
     const description = dto.description ? String(dto.description).trim() : null;
     const cityId = Number(dto.cityId);
 
@@ -656,6 +674,18 @@ export class CheckoutService {
     if (!isValidCheckoutPhone(phone) || !phone) {
       fieldErrors.phone = 'شماره موبایل معتبر نیست';
     }
+    if (postalError) fieldErrors.postalCode = postalError;
+
+    const geo = resolveGeoInput({
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      hasLatitude: Object.prototype.hasOwnProperty.call(dto, 'latitude'),
+      hasLongitude: Object.prototype.hasOwnProperty.call(dto, 'longitude'),
+      hasLocation: false,
+    });
+    if (geo.status === 'error') {
+      Object.assign(fieldErrors, geo.fields);
+    }
 
     if (Object.keys(fieldErrors).length) {
       this.error.unprocessableEntity(['اطلاعات تحویل ناقص یا نامعتبر است'], {
@@ -664,6 +694,8 @@ export class CheckoutService {
       });
     }
 
+    const point = geo.status === 'ok' ? geo.value : null;
+
     return {
       firstName,
       lastName,
@@ -671,6 +703,9 @@ export class CheckoutService {
       address,
       addressDetails: addressDetails || null,
       postalCode: postalCode || null,
+      latitude: point ? point.latitude : null,
+      longitude: point ? point.longitude : null,
+      location: point ? formatLocationString(point) : null,
       cityId,
       description: description || null,
     };

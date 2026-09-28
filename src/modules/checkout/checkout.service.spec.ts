@@ -443,6 +443,94 @@ describe('CheckoutService create/ownership (Checkout-1)', () => {
     ).rejects.toMatchObject({ status: 422 });
   });
 
+  it('snapshots postal code and coordinates onto the order row', async () => {
+    await service.createOrderWithCityCheck(
+      { customerId: null, sessionKey: 'sess-1' },
+      {
+        confirmationToken: confirmationForCart(),
+        firstName: 'علی',
+        lastName: 'تست',
+        phone: '09121234567',
+        address: 'خیابان تست پلاک ۱۲',
+        postalCode: '0123456789',
+        latitude: 35.6892,
+        longitude: 51.389,
+        cityId: 1,
+      } as any,
+      '550e8400-e29b-41d4-a716-446655440010',
+    );
+    expect(insertedOrders[0]).toMatchObject({
+      postalCode: '0123456789',
+      latitude: 35.6892,
+      longitude: 51.389,
+      location: '35.6892000,51.3890000',
+    });
+    expect(insertedOrders[0]).not.toHaveProperty('addressId');
+  });
+
+  it('stores null coordinates when checkout sends no map pin (never 0,0)', async () => {
+    await service.createOrderWithCityCheck(
+      { customerId: null, sessionKey: 'sess-1' },
+      {
+        confirmationToken: confirmationForCart(),
+        firstName: 'علی',
+        lastName: 'تست',
+        phone: '09121234567',
+        address: 'خیابان تست پلاک ۱۲',
+        cityId: 1,
+      },
+      '550e8400-e29b-41d4-a716-446655440011',
+    );
+    expect(insertedOrders[0].latitude).toBeNull();
+    expect(insertedOrders[0].longitude).toBeNull();
+    expect(insertedOrders[0].location).toBeNull();
+    expect(insertedOrders[0].postalCode).toBeNull();
+  });
+
+  it('normalizes a hyphenated / Persian-digit postal code keeping leading zeros', async () => {
+    await service.createOrderWithCityCheck(
+      { customerId: null, sessionKey: 'sess-1' },
+      {
+        confirmationToken: confirmationForCart(),
+        firstName: 'علی',
+        lastName: 'تست',
+        phone: '09121234567',
+        address: 'خیابان تست پلاک ۱۲',
+        postalCode: ' ۰۱۲۳۴-۵۶۷۸۹ ',
+        cityId: 1,
+      } as any,
+      '550e8400-e29b-41d4-a716-446655440013',
+    );
+    expect(insertedOrders[0].postalCode).toBe('0123456789');
+  });
+
+  it('rejects out-of-range or half-specified checkout coordinates', async () => {
+    for (const geo of [
+      { latitude: 95, longitude: 51 },
+      { latitude: 35, longitude: -181 },
+      { latitude: 35 },
+      { latitude: 'NaN', longitude: 51 },
+      { latitude: 0, longitude: 0 },
+      { postalCode: '12345' },
+    ]) {
+      await expect(
+        service.createOrderWithCityCheck(
+          { customerId: null, sessionKey: 'sess-1' },
+          {
+            confirmationToken: confirmationForCart(),
+            firstName: 'علی',
+            lastName: 'تست',
+            phone: '09121234567',
+            address: 'خیابان تست پلاک ۱۲',
+            cityId: 1,
+            ...geo,
+          } as any,
+          '550e8400-e29b-41d4-a716-446655440012',
+        ),
+      ).rejects.toMatchObject({ status: 422 });
+    }
+  });
+
   it('returns existing order for duplicate idempotency key', async () => {
     const clientKey = '550e8400-e29b-41d4-a716-446655440099';
     const owner = { customerId: null as number | null, sessionKey: 'sess-1' };
