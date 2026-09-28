@@ -19,7 +19,7 @@ export enum NavMenuPosition {
 
 @Index('fk_nav_menu_category1_idx', ['categoryId'], {})
 @Index('fk_nav_menu_page1_idx', ['pageId'], {})
-@Entity('nav_menu', { schema: 'ragashop' })
+@Entity('nav_menu')
 export class NavMenuEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;

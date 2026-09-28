@@ -19,7 +19,7 @@
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "@ragashop/marketplace-identity-lease": [
-        "../packages/marketplace-identity-lease/index.js"
+        "packages/marketplace-identity-lease/index.js"
       ]
     }
   }

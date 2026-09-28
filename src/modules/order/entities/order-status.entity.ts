@@ -21,7 +21,7 @@ export enum OrderStatusType {
 }
 
 @Index('fk_order_status_order1_idx', ['orderId'], {})
-@Entity('order_status', { schema: 'ragashop' })
+@Entity('order_status')
 export class OrderStatusEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;

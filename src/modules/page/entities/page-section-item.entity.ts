@@ -21,7 +21,7 @@ import { PageSectionEntity } from './page-section.entity';
 @Index('fk_page_section_item_page1_idx', ['pageId'], {})
 @Index('fk_page_section_item_page_section1_idx', ['sectionId'], {})
 @Index('fk_page_section_item_product1_idx', ['sectionId'], {})
-@Entity('page_section_item', { schema: 'ragashop' })
+@Entity('page_section_item')
 export class PageSectionItemEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;

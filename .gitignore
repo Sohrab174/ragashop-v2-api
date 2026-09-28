@@ -69,3 +69,8 @@ credentials.json
 extracted.txt
 /output
 storage.json
+# Local audit evidence / screenshots / runtime exports (never commit)
+/audit/
+/screenshots/
+*.har
+*.heapsnapshot

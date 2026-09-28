@@ -19,7 +19,7 @@ export enum WalletHistoryType {
 @Index('fk_wallet_history_customer1_idx', ['customerId'], {})
 @Index('fk_wallet_history_customer2_idx', ['relatedCustomerId'], {})
 @Index('fk_wallet_history_order1_idx', ['relatedOrderId'], {})
-@Entity('wallet_history', { schema: 'ragashop' })
+@Entity('wallet_history')
 export class WalletHistoryEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;

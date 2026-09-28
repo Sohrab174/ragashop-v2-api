@@ -153,7 +153,6 @@ export class UserService {
     Object.keys(data).forEach((field) => {
       user[field] = data[field];
     });
-    console.log({ ...user }, data);
 
     await user.save();
   }

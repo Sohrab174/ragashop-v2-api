@@ -684,9 +684,9 @@
   dependencies:
     "@noble/hashes" "^1.1.5"
 
-"@ragashop/marketplace-identity-lease@file:../packages/marketplace-identity-lease":
+"@ragashop/marketplace-identity-lease@file:packages/marketplace-identity-lease":
   version "1.0.0"
-  resolved "file:../packages/marketplace-identity-lease"
+  resolved "file:packages/marketplace-identity-lease"
 
 "@redis/bloom@^1.2.0", "@redis/bloom@1.2.0":
   version "1.2.0"

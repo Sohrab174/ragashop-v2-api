@@ -1,0 +1,8 @@
+{
+  "name": "@ragashop/marketplace-identity-lease",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Authoritative marketplace identity lease / soft-window contract for RagaShop API and crawler",
+  "main": "index.js",
+  "types": "index.d.ts"
+}

@@ -39,7 +39,7 @@ export enum PageSectionProductGender {
 
 @Index('fk_page_section_page1_idx', ['pageId'], {})
 @Index('fk_page_section_category1', ['selectedCategoryId'], {})
-@Entity('page_section', { schema: 'ragashop' })
+@Entity('page_section')
 export class PageSectionEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'id' })
   id: number;
