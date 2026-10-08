@@ -1,12 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder, In } from 'typeorm';
+import { AssortmentCommerceService } from './assortment-policy/assortment-commerce.service';
+import {
+  applyAssortmentDecisionToAvailability,
+  isAssortmentCommerceEnforcementEnabled,
+} from './assortment-policy/assortment-enforcement';
 import {
   CanonicalCategoryEntity,
   CanonicalCategoryStatus,
 } from './entities/canonical-category.entity';
 import {
   SourceCategoryMappingEntity,
+  SourceCategoryMappingGenderSlice,
   SourceCategoryMappingStatus,
 } from './entities/source-category-mapping.entity';
 import {
@@ -26,6 +32,11 @@ import {
   SourceCategoryMappingValidationError,
   validateSourceCategoryMappingWrite,
 } from './source-category-mapping.validation';
+import {
+  indexLegacyMappingsBySourceCategoryId,
+  LEGACY_MAPPING_GENDER_SLICE,
+  LEGACY_MAPPING_REVIEW_STATUS,
+} from './source-category-mapping.legacy';
 import {
   resolveCanonicalCategoryScope,
   CanonicalCategoryScopeResult,
@@ -69,6 +80,7 @@ import {
   buildCanonicalBreadcrumbTrail,
   compactBreadcrumbTrail,
 } from './storefront-pdp.breadcrumb';
+import { resolveNearestMappedCanonicalId } from './storefront-pdp.mapping-resolve';
 import {
   normalizePdpSourceKey,
   resolvePdpBreadcrumbRequiredSource,
@@ -82,14 +94,17 @@ import {
 } from '../category/entities/category.entity';
 import {
   ProductEntity,
-  ProductGender,
   ProductStatus,
 } from '../product/entities/product.entity';
 import {
-  eligibleProductGendersForAudience,
-  isAdultAudienceBrowse,
-  resolveCanonicalBrowseAudience,
-} from './canonical-audience-policy';
+  applyCanonicalProductEligibility,
+  canonicalEligibilityCacheSuffix,
+  CanonicalProductEligibility,
+} from './canonical-product-eligibility';
+import {
+  loadCanonicalEligibilityData,
+  resolveCanonicalProductEligibilityFromData,
+} from './canonical-product-eligibility.loader';
 import {
   ProductGalleryEntity,
   ProductGalleryType,
@@ -107,7 +122,8 @@ import { SettingService } from '../setting/setting.service';
  * - category.status = active (INNER JOIN)
  * - A4 discovery: curated external not unavailable/removed;
  *   non-curated external excluded; native/unclassified compatible
- * Not required: isSellable, hasStock, quantity; source_error alone never hides
+ * - Stock gate (discoveryPurchasableSql): isSellable, quantity <> 0, and
+ *   hasStock (native uses quantity); unknown / source_error alone never hides
  * PDP does NOT require curated membership (paste-link direct access).
  */
 
@@ -129,6 +145,8 @@ export class CatalogService {
     @InjectRepository(CategoryEntity)
     private readonly categoryRepository: Repository<CategoryEntity>,
     private readonly settingService: SettingService,
+    @Optional()
+    private readonly assortmentCommerce?: AssortmentCommerceService,
   ) {}
 
   /**
@@ -474,10 +492,13 @@ export class CatalogService {
       throw new NotFoundException('Category not found');
     }
 
-    const scope = await this.resolveCanonicalCategoryScope(category.id);
+    // CAT-MAP-V2-B shared eligibility: mapping slices + CAT-3B audience.
+    const eligibility = await this.resolveCanonicalProductEligibility(
+      category.id,
+    );
     const categoryPayload = { id: category.id, name: category.name };
 
-    if (!scope.sourceCategoryIds.length) {
+    if (!eligibility.sourceCategoryIds.length) {
       return buildEmptyStorefrontPlpResponse(
         categoryPayload,
         query.page,
@@ -486,19 +507,10 @@ export class CatalogService {
       );
     }
 
-    // CAT-3B — adult audience roots: structural scope ∩ product.gender
-    const audienceGenders = await this._resolveAdultAudienceGenders(
-      category.id,
-    );
-
     const tryToToman = await this.settingService.getTryToToman();
-    const sourceCategoryIds = scope.sourceCategoryIds;
     const filters = await this._sanitizeStorefrontPlpFilters(query.filters);
 
-    const listingBuilder = this._buildEligibleProductBuilder(
-      sourceCategoryIds,
-      audienceGenders,
-    )
+    const listingBuilder = this._buildEligibleProductBuilder(eligibility)
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.brand', 'brand')
       .addSelect(STOREFRONT_EFFECTIVE_PRICE_SQL, 'mainPrice')
@@ -512,10 +524,11 @@ export class CatalogService {
 
     // Facets are independent of page/sort — reuse when filters+scope unchanged.
     const facetCacheKey = buildStorefrontPlpFacetCacheKey({
-      sourceCategoryIds,
+      sourceCategoryIds: eligibility.sourceCategoryIds,
       filters,
       tryToToman,
-      audienceGenders,
+      audienceGenders: eligibility.audienceGenders,
+      eligibilitySuffix: canonicalEligibilityCacheSuffix(eligibility),
     });
     const cachedFacets = getStorefrontPlpFacetCache(facetCacheKey);
 
@@ -526,15 +539,12 @@ export class CatalogService {
         .getManyAndCount(),
       cachedFacets
         ? Promise.resolve(cachedFacets)
-        : this._buildStorefrontFacets(
-            sourceCategoryIds,
-            filters,
-            tryToToman,
-            audienceGenders,
-          ).then((payload) => {
-            setStorefrontPlpFacetCache(facetCacheKey, payload);
-            return payload;
-          }),
+        : this._buildStorefrontFacets(eligibility, filters, tryToToman).then(
+            (payload) => {
+              setStorefrontPlpFacetCache(facetCacheKey, payload);
+              return payload;
+            },
+          ),
     ]);
 
     return {
@@ -605,6 +615,7 @@ export class CatalogService {
     const breadcrumbPromise = this._resolvePdpBreadcrumb(
       product.categoryId,
       product.source,
+      product.gender,
     );
 
     const [tryToToman, galleries, descriptions, pavs, siblings, breadcrumb] =
@@ -621,7 +632,27 @@ export class CatalogService {
     product.productDescriptions = descriptions;
     product.productAttributeValues = pavs;
 
-    return mapStorefrontPdpProduct(product, tryToToman, breadcrumb, siblings);
+    const mapped = mapStorefrontPdpProduct(
+      product,
+      tryToToman,
+      breadcrumb,
+      siblings,
+    );
+
+    // SCOPE-5/6 — direct URL must not bypass assortment review/out state.
+    // PDP stays reachable (history/order links); purchase is blocked server-side
+    // in Cart/Checkout independently of this flag on the response.
+    if (this.assortmentCommerce && isAssortmentCommerceEnforcementEnabled()) {
+      const decision = await this.assortmentCommerce.evaluateForCategory(
+        product.categoryId,
+      );
+      mapped.availability = applyAssortmentDecisionToAvailability(
+        mapped.availability,
+        decision,
+      );
+    }
+
+    return mapped;
   }
 
   /**
@@ -659,16 +690,17 @@ export class CatalogService {
   }
 
   /**
-   * Canonical breadcrumb via source→canonical mapping.
-   * Walks the product's source category ancestors until an active mapping
-   * is found (PLP often attaches products to unmapped leaf source categories
-   * under a mapped root). Empty when no mapped ancestor exists.
+   * Canonical breadcrumb via source→canonical mapping (CAT-MAP-V2 PRE-E).
+   * Walks the product's source category ancestors until an *effective*
+   * mapping for this Product.gender is found. Empty when none exists.
    *
+   * Slice-aware: never last-write-wins across female/male/unisex/any rows.
    * Ancestor walk never crosses a null/empty or different retailer source.
    */
   private async _resolvePdpBreadcrumb(
     sourceCategoryId: number | null | undefined,
     productSource?: string | null,
+    productGender?: string | null,
   ) {
     if (sourceCategoryId == null || sourceCategoryId <= 1) return [];
 
@@ -687,29 +719,29 @@ export class CatalogService {
     );
     if (!ancestorIds.length) return [];
 
+    // One set-based load for all ancestors — no per-level mapping queries.
     const mappings = await this.mappingRepository.find({
       where: {
         sourceCategoryId: In(ancestorIds),
         status: SourceCategoryMappingStatus.active,
       },
-      select: ['sourceCategoryId', 'canonicalCategoryId'],
+      select: [
+        'id',
+        'sourceCategoryId',
+        'canonicalCategoryId',
+        'genderSlice',
+        'reviewStatus',
+        'status',
+      ],
     });
 
     if (!mappings.length) return [];
 
-    const mappingBySource = new Map(
-      mappings.map((m) => [m.sourceCategoryId, m.canonicalCategoryId]),
+    const canonicalId = resolveNearestMappedCanonicalId(
+      ancestorIds,
+      mappings,
+      productGender,
     );
-
-    // Prefer the nearest mapped ancestor (leaf → root order in ancestorIds).
-    let canonicalId: number | null = null;
-    for (const id of ancestorIds) {
-      const hit = mappingBySource.get(id);
-      if (hit) {
-        canonicalId = hit;
-        break;
-      }
-    }
     if (canonicalId == null) return [];
 
     const rows = await this.canonicalRepository.find({
@@ -771,27 +803,27 @@ export class CatalogService {
   }
 
   /**
-   * CAT-3B — resolve adult audience gender filter for a canonical category.
-   * Returns null for kids/neutral (no gender intersection; structural only).
+   * CAT-MAP-V2-B — shared canonical eligibility (same resolver as Search).
+   * Includes CAT-3B adult audience genders (null for kids / neutral).
    */
-  private async _resolveAdultAudienceGenders(
+  async resolveCanonicalProductEligibility(
     canonicalCategoryId: number,
-  ): Promise<ProductGender[] | null> {
-    const rows = await this.canonicalRepository.find({
-      select: ['id', 'parentId', 'name', 'audience'],
-    });
-    const audience = resolveCanonicalBrowseAudience(canonicalCategoryId, rows);
-    if (!isAdultAudienceBrowse(audience)) return null;
-    return eligibleProductGendersForAudience(audience);
+  ): Promise<CanonicalProductEligibility> {
+    const data = await loadCanonicalEligibilityData(
+      this.canonicalRepository.manager,
+    );
+    return resolveCanonicalProductEligibilityFromData(
+      canonicalCategoryId,
+      data,
+    );
   }
 
   /**
    * Shared eligible Product population for listing + facets (PLP-1 + A4 discovery).
-   * CAT-3B: optional audienceGenders intersects product.gender before pagination.
+   * Canonical eligibility (slices + CAT-3B) is applied before pagination.
    */
   private _buildEligibleProductBuilder(
-    sourceCategoryIds: number[],
-    audienceGenders?: ProductGender[] | null,
+    eligibility: CanonicalProductEligibility,
   ): SelectQueryBuilder<ProductEntity> {
     const qb = this.productRepository
       .createQueryBuilder('product')
@@ -806,15 +838,8 @@ export class CatalogService {
       .andWhere('product.status = :status', { status: ProductStatus.active })
       .andWhere('product.isDeleted = :isDeleted', { isDeleted: false })
       .andWhere('product.price > 0')
-      .andWhere('product.categoryId != 1')
-      .andWhere('product.categoryId IN (:...sourceCategoryIds)', {
-        sourceCategoryIds,
-      });
-    if (audienceGenders?.length) {
-      qb.andWhere('product.gender IN (:...audienceGenders)', {
-        audienceGenders,
-      });
-    }
+      .andWhere('product.categoryId != 1');
+    applyCanonicalProductEligibility(qb, 'product', eligibility, 'plpElig');
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
@@ -825,8 +850,7 @@ export class CatalogService {
         entity: typeof ProductEntity,
       ) => Repository<ProductEntity>;
     },
-    sourceCategoryIds: number[],
-    audienceGenders?: ProductGender[] | null,
+    eligibility: CanonicalProductEligibility,
   ): SelectQueryBuilder<ProductEntity> {
     const qb = manager
       .getRepository(ProductEntity)
@@ -841,15 +865,8 @@ export class CatalogService {
       .andWhere('product.status = :status', { status: ProductStatus.active })
       .andWhere('product.isDeleted = :isDeleted', { isDeleted: false })
       .andWhere('product.price > 0')
-      .andWhere('product.categoryId != 1')
-      .andWhere('product.categoryId IN (:...sourceCategoryIds)', {
-        sourceCategoryIds,
-      });
-    if (audienceGenders?.length) {
-      qb.andWhere('product.gender IN (:...audienceGenders)', {
-        audienceGenders,
-      });
-    }
+      .andWhere('product.categoryId != 1');
+    applyCanonicalProductEligibility(qb, 'product', eligibility, 'plpElig');
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
@@ -890,10 +907,9 @@ export class CatalogService {
   }
 
   private async _buildStorefrontFacets(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpFiltersPayload> {
     const hasSelectedAttrs = filters.attributes.some(
       (g) => g.valueIds.length > 0,
@@ -903,32 +919,16 @@ export class CatalogService {
     // brand / price / attribute facets (avoids parallel EXISTS full scans).
     if (hasSelectedAttrs) {
       return this._buildStorefrontFacetsSelected(
-        sourceCategoryIds,
+        eligibility,
         filters,
         tryToToman,
-        audienceGenders,
       );
     }
 
     const [brands, price, attributes] = await Promise.all([
-      this._computeBrandFacets(
-        sourceCategoryIds,
-        filters,
-        tryToToman,
-        audienceGenders,
-      ),
-      this._computePriceFacet(
-        sourceCategoryIds,
-        filters,
-        tryToToman,
-        audienceGenders,
-      ),
-      this._computeAttributeFacets(
-        sourceCategoryIds,
-        filters,
-        tryToToman,
-        audienceGenders,
-      ),
+      this._computeBrandFacets(eligibility, filters, tryToToman),
+      this._computePriceFacet(eligibility, filters, tryToToman),
+      this._computeAttributeFacets(eligibility, filters, tryToToman),
     ]);
 
     return { brands, price, attributes };
@@ -940,23 +940,20 @@ export class CatalogService {
    * facets use the dedicated selected-path aggregator in parallel.
    */
   private async _buildStorefrontFacetsSelected(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpFiltersPayload> {
     const [brandPrice, attributes] = await Promise.all([
       this._computeBrandPriceFacetsWithAttrMatch(
-        sourceCategoryIds,
+        eligibility,
         filters,
         tryToToman,
-        audienceGenders,
       ),
       this._aggregateAttributeFacetsSelectedPath(
-        sourceCategoryIds,
+        eligibility,
         filters,
         tryToToman,
-        audienceGenders,
       ),
     ]);
     return {
@@ -971,10 +968,9 @@ export class CatalogService {
    * AND-matched product id set once, then aggregate without EXISTS chains.
    */
   private async _computeBrandPriceFacetsWithAttrMatch(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<{
     brands: StorefrontPlpBrandFacet[];
     price: StorefrontPlpPriceFacet;
@@ -987,8 +983,7 @@ export class CatalogService {
 
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
-        sourceCategoryIds,
-        audienceGenders,
+        eligibility,
       );
 
       const [eligibleSql, eligibleParams] = eligibleQb.getQueryAndParameters();
@@ -1141,15 +1136,11 @@ export class CatalogService {
   }
 
   private async _computeBrandFacets(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpBrandFacet[]> {
-    const qb = this._buildEligibleProductBuilder(
-      sourceCategoryIds,
-      audienceGenders,
-    )
+    const qb = this._buildEligibleProductBuilder(eligibility)
       .innerJoin('product.brand', 'brand')
       .select('product.brandId', 'id')
       .addSelect(`COALESCE(NULLIF(brand.sourceName, ''), brand.name)`, 'name')
@@ -1186,15 +1177,11 @@ export class CatalogService {
   }
 
   private async _computePriceFacet(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpPriceFacet> {
-    const qb = this._buildEligibleProductBuilder(
-      sourceCategoryIds,
-      audienceGenders,
-    )
+    const qb = this._buildEligibleProductBuilder(eligibility)
       .select(`MIN(${STOREFRONT_EFFECTIVE_PRICE_SQL})`, 'minTry')
       .addSelect(`MAX(${STOREFRONT_EFFECTIVE_PRICE_SQL})`, 'maxTry');
 
@@ -1229,16 +1216,14 @@ export class CatalogService {
    * exact COUNT(DISTINCT productId) per AttributeValue.
    */
   private async _aggregateAttributeFacetsSinglePass(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpAttributeFacet[]> {
     return this.productRepository.manager.transaction(async (manager) => {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
-        sourceCategoryIds,
-        audienceGenders,
+        eligibility,
       );
 
       applyStorefrontPlpFilters(eligibleQb, filters, tryToToman, {
@@ -1387,10 +1372,9 @@ export class CatalogService {
   }
 
   private async _computeAttributeFacets(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpAttributeFacet[]> {
     const selectedAttrIds = filters.attributes
       .filter((g) => g.valueIds.length > 0)
@@ -1399,20 +1383,18 @@ export class CatalogService {
     // Large-scope hot path: one Product/PAV aggregation instead of discovery+values.
     if (!selectedAttrIds.length) {
       return this._aggregateAttributeFacetsSinglePass(
-        sourceCategoryIds,
+        eligibility,
         filters,
         tryToToman,
-        audienceGenders,
       );
     }
 
     // Selected-attribute path: shared match relation + narrowed aggregations
     // (avoids N+1 full-scope EXISTS discovery/value passes).
     return this._aggregateAttributeFacetsSelectedPath(
-      sourceCategoryIds,
+      eligibility,
       filters,
       tryToToman,
-      audienceGenders,
     );
   }
 
@@ -1432,20 +1414,18 @@ export class CatalogService {
    * Duplicate PAVs cannot inflate: PRIMARY KEY + COUNT(DISTINCT productId).
    */
   private async _aggregateAttributeFacetsSelectedPath(
-    sourceCategoryIds: number[],
+    eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
-    audienceGenders?: ProductGender[] | null,
   ): Promise<StorefrontPlpAttributeFacet[]> {
     const selectedGroups = filters.attributes.filter(
       (g) => g.valueIds.length > 0,
     );
     if (!selectedGroups.length) {
       return this._aggregateAttributeFacetsSinglePass(
-        sourceCategoryIds,
+        eligibility,
         filters,
         tryToToman,
-        audienceGenders,
       );
     }
 
@@ -1456,8 +1436,7 @@ export class CatalogService {
 
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
-        sourceCategoryIds,
-        audienceGenders,
+        eligibility,
       );
 
       applyStorefrontPlpFilters(eligibleQb, filters, tryToToman, {
@@ -1777,7 +1756,8 @@ export class CatalogService {
 
   /**
    * Admin-ready mapping write with identity + source consistency checks.
-   * Identity is UNIQUE(sourceCategoryId); source is copied from category.
+   * CAT-MAP-V2-A: V1 path writes ONLY genderSlice=any (UNIQUE with sourceCategoryId).
+   * source is copied from category. reviewStatus stays legacy_unreviewed.
    */
   async upsertSourceCategoryMapping(input: {
     sourceCategoryId: number;
@@ -1787,7 +1767,10 @@ export class CatalogService {
     note?: string | null;
   }): Promise<SourceCategoryMappingEntity> {
     const existing = await this.mappingRepository.findOne({
-      where: { sourceCategoryId: input.sourceCategoryId },
+      where: {
+        sourceCategoryId: input.sourceCategoryId,
+        genderSlice: LEGACY_MAPPING_GENDER_SLICE,
+      },
     });
 
     const validated = await validateSourceCategoryMappingWrite(
@@ -1795,7 +1778,11 @@ export class CatalogService {
       {
         findOne: async ({ where }) => {
           const row = await this.mappingRepository.findOne({
-            where: { sourceCategoryId: where.sourceCategoryId },
+            where: {
+              sourceCategoryId: where.sourceCategoryId,
+              genderSlice:
+                where.genderSlice ?? SourceCategoryMappingGenderSlice.any,
+            },
             select: ['id', 'canonicalCategoryId'],
           });
           return row || undefined;
@@ -1803,6 +1790,7 @@ export class CatalogService {
       },
       {
         ...input,
+        genderSlice: LEGACY_MAPPING_GENDER_SLICE,
         // Allow updating the same mapping row's canonical target.
         mappingId: existing?.id ?? null,
       },
@@ -1812,6 +1800,8 @@ export class CatalogService {
     if (existing) {
       existing.canonicalCategoryId = validated.canonicalCategoryId;
       existing.source = validated.source;
+      existing.genderSlice = LEGACY_MAPPING_GENDER_SLICE;
+      existing.reviewStatus = LEGACY_MAPPING_REVIEW_STATUS;
       existing.status = input.status ?? existing.status;
       existing.note = input.note !== undefined ? input.note : existing.note;
       return this.mappingRepository.save(existing);
@@ -1821,6 +1811,8 @@ export class CatalogService {
       source: validated.source,
       sourceCategoryId: validated.sourceCategoryId,
       canonicalCategoryId: validated.canonicalCategoryId,
+      genderSlice: LEGACY_MAPPING_GENDER_SLICE,
+      reviewStatus: LEGACY_MAPPING_REVIEW_STATUS,
       status: input.status ?? SourceCategoryMappingStatus.active,
       note: input.note ?? null,
       createdAt: dateTime() as any,
@@ -1907,6 +1899,342 @@ export class CatalogService {
     return this.canonicalRepository.find({
       order: { displayOrder: 'ASC', id: 'ASC' },
     });
+  }
+
+  /**
+   * Admin board: source categories that have products and/or a mapping,
+   * with mapping + canonical enrichment. Does not invent mappings.
+   */
+  async listSourceMappingBoardAdmin(options?: {
+    onlyUnmapped?: boolean;
+    onlyMapped?: boolean;
+    onlyWithProducts?: boolean;
+    source?: string | null;
+    search?: string | null;
+    limit?: number;
+  }) {
+    const limit = Math.min(Math.max(Number(options?.limit) || 200, 1), 500);
+    const onlyUnmapped = !!options?.onlyUnmapped;
+    const onlyMapped = !!options?.onlyMapped;
+    const onlyWithProducts = options?.onlyWithProducts !== false; // default true
+    const sourceFilter = options?.source ? String(options.source).trim() : '';
+    const search = options?.search ? String(options.search).trim() : '';
+
+    const mappings = await this.mappingRepository.find({
+      order: { id: 'ASC' },
+    });
+    // V1 Admin board: one effective mapping per source category (`any` preferred).
+    const mappingBySourceId = indexLegacyMappingsBySourceCategoryId(mappings);
+
+    const canonicals = await this.canonicalRepository.find({
+      select: ['id', 'name', 'parentId', 'status'],
+    });
+    const canonicalById = new Map(canonicals.map((c) => [Number(c.id), c]));
+
+    const productCounts: Array<{ categoryId: number; c: string }> =
+      await this.productRepository
+        .createQueryBuilder('p')
+        .select('p.categoryId', 'categoryId')
+        .addSelect('COUNT(*)', 'c')
+        .where('p.isDeleted = 0')
+        .groupBy('p.categoryId')
+        .getRawMany();
+    const productCountByCat = new Map(
+      productCounts.map((r) => [Number(r.categoryId), Number(r.c) || 0]),
+    );
+
+    const categories = await this.categoryRepository.find({
+      select: [
+        'id',
+        'name',
+        'sourceName',
+        'source',
+        'sourceId',
+        'parentId',
+        'status',
+        'hierarchy',
+      ],
+      order: { id: 'ASC' },
+    });
+    const categoryById = new Map(categories.map((c) => [Number(c.id), c]));
+
+    const items = [];
+    for (const cat of categories) {
+      const id = Number(cat.id);
+      if (id <= 1) continue;
+      const productCount = productCountByCat.get(id) || 0;
+      const mapping = mappingBySourceId.get(id) || null;
+      if (onlyWithProducts && productCount <= 0 && !mapping) continue;
+      if (onlyUnmapped && mapping) continue;
+      if (onlyMapped && !mapping) continue;
+      if (sourceFilter && String(cat.source || '') !== sourceFilter) continue;
+      if (search) {
+        const hay = `${cat.name || ''} ${cat.sourceName || ''} ${
+          cat.sourceId || ''
+        } ${cat.hierarchy || ''}`.toLowerCase();
+        if (!hay.includes(search.toLowerCase())) continue;
+      }
+
+      const parent = cat.parentId
+        ? categoryById.get(Number(cat.parentId))
+        : null;
+      const canonical = mapping
+        ? canonicalById.get(Number(mapping.canonicalCategoryId))
+        : null;
+
+      items.push({
+        sourceCategory: {
+          id: cat.id,
+          name: cat.name,
+          sourceName: cat.sourceName,
+          source: cat.source,
+          sourceId: cat.sourceId,
+          parentId: cat.parentId,
+          parentName: parent?.name || null,
+          parentSourceName: parent?.sourceName || null,
+          hierarchy: cat.hierarchy,
+          status: cat.status,
+        },
+        productCount,
+        mapping: mapping
+          ? {
+              id: mapping.id,
+              status: mapping.status,
+              canonicalCategoryId: mapping.canonicalCategoryId,
+              note: mapping.note,
+            }
+          : null,
+        canonical: canonical
+          ? {
+              id: canonical.id,
+              name: canonical.name,
+              parentId: canonical.parentId,
+              status: canonical.status,
+            }
+          : null,
+      });
+    }
+
+    items.sort((a, b) => {
+      if (!a.mapping && b.mapping) return -1;
+      if (a.mapping && !b.mapping) return 1;
+      return (
+        b.productCount - a.productCount ||
+        a.sourceCategory.id - b.sourceCategory.id
+      );
+    });
+
+    const truncated = items.slice(0, limit);
+    const unmappedWithProducts = items.filter(
+      (i) => !i.mapping && i.productCount > 0,
+    ).length;
+    const mappedCount = items.filter((i) => !!i.mapping).length;
+
+    return {
+      items: truncated,
+      summary: {
+        returned: truncated.length,
+        truncated: items.length > truncated.length,
+        boardCandidates: items.length,
+        mappedOnBoard: mappedCount,
+        unmappedWithProductsOnBoard: unmappedWithProducts,
+        totalMappings: mappings.length,
+        activeMappings: mappings.filter(
+          (m) => m.status === SourceCategoryMappingStatus.active,
+        ).length,
+      },
+    };
+  }
+
+  /**
+   * Coverage using EXACT PLP scope semantics (mapped roots + same-source descendants).
+   * Does not invent name-based inheritance.
+   */
+  async getCategoryCoverageAdmin() {
+    const [canonicals, mappings, taxonomy, productsTotal, productsActive] =
+      await Promise.all([
+        this.canonicalRepository.find({
+          select: ['id', 'parentId', 'status', 'displayOrder', 'name'],
+        }),
+        this.mappingRepository.find({
+          select: [
+            'id',
+            'canonicalCategoryId',
+            'sourceCategoryId',
+            'status',
+            'source',
+          ],
+        }),
+        this.categoryRepository.find({
+          select: [
+            'id',
+            'parentId',
+            'source',
+            'status',
+            'displayOrder',
+            'name',
+          ],
+        }),
+        this.productRepository.count({ where: { isDeleted: false } as any }),
+        this.productRepository
+          .createQueryBuilder('p')
+          .where('p.isDeleted = 0')
+          .andWhere("p.status = 'active'")
+          .getCount(),
+      ]);
+
+    const activeCanonicalIds = canonicals
+      .filter((c) => c.status === CanonicalCategoryStatus.active)
+      .map((c) => Number(c.id));
+
+    const reachableSourceIds = new Set<number>();
+    for (const canonicalId of activeCanonicalIds) {
+      const scope = resolveCanonicalCategoryScope(
+        canonicalId,
+        canonicals as any,
+        mappings as any,
+        taxonomy as any,
+      );
+      for (const sid of scope.sourceCategoryIds) {
+        reachableSourceIds.add(Number(sid));
+      }
+    }
+
+    const directMappedSourceIds = new Set(
+      mappings
+        .filter((m) => m.status === SourceCategoryMappingStatus.active)
+        .map((m) => Number(m.sourceCategoryId)),
+    );
+
+    let reachableProductCount = 0;
+    let directMappedProductCount = 0;
+    let unmappedActiveProductCount = 0;
+
+    if (reachableSourceIds.size) {
+      reachableProductCount = await this.productRepository
+        .createQueryBuilder('p')
+        .where('p.isDeleted = 0')
+        .andWhere('p.categoryId IN (:...ids)', {
+          ids: [...reachableSourceIds],
+        })
+        .getCount();
+    }
+
+    if (directMappedSourceIds.size) {
+      directMappedProductCount = await this.productRepository
+        .createQueryBuilder('p')
+        .where('p.isDeleted = 0')
+        .andWhere('p.categoryId IN (:...ids)', {
+          ids: [...directMappedSourceIds],
+        })
+        .getCount();
+    }
+
+    unmappedActiveProductCount = await this.productRepository
+      .createQueryBuilder('p')
+      .where('p.isDeleted = 0')
+      .andWhere("p.status = 'active'")
+      .andWhere(
+        directMappedSourceIds.size
+          ? 'p.categoryId NOT IN (:...mappedIds)'
+          : '1=1',
+        directMappedSourceIds.size
+          ? { mappedIds: [...directMappedSourceIds] }
+          : {},
+      )
+      .getCount();
+
+    // Top unmapped source categories by product count (direct categoryId, no mapping row)
+    const topUnmappedRaw: Array<{
+      categoryId: number;
+      productCount: string;
+    }> = await this.productRepository
+      .createQueryBuilder('p')
+      .select('p.categoryId', 'categoryId')
+      .addSelect('COUNT(*)', 'productCount')
+      .where('p.isDeleted = 0')
+      .andWhere(
+        directMappedSourceIds.size
+          ? 'p.categoryId NOT IN (:...mappedIds)'
+          : '1=1',
+        directMappedSourceIds.size
+          ? { mappedIds: [...directMappedSourceIds] }
+          : {},
+      )
+      .groupBy('p.categoryId')
+      .orderBy('productCount', 'DESC')
+      .limit(20)
+      .getRawMany();
+
+    const topIds = topUnmappedRaw.map((r) => Number(r.categoryId));
+    const topCats = topIds.length
+      ? await this.categoryRepository.find({
+          where: { id: In(topIds) } as any,
+          select: [
+            'id',
+            'name',
+            'sourceName',
+            'source',
+            'sourceId',
+            'parentId',
+          ],
+        })
+      : [];
+    const topById = new Map(topCats.map((c) => [Number(c.id), c]));
+
+    const topUnmappedSourceCategories = topUnmappedRaw.map((r) => {
+      const cat = topById.get(Number(r.categoryId));
+      return {
+        id: Number(r.categoryId),
+        name: cat?.name || null,
+        sourceName: cat?.sourceName || null,
+        source: cat?.source || null,
+        sourceId: cat?.sourceId || null,
+        parentId: cat?.parentId ?? null,
+        productCount: Number(r.productCount) || 0,
+        note: 'No active source_category_mapping row on this categoryId. Products may still be reachable if an ancestor source category is mapped (PLP same-source descendant expansion).',
+      };
+    });
+
+    const canonicalWithoutMappings = canonicals.filter(
+      (c) =>
+        !mappings.some(
+          (m) =>
+            Number(m.canonicalCategoryId) === Number(c.id) &&
+            m.status === SourceCategoryMappingStatus.active,
+        ),
+    ).length;
+
+    return {
+      productsTotal,
+      productsActive,
+      canonicalTotal: canonicals.length,
+      canonicalActive: activeCanonicalIds.length,
+      mappingsTotal: mappings.length,
+      mappingsActive: mappings.filter(
+        (m) => m.status === SourceCategoryMappingStatus.active,
+      ).length,
+      sourceCategoriesInTaxonomy: taxonomy.length,
+      /**
+       * Products whose categoryId is itself an actively mapped source category.
+       * Does NOT include same-source descendants of a mapped parent.
+       */
+      productsOnDirectlyMappedSourceCategories: directMappedProductCount,
+      /**
+       * Products reachable via PLP scope for ANY active canonical
+       * (mapped roots + same-source descendants). Exact storefront semantics.
+       */
+      productsReachableViaActiveCanonicalScopes: reachableProductCount,
+      /**
+       * Active products whose own categoryId has no active mapping row.
+       * Not the inverse of scope-reachable (ancestor mapping can still include them).
+       */
+      activeProductsWhoseCategoryIdHasNoMappingRow: unmappedActiveProductCount,
+      canonicalCategoriesWithoutActiveMapping: canonicalWithoutMappings,
+      reachableSourceCategoryIdCount: reachableSourceIds.size,
+      topUnmappedSourceCategoriesByDirectProductCount:
+        topUnmappedSourceCategories,
+    };
   }
 }
 

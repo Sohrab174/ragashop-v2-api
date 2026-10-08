@@ -35,16 +35,13 @@ export enum PaymentRejectionReasonCode {
   OTHER = 'OTHER',
 }
 
-export enum UserCapabilityName {
-  payment_submission_read = 'payment_submission.read',
-  payment_submission_review = 'payment_submission.review',
-  payment_submission_approve = 'payment_submission.approve',
-  bank_destination_manage = 'bank_destination.manage',
-  /** Manual TGJU TRY→IRR refresh / FX last-known-good mutation */
-  settings_fx_refresh = 'settings.fx_refresh',
-  /** Read, reply, and change status on customer support requests. */
-  support_manage = 'support.manage',
-}
+/** Re-export canonical catalog (ADMIN-RBAC-1). Prefer importing from capability.catalog. */
+export {
+  UserCapabilityName,
+  ALL_USER_CAPABILITIES,
+  isKnownCapability,
+  capabilitySatisfiers,
+} from '../auth/capability/capability.catalog';
 
 export const RECEIPT_ALLOWED_MIME_TYPES = [
   'image/jpeg',

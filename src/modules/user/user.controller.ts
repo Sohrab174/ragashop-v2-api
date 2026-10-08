@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Post,
   UseGuards,
   Put,
@@ -19,16 +20,24 @@ import { Sort } from '../../utils/decorators/sort.decorator';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ReplaceUserCapabilitiesDto } from './dto/replace-user-capabilities.dto';
 import { UserRoles, UserStatus } from './entities/user.entity';
 import { UserService } from './user.service';
 import { User } from '../../utils/decorators/user.decorator';
+import { UserCapabilityService } from '../manual-payment/user-capability.service';
 
 @ApiTags('User')
 @Controller('users')
 export class UserController {
-  constructor(private userService: UserService) {}
+  constructor(
+    private userService: UserService,
+    private capabilityService: UserCapabilityService,
+  ) {}
 
   /**
    * -------------------------------------------------------
@@ -36,24 +45,26 @@ export class UserController {
    */
   @Post('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.employee_manage)
   @HttpCode(HttpStatus.CREATED)
-  async createForAdmin(@Body() dto: CreateUserDto) {
-    const newUser = await this.userService.add(dto);
+  async createForAdmin(@Body() dto: CreateUserDto, @User() actor) {
+    const newUser = await this.userService.add(dto, actor);
     return successfulResult(['کاربر جدید با موفقیت ایجاد شد'], newUser);
   }
 
   /**
    * -------------------------------------------------------
-   * PUT /users/1/admin
+   * PUT /users/admin
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
-  async updateUserForAdmin(@Body() dto: UpdateUserDto) {
-    await this.userService.updateUser(dto.id, dto);
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.employee_manage)
+  async updateUserForAdmin(@Body() dto: UpdateUserDto, @User() actor) {
+    await this.userService.updateUser(dto.id, dto, actor);
     return successfulResult(['مشخصات کاربر با موفقیت ویرایش شد']);
   }
 
@@ -63,8 +74,9 @@ export class UserController {
    */
   @Get()
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.employee_read)
   @ApiQuery({ name: 'first_name', required: false })
   @ApiQuery({ name: 'last_name', required: false })
   @ApiQuery({ name: 'email', required: false })
@@ -87,34 +99,74 @@ export class UserController {
     filters,
   ) {
     const list = await this.userService.getAll(page, limit, filters, sorts);
-
     return successfulResult([], list);
   }
 
   /**
    * -------------------------------------------------------
-   * GET /users/1
+   * GET /users/:id/capabilities/admin
+   * Must be registered before GET /users/:id
+   */
+  @Get(':id/capabilities/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin)
+  @RequireCapabilities(UserCapabilityName.employee_permissions)
+  async getCapabilities(@Param('id', ParseIntPipe) userId: number) {
+    const data = await this.userService.getCapabilitiesForAdmin(userId);
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * PUT /users/:id/capabilities/admin
+   * Admin-only permission management (this phase).
+   */
+  @Put(':id/capabilities/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin)
+  @RequireCapabilities(UserCapabilityName.employee_permissions)
+  async replaceCapabilities(
+    @Param('id', ParseIntPipe) userId: number,
+    @Body() dto: ReplaceUserCapabilitiesDto,
+  ) {
+    const capabilities = await this.userService.replaceCapabilitiesForAdmin(
+      userId,
+      dto.capabilities || [],
+    );
+    return successfulResult(['دسترسی‌های کارمند ذخیره شد'], { capabilities });
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /users/:id
    */
   @Get(':id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
-  async getById(@Param('id') userId: number) {
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.employee_read)
+  async getById(@Param('id', ParseIntPipe) userId: number) {
     const userInfo = await this.userService.getById(userId);
     return successfulResult([], userInfo);
   }
 
   /**
    * -------------------------------------------------------
-   * DELETE /users/admin/1
+   * DELETE /users/admin/:id
    */
   @Delete('admin/:id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.employee_manage)
   @HttpCode(HttpStatus.OK)
-  async deleteUser(@Param('id') id: number, @User('id') adminUserId: number) {
-    await this.userService.deleteUser(id, adminUserId);
+  async deleteUser(
+    @Param('id', ParseIntPipe) id: number,
+    @User() actor,
+  ) {
+    await this.userService.deleteUser(id, actor.id, actor);
     return successfulResult(['کاربر مورد نظر با موفقیت حذف شد.']);
   }
 }

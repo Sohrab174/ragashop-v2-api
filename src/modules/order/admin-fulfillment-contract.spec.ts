@@ -18,6 +18,10 @@ describe('Admin fulfillment UI contract (FULFILLMENT-1)', () => {
   );
   const summary = readFileSync(join(orderViewDir, 'OrderSummary.js'), 'utf8');
   const modal = readFileSync(join(orderViewDir, 'OrderAcceptModal.js'), 'utf8');
+  const rejectModal = readFileSync(
+    join(orderViewDir, 'OrderRejectModal.js'),
+    'utf8',
+  );
 
   it('uses getOrderFulfillmentUiActions instead of REACT_APP_TYPE shop branching', () => {
     expect(orderView).toContain('getOrderFulfillmentUiActions');
@@ -61,5 +65,38 @@ describe('Admin fulfillment UI contract (FULFILLMENT-1)', () => {
     expect(/updateOrderStatus\([\s\S]*?trackingCode\s*:/.test(modal)).toBe(
       false,
     );
+  });
+
+  it('J — paid-order reject requires strong Persian warning, reason, confirmation', () => {
+    expect(actions).toMatch(/requiresPaidRejectSafety/);
+    expect(actions).toMatch(/PAID_REJECT_SAFETY/);
+    expect(orderView).toMatch(/orderStatus=\{data\?\.status\}/);
+    expect(rejectModal).toMatch(/requiresPaidRejectSafety/);
+    expect(rejectModal).toContain('پرداخت این سفارش قبلاً ثبت شده است');
+    expect(rejectModal).toContain(
+      'وجه به‌صورت خودکار به مشتری بازگردانده نمی‌شود',
+    );
+    expect(rejectModal).toContain(
+      'برگشت مالی یا موجودی به‌صورت خودکار انجام نمی‌شود',
+    );
+    expect(rejectModal).toMatch(/confirmNoAutoRefund/);
+    expect(rejectModal).toMatch(
+      /paidReject[\s\S]*?required\('برای رد سفارش پرداخت‌شده/,
+    );
+  });
+
+  it('K — pending rejection keeps optional reason (no paid-safety requirement)', () => {
+    expect(rejectModal).toMatch(
+      /paidReject[\s\S]*\?[\s\S]*required[\s\S]*:[\s\S]*Yup\.string\(\)/,
+    );
+    expect(rejectModal).toContain("status: 'rejected'");
+  });
+
+  it('L — fulfillment action contract statuses remain unchanged', () => {
+    expect(actions).toContain("['pending', 'paid', 'accepted']");
+    expect(actions).toContain("canPrepare: s === 'paid'");
+    expect(actions).toContain("canDeliver: s === 'sent'");
+    expect(actions).toContain("onUpdateStatus('paid')");
+    expect(actions).toContain("onUpdateStatus('pending')");
   });
 });

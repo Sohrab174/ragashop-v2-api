@@ -1,4 +1,5 @@
 import {
+  CORS_ALLOWED_HEADERS,
   createCorsOriginDelegate,
   isSwaggerEnabled,
   resolveAuthRateLimitConfig,
@@ -17,6 +18,21 @@ describe('security-config.util', () => {
   });
 
   describe('CORS', () => {
+    it('allows Admin Cache-Control preflight header without wildcards', () => {
+      // Admin axios always sends cache-control: no-cache (ragashop-site).
+      expect(CORS_ALLOWED_HEADERS).toContain('Cache-Control');
+      expect(CORS_ALLOWED_HEADERS).toContain('Authorization');
+      expect(CORS_ALLOWED_HEADERS).toContain('Content-Type');
+      expect(CORS_ALLOWED_HEADERS).not.toContain('*');
+      // Exact allowlist only — no wildcard expansion.
+      for (const header of CORS_ALLOWED_HEADERS) {
+        expect(header.includes('*')).toBe(false);
+      }
+      // Case-insensitive match as browsers send "cache-control".
+      const normalized = CORS_ALLOWED_HEADERS.map((h) => h.toLowerCase());
+      expect(normalized).toContain('cache-control');
+    });
+
     it('accepts exact allowlisted origins and rejects others', () => {
       process.env.CORS_ORIGINS =
         'http://127.0.0.1:4445,https://shop.example.com,http://127.0.0.1:4450,http://localhost:4450';

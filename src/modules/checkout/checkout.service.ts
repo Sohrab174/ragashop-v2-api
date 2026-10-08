@@ -31,10 +31,7 @@ import {
 } from './checkout-fingerprint';
 import { isValidCheckoutPhone, normalizeCheckoutPhone } from './checkout-phone';
 import { computeCheckoutTotals } from './checkout-totals';
-import {
-  formatLocationString,
-  resolveGeoInput,
-} from '../address/address-geo';
+import { formatLocationString, resolveGeoInput } from '../address/address-geo';
 import {
   normalizePostalCode,
   postalCodeFieldError,
@@ -51,6 +48,8 @@ import {
 } from '../finance/cost-resolution';
 import { FX_RATE_SOURCE_TGJU } from '../finance/finance.types';
 import { CostSource } from '../finance/finance.types';
+import { AssortmentCommerceService } from '../catalog/assortment-policy/assortment-commerce.service';
+import { isAssortmentCommerceEnforcementEnabled } from '../catalog/assortment-policy/assortment-enforcement';
 
 export { CART_SESSION_HEADER };
 
@@ -72,11 +71,17 @@ export type StorefrontCheckoutPreview = {
   paymentNote: string;
 };
 
+export type StorefrontCheckoutPaymentStatus =
+  | 'awaiting_payment'
+  | 'paid'
+  | 'rejected'
+  | 'not_payable';
+
 export type StorefrontCheckoutOrder = {
   id: number;
   number: string;
   status: OrderStatus;
-  paymentStatus: 'awaiting_payment';
+  paymentStatus: StorefrontCheckoutPaymentStatus;
   paymentStatusLabel: string;
   accessToken: string | null;
   createdAt: string;
@@ -134,6 +139,7 @@ export class CheckoutService {
     private settingService: SettingService,
     private productService: ProductService,
     private error: ErrorService,
+    private assortmentCommerce: AssortmentCommerceService,
   ) {}
 
   resolveOwner(
@@ -188,7 +194,8 @@ export class CheckoutService {
     dto: CreateCheckoutOrderDto,
     idempotencyKeyRaw: string | null | undefined,
   ): Promise<StorefrontCheckoutOrder> {
-    const clientIdempotencyKey = this.normalizeIdempotencyKey(idempotencyKeyRaw);
+    const clientIdempotencyKey =
+      this.normalizeIdempotencyKey(idempotencyKeyRaw);
     const sessionKey = this.cartService.ensureSessionKey(owner);
     // Owner-scoped digest — raw client key is never globally authoritative.
     const idempotencyKey = buildOwnerScopedIdempotencyKey({
@@ -274,6 +281,8 @@ export class CheckoutService {
           quantity: i.quantity,
         })),
         productsById,
+        assortmentStatusByCategoryId:
+          await this.loadAssortmentStatusMapIfEnforced(productsById),
       });
 
       if (validation.ok === false) {
@@ -533,7 +542,9 @@ export class CheckoutService {
 
     this.assertCanReadOrder(order, owner, accessTokenRaw);
 
-    const tryToToman = await this.settingService.getTryToToman();
+    // Historical confirmation money uses the order FX snapshot, not live FX.
+    const tryToToman = await this.resolveConfirmationFxRate(order);
+    const payment = this.deriveCheckoutPaymentState(order);
     const items = (order.orderItems || []).map((oi) => {
       const unitTry =
         oi.discountedPrice && Number(oi.discountedPrice) > 0
@@ -561,13 +572,8 @@ export class CheckoutService {
       id: order.id,
       number: order.number,
       status: order.status,
-      paymentStatus: 'awaiting_payment',
-      paymentStatusLabel:
-        order.status === OrderStatus.pending
-          ? 'در انتظار پرداخت'
-          : order.status === OrderStatus.paid
-          ? 'پرداخت شده'
-          : String(order.status),
+      paymentStatus: payment.paymentStatus,
+      paymentStatusLabel: payment.paymentStatusLabel,
       accessToken: owner.customerId ? null : order.guestAccessToken,
       createdAt: order.createdAt
         ? new Date(order.createdAt).toISOString()
@@ -600,6 +606,57 @@ export class CheckoutService {
         provinceName: order.city?.province?.name ?? null,
       },
       description: order.description,
+    };
+  }
+
+  /**
+   * Prefer persisted order FX snapshot for confirmation display.
+   * Live FX is only a legacy fallback when no snapshot exists.
+   */
+  private async resolveConfirmationFxRate(order: OrderEntity): Promise<number> {
+    if (order.commercialCurrency === ProductCurrency.IRT) {
+      return 1;
+    }
+    const snapshot = Number(order.fxRateToIrt);
+    if (Number.isFinite(snapshot) && snapshot > 0) {
+      return snapshot;
+    }
+    return this.settingService.getTryToToman();
+  }
+
+  private deriveCheckoutPaymentState(order: OrderEntity): {
+    paymentStatus: StorefrontCheckoutPaymentStatus;
+    paymentStatusLabel: string;
+  } {
+    if (order.status === OrderStatus.rejected) {
+      return {
+        paymentStatus: 'rejected',
+        paymentStatusLabel: 'رد شده',
+      };
+    }
+    const paidEvidence =
+      order.successfulTransactionId != null ||
+      order.status === OrderStatus.paid ||
+      order.status === OrderStatus.accepted ||
+      order.status === OrderStatus.sent ||
+      order.status === OrderStatus.delivered ||
+      order.status === OrderStatus.buyFromSource ||
+      order.status === OrderStatus.sendToDestination;
+    if (paidEvidence) {
+      return {
+        paymentStatus: 'paid',
+        paymentStatusLabel: 'پرداخت شده',
+      };
+    }
+    if (order.status === OrderStatus.pending) {
+      return {
+        paymentStatus: 'awaiting_payment',
+        paymentStatusLabel: 'در انتظار پرداخت',
+      };
+    }
+    return {
+      paymentStatus: 'not_payable',
+      paymentStatusLabel: 'قابل پرداخت نیست',
     };
   }
 
@@ -803,6 +860,8 @@ export class CheckoutService {
         quantity: i.quantity,
       })),
       productsById,
+      assortmentStatusByCategoryId:
+        await this.loadAssortmentStatusMapIfEnforced(productsById),
     });
 
     const settings = await this.settingService.getByAdmin([
@@ -857,6 +916,17 @@ export class CheckoutService {
   private cartUpdatedAtIso(cart: CartEntity): string {
     const d = cart.updatedAt ? new Date(cart.updatedAt) : new Date(0);
     return d.toISOString();
+  }
+
+  /** SCOPE-5/6 — server-side assortment revalidation before order/payment. */
+  private async loadAssortmentStatusMapIfEnforced(
+    productsById: Map<number, CheckoutProductRow>,
+  ): Promise<Map<number, string> | null> {
+    if (!isAssortmentCommerceEnforcementEnabled()) return null;
+    const catIds = [...productsById.values()]
+      .map((p) => Number(p.categoryId))
+      .filter((id) => id > 0);
+    return this.assortmentCommerce.getStatusMapForCategories(catIds);
   }
 
   private async loadProductsByIds(

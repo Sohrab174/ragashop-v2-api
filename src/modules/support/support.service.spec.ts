@@ -212,6 +212,8 @@ describe('SupportService ownership', () => {
 describe('support admin authorization contract', () => {
   it('requires the support capability on staff routes and does not expose customer status writes', () => {
     const source = readFileSync(join(__dirname, 'support.controller.ts'), 'utf8');
+    expect(source).toContain('UserCapabilityName.support_read');
+    expect(source).toContain('UserCapabilityName.support_reply');
     expect(source).toContain('UserCapabilityName.support_manage');
     expect(source).toContain("@Roles(UserRoles.admin, UserRoles.employee)");
     expect(source).not.toMatch(/statusMine|replyMine[\s\S]*senderType/);

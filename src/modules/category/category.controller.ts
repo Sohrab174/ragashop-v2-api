@@ -18,6 +18,9 @@ import { User } from '../../utils/decorators/user.decorator';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { UserEntity, UserRoles } from '../user/entities/user.entity';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -49,8 +52,9 @@ export class CategoryController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_read)
   @ApiQuery({ name: 'parent_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: CategoryStatus })
@@ -81,12 +85,29 @@ export class CategoryController {
 
   /**
    * -------------------------------------------------------
+   * GET /categories/tree/admin
+   * Full admin hierarchy (active + inactive), with direct product counts.
+   * Must be registered before `:id/admin`.
+   */
+  @Get('tree/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_read)
+  async getTreeForAdmin() {
+    const data = await this.categoryService.getTreeForAdmin();
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
    * GET /categories/:id/admin
    */
   @Get(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_read)
   async getByIdForAdmin(@Param('id') categoryId: number) {
     const data = await this.categoryService.getByIdForAdmin(categoryId);
     return successfulResult([], data);
@@ -162,8 +183,9 @@ export class CategoryController {
    */
   @Post('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_manage)
   @HttpCode(HttpStatus.CREATED)
   async add(@Body() dto: CreateCategoryDto) {
     const newCategory = await this.categoryService.add(dto);
@@ -177,8 +199,9 @@ export class CategoryController {
    */
   @Put('sort/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_manage)
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: CategoryStatus })
   async sort(
@@ -198,8 +221,9 @@ export class CategoryController {
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_manage)
   async update(@Body() dto: UpdateCategoryDto) {
     await this.categoryService.update(dto);
 
@@ -212,8 +236,9 @@ export class CategoryController {
    */
   @Put('/icon/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_manage)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('icon', multerOptions('categories')))
   async updateIcon(
@@ -235,8 +260,9 @@ export class CategoryController {
    */
   @Delete(':id/icon/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_manage)
   async deleteIcon(@Param('id') categoryId: number, @User() user: UserEntity) {
     await this.categoryService.deleteIcon(categoryId, user);
 
@@ -249,8 +275,9 @@ export class CategoryController {
    */
   @Delete(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.category_manage)
   async delete(
     @Param('id') categoryId: number,
     @User() user: UserEntity,

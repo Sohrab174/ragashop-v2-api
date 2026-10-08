@@ -11,6 +11,9 @@ import {
 } from '../../utils';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserEntity, UserRoles, UserStatus } from './entities/user.entity';
+import { UserCapabilityService } from '../manual-payment/user-capability.service';
+
+export type StaffActor = { id: number; role: UserRoles | string };
 
 @Injectable()
 export class UserService {
@@ -20,6 +23,7 @@ export class UserService {
 
     private error: ErrorService,
     private mail: MailService,
+    private capabilityService: UserCapabilityService,
   ) {}
 
   /**
@@ -39,6 +43,9 @@ export class UserService {
       'user.createdAt',
     ]);
 
+    // Soft-deleted staff must not appear as active employees.
+    builder.andWhere('user.isDeleted = :isDeleted', { isDeleted: false });
+
     if (sorts) {
       builder = applySortingToBuilder(builder, sorts);
     } else {
@@ -48,8 +55,8 @@ export class UserService {
     builder = applyFiltersToBuilder(builder, filters);
 
     const [items, totalItems] = await builder
-      .take(limit) // LIMIT
-      .skip((page - 1) * limit) // OFFSET
+      .take(limit)
+      .skip((page - 1) * limit)
       .getManyAndCount();
 
     return {
@@ -80,11 +87,9 @@ export class UserService {
    * -------------------------------------------------------
    */
   async findActiveById(userId: number) {
-    const data = await this._findActiveBuilder()
+    return await this._findActiveBuilder()
       .andWhere({ id: userId })
       .getOne();
-
-    return data;
   }
 
   /**
@@ -101,16 +106,23 @@ export class UserService {
         'user.mobile',
         'user.role',
         'user.status',
+        'user.isDeleted',
       ])
       .where({ id });
 
     const user = await builder.getOne();
-    if (!user) {
+    if (!user || user.isDeleted) {
       this.error.unprocessableEntity(['کاربر موردنظر یافت نشد']);
     }
 
     return {
-      ...user,
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mobile: user.mobile,
+      role: user.role,
+      status: user.status,
       fullName: `${user.firstName} ${user.lastName}`.trim(),
     };
   }
@@ -118,7 +130,9 @@ export class UserService {
   /**
    * -------------------------------------------------------
    */
-  async add(dto: CreateUserDto) {
+  async add(dto: CreateUserDto, actor?: StaffActor) {
+    this.assertActorMayAssignRole(actor, dto.role);
+
     const newUser = new UserEntity();
     for (const key in dto) {
       newUser[key] = dto[key];
@@ -146,8 +160,26 @@ export class UserService {
   /**
    * -------------------------------------------------------
    */
-  async updateUser(id: number, data: any) {
+  async updateUser(id: number, data: any, actor?: StaffActor) {
     const user = await this.userRepository.findOne(id);
+    if (!user || user.isDeleted) {
+      this.error.unprocessableEntity(['کاربر موردنظر یافت نشد']);
+    }
+
+    this.assertActorMayManageTarget(actor, user);
+    if (data.role !== undefined) {
+      this.assertActorMayAssignRole(actor, data.role);
+    }
+
+    const nextRole = data.role !== undefined ? data.role : user.role;
+    const nextStatus =
+      data.status !== undefined ? data.status : user.status;
+
+    await this.assertNotBreakingLastAdmin(user, {
+      nextRole,
+      nextStatus,
+      softDeleting: false,
+    });
 
     delete data?.id;
     Object.keys(data).forEach((field) => {
@@ -216,10 +248,23 @@ export class UserService {
   /**
    * -------------------------------------------------------
    */
-  async deleteUser(id: number, adminUserId: number) {
+  async deleteUser(id: number, adminUserId: number, actor?: StaffActor) {
     if (+id === adminUserId) {
       this.error.methodNotAllowed(['امکان حذف حساب کاربری خود وجود ندارد!']);
     }
+
+    const user = await this.userRepository.findOne(id);
+    if (!user || user.isDeleted) {
+      this.error.unprocessableEntity(['کاربر موردنظر یافت نشد']);
+    }
+
+    this.assertActorMayManageTarget(actor, user);
+
+    await this.assertNotBreakingLastAdmin(user, {
+      nextRole: user.role,
+      nextStatus: UserStatus.inactive,
+      softDeleting: true,
+    });
 
     return await this.userRepository
       .createQueryBuilder()
@@ -232,22 +277,121 @@ export class UserService {
   /**
    * -------------------------------------------------------
    */
-  private _findActiveBuilder() {
-    return this.userRepository
-      .createQueryBuilder('user')
-      .andWhere({ status: UserStatus.active });
+  async getCapabilitiesForAdmin(userId: number) {
+    const user = await this.requireAssignableEmployee(userId);
+    const capabilities = await this.capabilityService.listEffectiveCodes(user);
+    return {
+      userId: user.id,
+      role: user.role,
+      capabilities,
+      note: 'employee_explicit',
+    };
+  }
+
+  async replaceCapabilitiesForAdmin(userId: number, capabilities: string[]) {
+    await this.requireAssignableEmployee(userId);
+    return this.capabilityService.replaceAll(userId, capabilities);
+  }
+
+  private async requireAssignableEmployee(userId: number) {
+    const user = await this.userRepository.findOne(userId);
+    if (!user || user.isDeleted) {
+      this.error.unprocessableEntity(['کاربر موردنظر یافت نشد']);
+    }
+    if (user.role === UserRoles.admin) {
+      this.error.methodNotAllowed([
+        'دسترسی مدیر کامل است و از طریق چک‌لیست کارمند تنظیم نمی‌شود',
+      ]);
+    }
+    if (user.role !== UserRoles.employee) {
+      this.error.unprocessableEntity(['فقط برای کارمندان قابل تنظیم است']);
+    }
+    return user;
   }
 
   /**
-   * -------------------------------------------------------
+   * Non-admin staff (even with employee.manage) may only work with employee
+   * accounts and may only assign the employee role. Callers without an actor
+   * (internal/legacy paths) keep previous behavior.
    */
+  private assertActorMayAssignRole(
+    actor: StaffActor | undefined,
+    role: UserRoles | string | undefined,
+  ) {
+    if (!actor || actor.role === UserRoles.admin) {
+      return;
+    }
+    if (role !== UserRoles.employee) {
+      this.error.forbidden([
+        'فقط مدیر می‌تواند نقش مدیر را ایجاد یا اعطا کند',
+      ]);
+    }
+  }
+
+  private assertActorMayManageTarget(
+    actor: StaffActor | undefined,
+    target: UserEntity,
+  ) {
+    if (!actor || actor.role === UserRoles.admin) {
+      return;
+    }
+    if (target.role !== UserRoles.employee) {
+      this.error.forbidden([
+        'شما دسترسی لازم برای مدیریت حساب مدیر را ندارید',
+      ]);
+    }
+  }
+
+  private async assertNotBreakingLastAdmin(
+    user: UserEntity,
+    opts: {
+      nextRole: UserRoles | string;
+      nextStatus: UserStatus | string;
+      softDeleting: boolean;
+    },
+  ) {
+    if (user.role !== UserRoles.admin) {
+      return;
+    }
+
+    const losingAdminRole =
+      opts.softDeleting ||
+      opts.nextRole !== UserRoles.admin ||
+      opts.nextStatus !== UserStatus.active;
+
+    if (!losingAdminRole) {
+      return;
+    }
+
+    const activeAdmins = await this.userRepository
+      .createQueryBuilder('user')
+      .where({
+        role: UserRoles.admin,
+        status: UserStatus.active,
+        isDeleted: false,
+      })
+      .getCount();
+
+    if (activeAdmins <= 1) {
+      this.error.methodNotAllowed([
+        'امکان غیرفعال‌سازی، حذف یا تنزل آخرین مدیر فعال وجود ندارد',
+      ]);
+    }
+  }
+
+  private _findActiveBuilder() {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .andWhere({ status: UserStatus.active, isDeleted: false });
+  }
+
   async findActiveUserByMobileOrEmail(emailOrMobile) {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .andWhere('(user.email = :eom OR user.mobile = :eom)', {
         eom: emailOrMobile,
       })
-      .andWhere({ status: UserStatus.active })
+      .andWhere({ status: UserStatus.active, isDeleted: false })
       .getOne();
 
     if (!user) {

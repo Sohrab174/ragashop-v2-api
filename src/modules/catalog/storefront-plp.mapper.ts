@@ -17,7 +17,11 @@ import {
   isRealSale,
   visibleDiscountPercent,
 } from './storefront-plp.pricing';
-import { listingCardAvailableFromSourceAvailability } from '../product/discovery-eligibility';
+import {
+  discoveryStockExclusion,
+  listingCardAvailableFromSourceAvailability,
+  type DiscoveryStockInput,
+} from '../product/discovery-eligibility';
 import { SourceCommercialAvailability } from '../source-availability';
 import { canonicalBrandName } from './canonical-brand-name';
 
@@ -54,7 +58,7 @@ export type StorefrontPlpResponse = {
   appliedFilters: StorefrontPlpAppliedFilters;
 };
 
-type RawPlpProduct = {
+type RawPlpProduct = DiscoveryStockInput & {
   id: number;
   name: string;
   price: number | null;
@@ -72,9 +76,9 @@ function roundMoney(value: number): number {
 /**
  * Map a Product entity row to storefront card fields.
  * Sale semantics match SQL effective-price / discount sort exactly.
- * `available` uses normalized commercial state (not hardcoded true).
- * UNKNOWN is not sold-out; unavailable/removed are defensive false
- * (those rows should already be suppressed from discovery queries).
+ * `available` applies the same policy as discoveryEligibilitySql, so rows
+ * reaching discovery are available; false is defensive only. UNKNOWN
+ * sourceAvailability is not sold-out.
  */
 export function mapStorefrontPlpProduct(
   item: RawPlpProduct,
@@ -97,9 +101,9 @@ export function mapStorefrontPlpProduct(
     compareAtPrice:
       compareTry != null ? roundMoney(compareTry * tryToToman) : null,
     discount,
-    available: listingCardAvailableFromSourceAvailability(
-      item.sourceAvailability,
-    ),
+    available:
+      listingCardAvailableFromSourceAvailability(item.sourceAvailability) &&
+      discoveryStockExclusion(item) === null,
   };
 }
 

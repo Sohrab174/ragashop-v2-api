@@ -6,6 +6,7 @@ import { CanonicalCategoryEntity } from '../catalog/entities/canonical-category.
 import { StorefrontHomeSectionEntity } from './entities/storefront-home-section.entity';
 import { StorefrontHomeController } from './storefront-home.controller';
 import { StorefrontHomeService } from './storefront-home.service';
+import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { StorefrontHomeService } from './storefront-home.service';
       CategoryEntity,
       CanonicalCategoryEntity,
     ]),
+    CapabilityModule,
   ],
   controllers: [StorefrontHomeController],
   providers: [StorefrontHomeService],

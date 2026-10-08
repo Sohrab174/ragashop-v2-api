@@ -3,14 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SettingEntity } from './entities/setting.entity';
 import { SettingController } from './setting.controller';
 import { SettingService } from './setting.service';
-import { UserCapabilityEntity } from '../manual-payment/entities/user-capability.entity';
-import { UserCapabilityService } from '../manual-payment/user-capability.service';
-import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SettingEntity, UserCapabilityEntity])],
+  imports: [TypeOrmModule.forFeature([SettingEntity]), CapabilityModule],
   controllers: [SettingController],
-  providers: [SettingService, UserCapabilityService, PermissionsGuard],
+  providers: [SettingService],
   exports: [SettingService],
 })
 export class SettingModule {}

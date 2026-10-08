@@ -224,6 +224,7 @@ describe('CheckoutService create/ownership (Checkout-1)', () => {
       mockSettingService,
       mockProductService,
       mockError,
+      { getStatusMapForCategories: jest.fn(async () => new Map()) } as any,
     );
 
     // mapOrderConfirmation after create — guestAccessToken must match create path arg
@@ -245,6 +246,9 @@ describe('CheckoutService create/ownership (Checkout-1)', () => {
           shipping: 0,
           tax: 0,
           finalAmount: 200,
+          commercialCurrency: insertedOrders[0]?.commercialCurrency ?? 'TRY',
+          fxRateToIrt: insertedOrders[0]?.fxRateToIrt ?? null,
+          successfulTransactionId: null,
           firstName: 'علی',
           lastName: 'تست',
           phone: '+989121234567',
@@ -821,17 +825,19 @@ describe('CheckoutService create/ownership (Checkout-1)', () => {
 
     // Simulate race: pre-txn miss, in-txn find hits existing
     mockOrderRepository.findOne.mockResolvedValue(null);
-    mockQueryRunner.manager.findOne = jest.fn(async (_entity: any, opts: any) => {
-      if (opts?.where?.checkoutIdempotencyKey === digest) {
-        return {
-          id: 77,
-          customerId: null,
-          guestAccessToken: 'tok-race',
-          checkoutIdempotencyKey: digest,
-        };
-      }
-      return null;
-    });
+    mockQueryRunner.manager.findOne = jest.fn(
+      async (_entity: any, opts: any) => {
+        if (opts?.where?.checkoutIdempotencyKey === digest) {
+          return {
+            id: 77,
+            customerId: null,
+            guestAccessToken: 'tok-race',
+            checkoutIdempotencyKey: digest,
+          };
+        }
+        return null;
+      },
+    );
     mockMappedOrder({
       id: 77,
       guestAccessToken: 'tok-race',
@@ -858,17 +864,19 @@ describe('CheckoutService create/ownership (Checkout-1)', () => {
   it('same cart different idempotency key returns prior conversion when cart already converted', async () => {
     mockOrderRepository.findOne.mockResolvedValue(null);
     mockQueryRunner.manager.find = jest.fn(async () => []);
-    mockQueryRunner.manager.findOne = jest.fn(async (_entity: any, opts: any) => {
-      if (opts?.where?.id === 66) {
-        return {
-          id: 66,
-          customerId: null,
-          guestAccessToken: 'tok-prior',
-          checkoutIdempotencyKey: 'prior-digest',
-        };
-      }
-      return null;
-    });
+    mockQueryRunner.manager.findOne = jest.fn(
+      async (_entity: any, opts: any) => {
+        if (opts?.where?.id === 66) {
+          return {
+            id: 66,
+            customerId: null,
+            guestAccessToken: 'tok-prior',
+            checkoutIdempotencyKey: 'prior-digest',
+          };
+        }
+        return null;
+      },
+    );
     mockQueryRunner.manager.createQueryBuilder = jest.fn((entity?: any) => {
       const qb: any = {
         setLock: jest.fn().mockReturnThis(),
@@ -990,5 +998,115 @@ describe('CheckoutService create/ownership (Checkout-1)', () => {
     await expect(
       service.getOwnedOrder(5, { customerId: 9, sessionKey: null }, null),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('confirmation unpaid order uses captured FX snapshot, not live FX', async () => {
+    mockSettingService.getTryToToman.mockResolvedValue(4000);
+    mockMappedOrder({
+      id: 77,
+      status: OrderStatus.pending,
+      customerId: null,
+      guestAccessToken: 'tok-a',
+      amount: 100,
+      finalAmount: 100,
+      commercialCurrency: 'TRY',
+      fxRateToIrt: 3500,
+      successfulTransactionId: null,
+      orderItems: [
+        {
+          id: 1,
+          productId: 3,
+          productName: 'کفش',
+          optionName: null,
+          optionLabel: null,
+          price: 100,
+          discountedPrice: 0,
+          quantity: 1,
+          finalAmount: 100,
+        },
+      ],
+    });
+
+    const order = await service.getOwnedOrder(
+      77,
+      { customerId: null, sessionKey: 'sess-1' },
+      'tok-a',
+    );
+
+    expect(order.paymentStatus).toBe('awaiting_payment');
+    expect(order.paymentStatusLabel).toBe('در انتظار پرداخت');
+    expect(order.payableTotal).toBe(350000);
+    expect(order.subtotal).toBe(350000);
+    expect(mockSettingService.getTryToToman).not.toHaveBeenCalled();
+  });
+
+  it('confirmation paid order uses captured FX and is not awaiting_payment', async () => {
+    mockSettingService.getTryToToman.mockResolvedValue(4000);
+    mockMappedOrder({
+      id: 77,
+      status: OrderStatus.paid,
+      customerId: null,
+      guestAccessToken: 'tok-a',
+      amount: 100,
+      finalAmount: 100,
+      commercialCurrency: 'TRY',
+      fxRateToIrt: 3500,
+      successfulTransactionId: 42,
+      orderItems: [
+        {
+          id: 1,
+          productId: 3,
+          productName: 'کفش',
+          optionName: null,
+          optionLabel: null,
+          price: 100,
+          discountedPrice: 0,
+          quantity: 1,
+          finalAmount: 100,
+        },
+      ],
+    });
+
+    const order = await service.getOwnedOrder(
+      77,
+      { customerId: null, sessionKey: 'sess-1' },
+      'tok-a',
+    );
+
+    expect(order.paymentStatus).toBe('paid');
+    expect(order.paymentStatusLabel).toBe('پرداخت شده');
+    expect(order.payableTotal).toBe(350000);
+    expect(order.paymentStatus).not.toBe('awaiting_payment');
+  });
+
+  it('live FX change after order creation does not alter confirmation total', async () => {
+    mockSettingService.getTryToToman.mockResolvedValue(9999);
+    mockMappedOrder({
+      id: 77,
+      status: OrderStatus.pending,
+      customerId: null,
+      guestAccessToken: 'tok-a',
+      amount: 100,
+      finalAmount: 100,
+      commercialCurrency: 'TRY',
+      fxRateToIrt: 3500,
+      successfulTransactionId: null,
+      orderItems: [],
+    });
+
+    const first = await service.getOwnedOrder(
+      77,
+      { customerId: null, sessionKey: 'sess-1' },
+      'tok-a',
+    );
+    mockSettingService.getTryToToman.mockResolvedValue(12000);
+    const second = await service.getOwnedOrder(
+      77,
+      { customerId: null, sessionKey: 'sess-1' },
+      'tok-a',
+    );
+
+    expect(first.payableTotal).toBe(350000);
+    expect(second.payableTotal).toBe(350000);
   });
 });

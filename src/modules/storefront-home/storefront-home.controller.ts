@@ -15,6 +15,9 @@ import { multerOptions } from '../../utils/multer.options';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { UserRoles } from '../user/entities/user.entity';
 import { UpsertStorefrontHomeDto } from './dto/upsert-storefront-home.dto';
 import { StorefrontHomeService } from './storefront-home.service';
@@ -39,8 +42,9 @@ export class StorefrontHomeController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_read)
   async getAdmin() {
     const data = await this.homeService.getAdminHome();
     return successfulResult([], data);
@@ -51,8 +55,9 @@ export class StorefrontHomeController {
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_manage)
   async upsertAdmin(@Body() dto: UpsertStorefrontHomeDto) {
     const data = await this.homeService.upsertAdminHome(dto.sections);
     return successfulResult(['پیکربندی صفحه اصلی ذخیره شد'], data);
@@ -63,8 +68,9 @@ export class StorefrontHomeController {
    */
   @Post('image/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_manage)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', multerOptions('home')))
   async uploadImage(@UploadedFile() file) {

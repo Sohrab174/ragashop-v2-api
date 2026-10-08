@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { OrderEntity } from '../order/entities/order.entity';
-import { ManualPaymentModule } from '../manual-payment/manual-payment.module';
-import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { CapabilityModule } from '../auth/capability/capability.module';
 import { SupportRequestEntity } from './entities/support-request.entity';
 import { SupportMessageEntity } from './entities/support-message.entity';
 import { SupportService } from './support.service';
@@ -19,9 +18,9 @@ import { SupportController } from './support.controller';
       SupportMessageEntity,
       OrderEntity,
     ]),
-    ManualPaymentModule,
+    CapabilityModule,
   ],
   controllers: [SupportController],
-  providers: [SupportService, PermissionsGuard],
+  providers: [SupportService],
 })
 export class SupportModule {}

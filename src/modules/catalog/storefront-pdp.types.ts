@@ -55,6 +55,12 @@ export type StorefrontPdpAvailability = {
   purchasable: boolean;
   /** Remaining quantity when finite and known; null when unlimited / unknown. */
   quantity: number | null;
+  /**
+   * SCOPE-5/6 — customer-safe assortment hold (no policy enums).
+   * Present only when commerce enforcement blocks purchase.
+   */
+  assortmentState?: 'review_required' | 'unavailable';
+  assortmentMessage?: string;
 };
 
 export type StorefrontPdpProduct = {

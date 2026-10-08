@@ -34,6 +34,7 @@ import { CreateGatewayDto } from './dto/create-gateway.dto';
 import { UpdateGatewayDto } from './dto/update-gateway.dto';
 import { sort } from '../../utils/sort';
 import { GatewaySortDto } from './dto/gateway-sort.dto';
+import { toAdminSafeGatewayView } from './gateway-admin-view';
 
 @ApiTags('Gateway')
 @Controller('gateways')
@@ -50,7 +51,7 @@ export class GatewayController {
   @Get('availabilities/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async getAvailabilities() {
     return successfulResult([], Object.values(GatewayNames));
   }
@@ -62,10 +63,11 @@ export class GatewayController {
   @Get(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async getById(@Param('id') gatewayId: number) {
     const data = await this.gatewayService.getById(gatewayId);
-    return successfulResult([], data);
+    // Never serialize raw credentials on Admin read paths.
+    return successfulResult([], toAdminSafeGatewayView(data));
   }
 
   /**
@@ -75,7 +77,7 @@ export class GatewayController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: GatewayStatus })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -95,7 +97,12 @@ export class GatewayController {
       sorts,
     );
 
-    return successfulResult([], list);
+    return successfulResult([], {
+      ...list,
+      items: (list.items || []).map((gateway) =>
+        toAdminSafeGatewayView(gateway),
+      ),
+    });
   }
 
   /**
@@ -115,11 +122,11 @@ export class GatewayController {
   @Post('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   @HttpCode(HttpStatus.CREATED)
   async add(@Body() dto: CreateGatewayDto) {
     const newGateway = await this.gatewayService.add(dto);
-
+    // Service returns { id } only — never serialize gateway credentials here.
     return successfulResult(['دروازه پرداخت با موفقیت ایجاد شد'], newGateway);
   }
 
@@ -130,7 +137,7 @@ export class GatewayController {
   @Put('sort/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async sort(@Body() dto: GatewaySortDto) {
     const result = await sort(GatewayEntity.name, dto.id, dto.action);
 
@@ -150,7 +157,7 @@ export class GatewayController {
   @Put('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async update(@Body() dto: UpdateGatewayDto) {
     await this.gatewayService.update(dto);
 
@@ -164,7 +171,7 @@ export class GatewayController {
   @Delete(':id/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   async delete(@Param('id') gatewayId: number) {
     await this.gatewayService.delete(gatewayId);
 

@@ -5,7 +5,9 @@ export type CustomerMarketplaceImportErrorCode =
   | 'SOURCE_TEMPORARILY_UNAVAILABLE'
   | 'IMPORT_FAILED'
   | 'INVALID_PRODUCT_DATA'
-  | 'PRODUCT_UNAVAILABLE';
+  | 'PRODUCT_UNAVAILABLE'
+  | 'PRODUCT_NOT_ORDERABLE'
+  | 'PRODUCT_REVIEW_REQUIRED';
 
 const CUSTOMER_SAFE_MESSAGES: Record<
   CustomerMarketplaceImportErrorCode,
@@ -19,7 +21,23 @@ const CUSTOMER_SAFE_MESSAGES: Record<
   IMPORT_FAILED: 'دریافت اطلاعات محصول با خطا مواجه شد.',
   INVALID_PRODUCT_DATA: 'اطلاعات محصول معتبر نیست.',
   PRODUCT_UNAVAILABLE: 'این محصول در حال حاضر قابل خرید نیست.',
+  PRODUCT_NOT_ORDERABLE:
+    'این کالا در حال حاضر از طریق راگاشاپ قابل سفارش نیست.',
+  PRODUCT_REVIEW_REQUIRED: 'امکان خرید و ارسال این کالا نیاز به بررسی دارد.',
 };
+
+/** SCOPE-5/6 — assortment outcomes never fall through to generic failure. */
+const ASSORTMENT_OUT_CODES = new Set([
+  'ASSORTMENT_OUT_OF_SCOPE',
+  'CATEGORY_OUT_OF_SCOPE',
+]);
+const ASSORTMENT_REVIEW_CODES = new Set([
+  'ASSORTMENT_REVIEW_REQUIRED',
+  'ASSORTMENT_UNRESOLVED',
+  'CATEGORY_REVIEW_REQUIRED',
+  'POLICY_UNAVAILABLE',
+  'POLICY_STALE',
+]);
 
 const INVALID_URL_CODES = new Set([
   'INVALID_URL',
@@ -90,6 +108,13 @@ export function toCustomerSafeImportError(
   message: string;
 } {
   const mapped = mapCustomerSafeErrorCode(code);
+  if (
+    mapped === 'PRODUCT_NOT_ORDERABLE' ||
+    mapped === 'PRODUCT_REVIEW_REQUIRED'
+  ) {
+    // Fixed customer wording — never echo crawler/internal text.
+    return { code: mapped, message: CUSTOMER_SAFE_MESSAGES[mapped] };
+  }
   const safeMessage = isCustomerSafePublicMessage(message)
     ? (message as string).trim()
     : CUSTOMER_SAFE_MESSAGES[mapped];
@@ -107,6 +132,8 @@ export function mapCustomerSafeErrorCode(
     return 'IMPORT_FAILED';
   }
 
+  if (ASSORTMENT_OUT_CODES.has(code)) return 'PRODUCT_NOT_ORDERABLE';
+  if (ASSORTMENT_REVIEW_CODES.has(code)) return 'PRODUCT_REVIEW_REQUIRED';
   if (INVALID_URL_CODES.has(code)) return 'INVALID_URL';
   if (UNSUPPORTED_SOURCE_CODES.has(code)) return 'UNSUPPORTED_SOURCE';
   if (PRODUCT_NOT_FOUND_CODES.has(code)) return 'PRODUCT_NOT_FOUND';

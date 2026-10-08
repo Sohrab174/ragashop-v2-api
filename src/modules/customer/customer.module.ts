@@ -17,6 +17,7 @@ import { SettingModule } from '../setting/setting.module';
 import { WalletHistoryEntity } from './entities/wallet-history.entity';
 import { CustomerMobileIdentityService } from './customer-mobile-identity.service';
 import { SecurityModule } from '../../security/security.module';
+import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { SecurityModule } from '../../security/security.module';
     OtpDeliveryModule,
     SettingModule,
     SecurityModule,
+    CapabilityModule,
     // KavenegarModule,
     PassportModule,
     forwardRef(() => OrderModule),

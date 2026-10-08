@@ -16,6 +16,10 @@ import { isCustomerVisibleProduct } from '../product/product-visibility.util';
 import { resolveCartStockCeiling } from '../cart/cart-stock';
 import { toToman } from '../cart/cart-line.resolve';
 import { roundMoney } from './checkout-fingerprint';
+import {
+  AssortmentCommerceCode,
+  evaluateAssortmentCommerceGate,
+} from '../catalog/assortment-policy/assortment-enforcement';
 
 export type CheckoutLineIssueCode =
   | 'unavailable'
@@ -28,6 +32,8 @@ export type CheckoutLineIssue = {
   productId: number;
   code: CheckoutLineIssueCode;
   message: string;
+  /** SCOPE-5/6 — set when the line is blocked by assortment policy. */
+  assortmentCode?: AssortmentCommerceCode;
 };
 
 export type CheckoutResolvedLine = {
@@ -82,6 +88,11 @@ export type CheckoutCartItemRow = {
 export function resolveCheckoutLines(input: {
   items: CheckoutCartItemRow[];
   productsById: Map<number, CheckoutProductRow>;
+  /**
+   * SCOPE-5/6 — when provided (commerce enforcement on), non-IN categories
+   * block the line server-side. Missing entry ⇒ unresolved ⇒ blocked.
+   */
+  assortmentStatusByCategoryId?: Map<number, string> | null;
 }):
   | { ok: true; lines: CheckoutResolvedLine[] }
   | { ok: false; issues: CheckoutLineIssue[] } {
@@ -89,7 +100,25 @@ export function resolveCheckoutLines(input: {
   const issues: CheckoutLineIssue[] = [];
 
   for (const item of input.items) {
-    const resolved = resolveOne(item, input.productsById.get(item.productId));
+    const product = input.productsById.get(item.productId);
+    if (input.assortmentStatusByCategoryId && product) {
+      const status =
+        product.categoryId != null
+          ? input.assortmentStatusByCategoryId.get(Number(product.categoryId))
+          : undefined;
+      const gate = evaluateAssortmentCommerceGate(status);
+      if (!gate.purchasable) {
+        issues.push({
+          cartItemId: item.id,
+          productId: item.productId,
+          code: 'unavailable',
+          message: gate.customerMessage,
+          assortmentCode: gate.code,
+        });
+        continue;
+      }
+    }
+    const resolved = resolveOne(item, product);
     if (resolved.ok === false) {
       issues.push(resolved.issue);
     } else {
@@ -154,6 +183,11 @@ function resolveOne(
     hasRequiredOptions: options.length > 0,
     allOptionsUnavailable,
   });
+
+  // Product-level sellability wins over any stocked variant.
+  if (product.isSellable === false) {
+    return fail('unavailable', 'محصول ناموجود است');
+  }
 
   let optionName: string | null = null;
   let optionLabel: string | null = null;

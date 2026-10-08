@@ -14,7 +14,7 @@ import { SettingModule } from '../setting/setting.module';
 import { TranslatorModule } from '../../thirdParty/translator/translator.module';
 import { FileStorageService } from '../../file-storage.service';
 import { IncredibleOfferEntity } from '../incredible-offer/entities/Incredible-offer.entity';
-
+import { CapabilityModule } from '../auth/capability/capability.module';
 import { ProductChildMutationLockService } from './product-child-mutation-lock.service';
 
 @Module({
@@ -32,6 +32,7 @@ import { ProductChildMutationLockService } from './product-child-mutation-lock.s
     BrandModule,
     SettingModule,
     TranslatorModule,
+    CapabilityModule,
   ],
   controllers: [ProductController],
   providers: [

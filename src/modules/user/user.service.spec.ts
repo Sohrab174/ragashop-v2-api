@@ -24,7 +24,10 @@ describe('UserService.updateUser logging', () => {
       save,
     };
     const repo = { findOne: jest.fn().mockResolvedValue(user) };
-    const service = new UserService(repo as any, {} as any, {} as any);
+    const service = new UserService(repo as any, {} as any, {} as any, {
+      listEffectiveCodes: jest.fn(),
+      replaceAll: jest.fn(),
+    } as any);
 
     await service.updateUser(7, {
       id: 99,

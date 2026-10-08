@@ -6,7 +6,11 @@ import {
   CategoryEntity,
   CategoryStatus,
 } from '../category/entities/category.entity';
-import { SourceCategoryMappingStatus } from './entities/source-category-mapping.entity';
+import {
+  SourceCategoryMappingGenderSlice,
+  SourceCategoryMappingStatus,
+} from './entities/source-category-mapping.entity';
+import { LEGACY_MAPPING_GENDER_SLICE } from './source-category-mapping.legacy';
 import { FindOneOptions } from 'typeorm';
 
 export class SourceCategoryMappingValidationError extends Error {
@@ -24,14 +28,17 @@ type CategoryLookup = {
 
 type MappingLookup = {
   findOne: (options: {
-    where: { sourceCategoryId: number };
+    where: {
+      sourceCategoryId: number;
+      genderSlice?: SourceCategoryMappingGenderSlice;
+    };
   }) => Promise<{ id: number; canonicalCategoryId: number } | undefined>;
 };
 
 /**
  * Validate a source→canonical mapping write.
  *
- * Identity: category.id (sourceCategoryId) is authoritative and unique.
+ * CAT-MAP-V2-A V1 path: uniqueness is UNIQUE(sourceCategoryId, genderSlice=any).
  * `source` is denormalized metadata and MUST equal category.source.
  */
 export async function validateSourceCategoryMappingWrite(
@@ -43,6 +50,11 @@ export async function validateSourceCategoryMappingWrite(
     source?: string | null;
     /** When updating an existing row, exclude it from uniqueness check. */
     mappingId?: number | null;
+    /**
+     * Slice being written. Legacy Admin always uses `any`.
+     * Non-any values are rejected here until CAT-MAP-V2-C.
+     */
+    genderSlice?: SourceCategoryMappingGenderSlice | null;
   },
   canonicalRepository: {
     findOne: (
@@ -53,6 +65,7 @@ export async function validateSourceCategoryMappingWrite(
   source: string;
   sourceCategoryId: number;
   canonicalCategoryId: number;
+  genderSlice: SourceCategoryMappingGenderSlice;
 }> {
   const sourceCategoryId = Number(input.sourceCategoryId);
   const canonicalCategoryId = Number(input.canonicalCategoryId);
@@ -65,6 +78,18 @@ export async function validateSourceCategoryMappingWrite(
   if (!Number.isFinite(canonicalCategoryId) || canonicalCategoryId <= 0) {
     throw new SourceCategoryMappingValidationError(
       'canonicalCategoryId is required',
+    );
+  }
+
+  const genderSlice =
+    input.genderSlice == null
+      ? LEGACY_MAPPING_GENDER_SLICE
+      : input.genderSlice;
+
+  // V2-A: only legacy `any` writes are allowed through this path.
+  if (genderSlice !== SourceCategoryMappingGenderSlice.any) {
+    throw new SourceCategoryMappingValidationError(
+      'CAT-MAP-V2-A allows only genderSlice=any writes via the legacy mapping API',
     );
   }
 
@@ -119,7 +144,10 @@ export async function validateSourceCategoryMappingWrite(
   }
 
   const existing = await mappingRepository.findOne({
-    where: { sourceCategoryId },
+    where: {
+      sourceCategoryId,
+      genderSlice: SourceCategoryMappingGenderSlice.any,
+    },
   });
 
   if (
@@ -136,6 +164,7 @@ export async function validateSourceCategoryMappingWrite(
     source: authoritativeSource,
     sourceCategoryId,
     canonicalCategoryId,
+    genderSlice: SourceCategoryMappingGenderSlice.any,
   };
 }
 

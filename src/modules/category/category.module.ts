@@ -5,9 +5,14 @@ import { CategoryService } from './category.service';
 import { CategoryEntity } from './entities/category.entity';
 import { TranslatorModule } from '../../thirdParty/translator/translator.module';
 import { CategoryHierarchyLockService } from './category-hierarchy-lock.service';
+import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CategoryEntity]), TranslatorModule],
+  imports: [
+    TypeOrmModule.forFeature([CategoryEntity]),
+    TranslatorModule,
+    CapabilityModule,
+  ],
   controllers: [CategoryController],
   providers: [CategoryService, CategoryHierarchyLockService],
   exports: [CategoryService],

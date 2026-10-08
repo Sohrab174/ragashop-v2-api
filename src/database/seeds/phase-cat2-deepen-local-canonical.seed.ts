@@ -63,6 +63,14 @@ const DEEPEN: RootSpec[] = [
           { name: 'لباس مجلسی', displayOrder: 8, sourceCategoryId: 564 },
           { name: 'لباس راحتی', displayOrder: 9, sourceCategoryId: 4 },
           { name: 'پلیور و ژاکت', displayOrder: 10, sourceCategoryId: 26 },
+          // SCOPE-7 SAFE_TO_ADD (no source mapping here — Auto-map proposes)
+          { name: 'شلوار', displayOrder: 11 },
+          { name: 'ست لباس', displayOrder: 12 },
+          { name: 'لباس شنا', displayOrder: 13 },
+          { name: 'لباس زیر', displayOrder: 14 },
+          { name: 'شلوارک', displayOrder: 15 },
+          { name: 'جوراب', displayOrder: 16 },
+          { name: 'سرهمی', displayOrder: 17 },
         ],
       },
       {
@@ -113,6 +121,15 @@ const DEEPEN: RootSpec[] = [
           { name: 'کت و مانتو', displayOrder: 4, sourceCategoryId: 22 },
           { name: 'سویشرت', displayOrder: 5, sourceCategoryId: 16 },
           { name: 'پلیور و ژاکت', displayOrder: 6, sourceCategoryId: 26 },
+          // SCOPE-7 SAFE_TO_ADD (no source mapping here — Auto-map proposes)
+          { name: 'شلوار', displayOrder: 7 },
+          { name: 'ست لباس', displayOrder: 8 },
+          { name: 'لباس شنا', displayOrder: 9 },
+          { name: 'لباس زیر', displayOrder: 10 },
+          { name: 'شلوارک', displayOrder: 11 },
+          { name: 'جوراب', displayOrder: 12 },
+          { name: 'کت‌وشلوار', displayOrder: 13 },
+          { name: 'لباس راحتی', displayOrder: 14 },
         ],
       },
       {
@@ -123,13 +140,18 @@ const DEEPEN: RootSpec[] = [
           { name: 'کفش ورزشی', displayOrder: 1, sourceCategoryId: 80 },
           { name: 'کفش روزمره', displayOrder: 2, sourceCategoryId: 145 },
           { name: 'بوت و چکمه', displayOrder: 3, sourceCategoryId: 87 },
+          { name: 'صندل', displayOrder: 4 },
+          { name: 'دمپایی', displayOrder: 5 },
         ],
       },
       {
         name: 'کیف',
         displayOrder: 3,
         sourceCategoryId: 114,
-        leaves: [{ name: 'کیف', displayOrder: 1, sourceCategoryId: 114 }],
+        leaves: [
+          { name: 'کیف', displayOrder: 1, sourceCategoryId: 114 },
+          { name: 'کیف پول', displayOrder: 2 },
+        ],
       },
       {
         name: 'اکسسوری',
@@ -138,6 +160,7 @@ const DEEPEN: RootSpec[] = [
         leaves: [
           { name: 'ساعت', displayOrder: 1, sourceCategoryId: 128 },
           { name: 'عینک', displayOrder: 2, sourceCategoryId: 126 },
+          { name: 'کلاه و شال', displayOrder: 3 },
         ],
       },
     ],
@@ -336,11 +359,13 @@ async function upsertMapping(
 
   await conn.query(
     `INSERT INTO source_category_mapping
-      (source, sourceCategoryId, canonicalCategoryId, status, note, createdAt, updatedAt)
-     VALUES ('trendyol', ?, ?, 'active', ?, ?, ?)
+      (source, sourceCategoryId, canonicalCategoryId, genderSlice, status, reviewStatus, note, createdAt, updatedAt)
+     VALUES ('trendyol', ?, ?, 'any', 'active', 'legacy_unreviewed', ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        canonicalCategoryId = VALUES(canonicalCategoryId),
+       genderSlice = 'any',
        status = 'active',
+       reviewStatus = 'legacy_unreviewed',
        note = VALUES(note),
        updatedAt = VALUES(updatedAt)`,
     [sourceCategoryId, canonicalCategoryId, note, now, now],

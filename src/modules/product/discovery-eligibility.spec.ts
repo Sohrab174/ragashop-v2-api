@@ -1,6 +1,8 @@
 import {
   applyDiscoveryEligibilityFilters,
   discoveryEligibilitySql,
+  discoveryPurchasableSql,
+  discoveryStockExclusion,
   evaluateDiscoveryEligibility,
   listingCardAvailableFromSourceAvailability,
 } from './discovery-eligibility';
@@ -150,6 +152,144 @@ describe('discovery eligibility A4', () => {
     expect(sql).toContain("'removed'");
     expect(sql).toContain("supplyType = 'native_marketplace'");
     expect(sql).toContain("supplyType = 'unclassified'");
+  });
+
+  describe('stock gate (Pass #2)', () => {
+    it('hasStock=false external → not_purchasable', () => {
+      const d = evaluateDiscoveryEligibility({
+        ...curatedExternal,
+        hasStock: false,
+      });
+      expect(d).toEqual(
+        expect.objectContaining({
+          eligible: false,
+          reason: 'not_purchasable',
+          detail: 'hasStock_false',
+        }),
+      );
+    });
+
+    it('isSellable=false → not_purchasable', () => {
+      const d = evaluateDiscoveryEligibility({
+        ...curatedExternal,
+        isSellable: false,
+      });
+      expect(d.reason).toBe('not_purchasable');
+      expect(d.detail).toBe('isSellable_false');
+    });
+
+    it('quantity=0 → not_purchasable; quantity=-1 (untracked) stays discoverable', () => {
+      expect(
+        evaluateDiscoveryEligibility({ ...curatedExternal, quantity: 0 })
+          .reason,
+      ).toBe('not_purchasable');
+      expect(
+        evaluateDiscoveryEligibility({
+          ...curatedExternal,
+          quantity: -1,
+          hasStock: true,
+          isSellable: true,
+        }).eligible,
+      ).toBe(true);
+    });
+
+    it('native marketplace ignores stale hasStock but honours quantity', () => {
+      const native = {
+        supplyType: ProductSupplyType.native_marketplace,
+        isCuratedExternalCatalog: false,
+        sourceAvailability: SourceCommercialAvailability.unknown,
+        status: 'active',
+        isDeleted: false,
+        categoryId: 10,
+        price: 50,
+        isSellable: true,
+      };
+      expect(
+        evaluateDiscoveryEligibility({
+          ...native,
+          hasStock: false,
+          quantity: 5,
+        }).eligible,
+      ).toBe(true);
+      expect(
+        evaluateDiscoveryEligibility({ ...native, hasStock: true, quantity: 0 })
+          .eligible,
+      ).toBe(false);
+    });
+
+    it('SQL fragment ANDs the stock gate into discovery membership', () => {
+      const sql = discoveryEligibilitySql('product').replace(/\s+/g, ' ');
+      expect(sql).toContain('AND ( product.isSellable = 1');
+      expect(sql).toContain('product.quantity <> 0');
+      expect(sql).toContain(
+        "( product.hasStock = 1 OR product.supplyType = 'native_marketplace' )",
+      );
+    });
+
+    it('stock gate respects the alias', () => {
+      const sql = discoveryPurchasableSql('p');
+      expect(sql).toContain('p.isSellable = 1');
+      expect(sql).toContain('p.hasStock = 1');
+      expect(sql).not.toContain('product.');
+    });
+
+    it('discoveryStockExclusion mirrors the SQL gate, incl. raw 0/1 flags', () => {
+      expect(
+        discoveryStockExclusion({
+          supplyType: 'external_source',
+          hasStock: 0,
+          isSellable: 1,
+          quantity: -1,
+        }),
+      ).toBe('hasStock_false');
+      expect(
+        discoveryStockExclusion({
+          supplyType: 'external_source',
+          hasStock: 1,
+          isSellable: 0,
+          quantity: -1,
+        }),
+      ).toBe('isSellable_false');
+      expect(
+        discoveryStockExclusion({
+          supplyType: 'native_marketplace',
+          hasStock: 0,
+          isSellable: 1,
+          quantity: 2,
+        }),
+      ).toBeNull();
+      expect(
+        discoveryStockExclusion({
+          supplyType: 'native_marketplace',
+          hasStock: 1,
+          isSellable: 1,
+          quantity: '0',
+        }),
+      ).toBe('quantity_zero');
+    });
+
+    it('missing stock fields are no evidence, never unavailable', () => {
+      expect(discoveryStockExclusion({})).toBeNull();
+      expect(
+        discoveryStockExclusion({
+          hasStock: null,
+          isSellable: null,
+          quantity: null,
+        }),
+      ).toBeNull();
+    });
+  });
+
+  it('UNKNOWN sourceAvailability with purchasable stock stays discoverable', () => {
+    expect(
+      evaluateDiscoveryEligibility({
+        ...curatedExternal,
+        sourceAvailability: SourceCommercialAvailability.unknown,
+        hasStock: true,
+        isSellable: true,
+        quantity: -1,
+      }).eligible,
+    ).toBe(true);
   });
 
   it('applyDiscoveryEligibilityFilters andWhere on builder', () => {

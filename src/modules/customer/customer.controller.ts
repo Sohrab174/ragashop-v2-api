@@ -21,6 +21,9 @@ import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { CustomerJwtAuthGuard } from './jwt/jwt.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { UserRoles } from '../user/entities/user.entity';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -208,8 +211,9 @@ export class CustomerController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_read)
   @ApiQuery({ name: 'first_name', required: false })
   @ApiQuery({ name: 'last_name', required: false })
   @ApiQuery({ name: 'mobile', required: false })
@@ -247,8 +251,9 @@ export class CustomerController {
    */
   @Get(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_read)
   async getByIdForAdmin(@Param('id') customerId: number) {
     const data = await this.customerService.getByIdForAdmin(customerId);
     return successfulResult([], data);
@@ -260,8 +265,9 @@ export class CustomerController {
    */
   @Post('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_write)
   @HttpCode(HttpStatus.CREATED)
   async add(@Body() dto: CreateCustomerDto) {
     const newCustomer = await this.customerService.add(dto);
@@ -275,8 +281,9 @@ export class CustomerController {
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_write)
   async update(@Body() dto: UpdateCustomerDto) {
     await this.customerService.update(dto);
 
@@ -289,8 +296,9 @@ export class CustomerController {
    */
   @Delete(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_write)
   async delete(@Param('id') customerId: number) {
     await this.customerService.deleteCustomer(customerId);
 
@@ -304,8 +312,9 @@ export class CustomerController {
    */
   @Get('statistic/chart/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_read)
   @ApiQuery({ name: 'from', required: true })
   @ApiQuery({ name: 'to', required: true })
   @ApiQuery({ name: 'type', required: true, enum: ['daily', 'monthly'] })
@@ -325,8 +334,9 @@ export class CustomerController {
    */
   @Get('statistic/count/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.customer_read)
   async statisticCount() {
     const data = await this.customerService.statisticCount();
     return successfulResult([], data);

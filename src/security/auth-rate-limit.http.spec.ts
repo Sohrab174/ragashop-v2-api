@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../modules/auth/jwt/jwt.guard';
 import { CustomerJwtAuthGuard } from '../modules/customer/jwt/jwt.guard';
 import { RolesGuard } from '../modules/auth/role/role.guard';
 import { ErrorService } from '../error/error.service';
+import { UserCapabilityService } from '../modules/manual-payment/user-capability.service';
 import {
   configureExpressTrustProxy,
   parseTrustProxySetting,
@@ -107,6 +108,11 @@ describe('Customer OTP phone identity rate limiting (HTTP 429)', () => {
     verifySignupByCode: jest.fn(),
     sendOtpCode: jest.fn(),
   };
+  // Deny-by-default: OTP routes carry no capability requirement, so this must never be consulted.
+  const capabilityService = {
+    userHasCapability: jest.fn().mockResolvedValue(false),
+    assertUserHasCapability: jest.fn().mockRejectedValue(new Error('denied')),
+  };
 
   beforeAll(async () => {
     const rateLimitService = AuthRateLimitService.createForTests({
@@ -123,6 +129,7 @@ describe('Customer OTP phone identity rate limiting (HTTP 429)', () => {
         { provide: CustomerService, useValue: customerService },
         { provide: ConfigurationService, useValue: {} },
         { provide: AuthRateLimitService, useValue: rateLimitService },
+        { provide: UserCapabilityService, useValue: capabilityService },
         AuthRateLimitGuard,
         RolesGuard,
         ErrorService,
@@ -170,6 +177,7 @@ describe('Customer OTP phone identity rate limiting (HTTP 429)', () => {
     expect(persianBlocked.status).toBe(429);
 
     expect(customerService.loginByMobile).toHaveBeenCalledTimes(3);
+    expect(capabilityService.userHasCapability).not.toHaveBeenCalled();
   });
 
   it('does not share buckets across different phone numbers', async () => {

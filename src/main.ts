@@ -14,7 +14,9 @@ import {
   configureExpressTrustProxy,
   parseTrustProxySetting,
 } from './modules/marketplace-import/trust-proxy.util';
+import { validateAssortmentLaunchRuntimeConfig } from './modules/catalog/assortment-policy/assortment-launch-config.util';
 import {
+  CORS_ALLOWED_HEADERS,
   createCorsOriginDelegate,
   isSwaggerEnabled,
   resolveCorsAllowedOrigins,
@@ -25,6 +27,7 @@ import { createHelmetMiddleware } from './security/helmet.util';
 async function bootstrap() {
   await validateMarketplaceImportRuntimeConfig();
   validateLaunchSecurityRuntimeConfig();
+  validateAssortmentLaunchRuntimeConfig();
 
   const corsOrigins = resolveCorsAllowedOrigins();
   const swaggerEnabled = isSwaggerEnabled();
@@ -33,15 +36,7 @@ async function bootstrap() {
     cors: {
       origin: createCorsOriginDelegate(corsOrigins),
       credentials: true,
-      allowedHeaders: [
-        'Content-Type',
-        'Accept',
-        'Authorization',
-        'X-Cart-Session',
-        'X-Order-Access-Token',
-        'Idempotency-Key',
-        'X-RagaShop-Import-Token',
-      ],
+      allowedHeaders: [...CORS_ALLOWED_HEADERS],
       exposedHeaders: ['X-Cart-Session', 'X-Order-Access-Token'],
     },
   });

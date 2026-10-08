@@ -95,6 +95,31 @@ describe('storefront-plp.query', () => {
     expect(calls).toEqual([['product.id', 'DESC']]);
   });
 
+  it('never ranks by stock — non-purchasable rows are excluded by discovery SQL', () => {
+    const fields: string[] = [];
+    const builder = {
+      orderBy: (field: string) => {
+        fields.push(field);
+        return builder;
+      },
+      addOrderBy: (field: string) => {
+        fields.push(field);
+        return builder;
+      },
+    };
+    for (const sort of [
+      'default',
+      'newest',
+      'price_asc',
+      'price_desc',
+      'discount',
+    ] as const) {
+      applyStorefrontPlpSort(builder, sort);
+    }
+    expect(fields).not.toContain('product.hasStock');
+    expect(fields).not.toContain('product.isSellable');
+  });
+
   it('uses real-sale SQL for price and discount sorts', () => {
     expect(STOREFRONT_EFFECTIVE_PRICE_SQL).toContain(
       'discountedPrice < product.price',
@@ -291,6 +316,100 @@ describe('storefront-plp.mapper', () => {
         },
         1,
       ).available,
+    ).toBe(false);
+  });
+
+  it('marks card unavailable when hasStock/isSellable gate fails', () => {
+    expect(
+      mapStorefrontPlpProduct(
+        {
+          id: 9,
+          name: 'NoStock',
+          price: 10,
+          discountedPrice: null,
+          discountPercent: null,
+          sourceAvailability: 'unknown',
+          hasStock: 0,
+          isSellable: 1,
+        },
+        1,
+      ).available,
+    ).toBe(false);
+    expect(
+      mapStorefrontPlpProduct(
+        {
+          id: 10,
+          name: 'NotSellable',
+          price: 10,
+          discountedPrice: null,
+          discountPercent: null,
+          sourceAvailability: 'unknown',
+          hasStock: 1,
+          isSellable: 0,
+        },
+        1,
+      ).available,
+    ).toBe(false);
+    expect(
+      mapStorefrontPlpProduct(
+        {
+          id: 11,
+          name: 'Ok',
+          price: 10,
+          discountedPrice: null,
+          discountPercent: null,
+          sourceAvailability: 'unknown',
+          hasStock: 1,
+          isSellable: 1,
+        },
+        1,
+      ).available,
+    ).toBe(true);
+  });
+
+  it('card availability mirrors the discovery stock gate', () => {
+    const base = {
+      id: 12,
+      name: 'P',
+      price: 10,
+      discountedPrice: null,
+      discountPercent: null,
+      sourceAvailability: 'unknown',
+    };
+    const available = (extra: Record<string, unknown>) =>
+      mapStorefrontPlpProduct({ ...base, ...extra }, 1).available;
+
+    expect(
+      available({
+        supplyType: 'native_marketplace',
+        hasStock: false,
+        isSellable: true,
+        quantity: 3,
+      }),
+    ).toBe(true);
+    expect(
+      available({
+        supplyType: 'external_source',
+        hasStock: true,
+        isSellable: true,
+        quantity: -1,
+      }),
+    ).toBe(true);
+    expect(
+      available({
+        supplyType: 'native_marketplace',
+        hasStock: true,
+        isSellable: true,
+        quantity: 0,
+      }),
+    ).toBe(false);
+    expect(
+      available({
+        supplyType: 'external_source',
+        hasStock: false,
+        isSellable: true,
+        quantity: -1,
+      }),
     ).toBe(false);
   });
 

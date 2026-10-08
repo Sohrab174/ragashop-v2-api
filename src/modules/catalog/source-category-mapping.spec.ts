@@ -56,7 +56,7 @@ describe('validateSourceCategoryMappingWrite', () => {
     expect(result.source).toBe('trendyol');
   });
 
-  it('rejects second canonical mapping for the same source category row', async () => {
+  it('rejects second canonical mapping for the same source category any-slice', async () => {
     categoryRepo.findOne.mockResolvedValue({
       id: 36,
       source: 'trendyol',
@@ -80,6 +80,50 @@ describe('validateSourceCategoryMappingWrite', () => {
         canonicalRepo as any,
       ),
     ).rejects.toBeInstanceOf(SourceCategoryMappingValidationError);
+
+    expect(mappingRepo.findOne).toHaveBeenCalledWith({
+      where: { sourceCategoryId: 36, genderSlice: 'any' },
+    });
+  });
+
+  it('rejects non-any genderSlice writes on the legacy V2-A path', async () => {
+    categoryRepo.findOne.mockResolvedValue({
+      id: 36,
+      source: 'trendyol',
+      status: 'active',
+    });
+    canonicalRepo.findOne.mockResolvedValue({ id: 10, status: 'active' });
+
+    await expect(
+      validateSourceCategoryMappingWrite(
+        categoryRepo as any,
+        mappingRepo as any,
+        {
+          sourceCategoryId: 36,
+          canonicalCategoryId: 10,
+          genderSlice: 'female' as any,
+        },
+        canonicalRepo as any,
+      ),
+    ).rejects.toBeInstanceOf(SourceCategoryMappingValidationError);
+  });
+
+  it('defaults omitted genderSlice to any', async () => {
+    categoryRepo.findOne.mockResolvedValue({
+      id: 36,
+      source: 'trendyol',
+      status: 'active',
+    });
+    canonicalRepo.findOne.mockResolvedValue({ id: 10, status: 'active' });
+    mappingRepo.findOne.mockResolvedValue(undefined);
+
+    const result = await validateSourceCategoryMappingWrite(
+      categoryRepo as any,
+      mappingRepo as any,
+      { sourceCategoryId: 36, canonicalCategoryId: 10 },
+      canonicalRepo as any,
+    );
+    expect(result.genderSlice).toBe('any');
   });
 
   it('allows different source-category rows (retailers) into one canonical', async () => {
@@ -129,14 +173,19 @@ describe('validateSourceCategoryMappingWrite', () => {
 });
 
 describe('source_category_mapping identity contract', () => {
-  it('treats sourceCategoryId as unique identity (not source+id pair)', () => {
-    const uniquenessKey = (m: { sourceCategoryId: number }) =>
-      m.sourceCategoryId;
-    expect(uniquenessKey({ sourceCategoryId: 36 })).toBe(36);
-    // Same category row cannot be two mapping identities even with different labels
-    expect(uniquenessKey({ sourceCategoryId: 36 })).toBe(
-      uniquenessKey({ sourceCategoryId: 36 }),
+  it('uses (sourceCategoryId, genderSlice) as unique identity after V2-A', () => {
+    const uniquenessKey = (m: {
+      sourceCategoryId: number;
+      genderSlice: string;
+    }) => `${m.sourceCategoryId}:${m.genderSlice}`;
+    expect(
+      uniquenessKey({ sourceCategoryId: 36, genderSlice: 'any' }),
+    ).not.toBe(
+      uniquenessKey({ sourceCategoryId: 36, genderSlice: 'female' }),
     );
+    expect(
+      uniquenessKey({ sourceCategoryId: 36, genderSlice: 'female' }),
+    ).toBe(uniquenessKey({ sourceCategoryId: 36, genderSlice: 'female' }));
   });
 
   it('keeps source as denormalized metadata only', () => {
@@ -144,6 +193,7 @@ describe('source_category_mapping identity contract', () => {
       source: 'trendyol',
       sourceCategoryId: 36,
       canonicalCategoryId: 100,
+      genderSlice: 'any',
     };
     expect(mapping).not.toHaveProperty('trendyolCategoryId');
     expect(Object.keys(mapping)).toEqual(
@@ -151,6 +201,7 @@ describe('source_category_mapping identity contract', () => {
         'source',
         'sourceCategoryId',
         'canonicalCategoryId',
+        'genderSlice',
       ]),
     );
   });

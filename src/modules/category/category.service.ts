@@ -262,6 +262,49 @@ export class CategoryService {
       );
     }
 
+    // Pre-check products (soft-deleted rows still block FK) — never orphan products.
+    const productCount = await this.categoryRepository.manager
+      .createQueryBuilder()
+      .from(ProductEntity, 'p')
+      .where('p.categoryId = :categoryId', { categoryId: id })
+      .getCount();
+
+    if (productCount > 0) {
+      this.error.methodNotAllowed(
+        [
+          `این دسته‌بندی دارای ${productCount} محصول است. ابتدا محصولات را به دسته دیگری منتقل کنید.`,
+        ],
+        { hasProducts: true, productCount },
+      );
+    }
+
+    // When force-deleting children, also block if any descendant has products.
+    if (dto.force && category.subCategories?.length > 0) {
+      const allCategories = await this.categoryRepository.find({
+        select: ['id', 'parentId'],
+      });
+      const descendantIds = this._collectDescendantIds(allCategories, id);
+      if (descendantIds.length > 0) {
+        const descendantProductCount = await this.categoryRepository.manager
+          .createQueryBuilder()
+          .from(ProductEntity, 'p')
+          .where('p.categoryId IN (:...ids)', { ids: descendantIds })
+          .getCount();
+        if (descendantProductCount > 0) {
+          this.error.methodNotAllowed(
+            [
+              `زیرشاخه‌های این دسته دارای ${descendantProductCount} محصول هستند. ابتدا محصولات را منتقل کنید.`,
+            ],
+            {
+              hasProducts: true,
+              productCount: descendantProductCount,
+              inDescendants: true,
+            },
+          );
+        }
+      }
+    }
+
     // Rollbacking the category locales if an error occurs
     const queryRunner = getConnection().createQueryRunner();
     await queryRunner.connect();
@@ -289,7 +332,7 @@ export class CategoryService {
       await queryRunner.rollbackTransaction();
 
       this.error.methodNotAllowed([
-        'برخی از محصولات مربوط به این دسته هستند، لطفا ابتدا محصولات این دسته را حذف کنید',
+        'حذف ممکن نیست — این دسته هنوز به محصول، منو یا بخش صفحه متصل است. ابتدا وابستگی‌ها را جابه‌جا کنید.',
       ]);
     } finally {
       await queryRunner.release();
@@ -314,6 +357,99 @@ export class CategoryService {
     }
 
     return true;
+  }
+
+  /**
+   * -------------------------------------------------------
+   * GET /categories/tree/admin
+   * Employee-facing hierarchy: includes inactive, excludes system id=1,
+   * attaches direct productCount, and returns orphans separately.
+   */
+  async getTreeForAdmin() {
+    const categories = await this.categoryRepository
+      .createQueryBuilder('category')
+      .select([
+        'category.id',
+        'category.parentId',
+        'category.name',
+        'category.sourceName',
+        'category.source',
+        'category.sourceId',
+        'category.iconPath',
+        'category.gender',
+        'category.status',
+        'category.displayOrder',
+        'category.isSelection',
+        'category.createdAt',
+      ])
+      .andWhere('category.id != 1')
+      .orderBy('category.displayOrder', 'ASC')
+      .addOrderBy('category.id', 'ASC')
+      .getMany();
+
+    const idSet = new Set(categories.map((c) => Number(c.id)));
+
+    const countRows = await this.categoryRepository.manager
+      .createQueryBuilder()
+      .select('p.categoryId', 'categoryId')
+      .addSelect('COUNT(*)', 'productCount')
+      .from(ProductEntity, 'p')
+      .where('p.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('p.categoryId IN (:...ids)', {
+        ids: categories.length ? categories.map((c) => c.id) : [0],
+      })
+      .groupBy('p.categoryId')
+      .getRawMany();
+
+    const countMap = new Map<number, number>();
+    for (const row of countRows) {
+      countMap.set(Number(row.categoryId), Number(row.productCount) || 0);
+    }
+
+    const enriched = categories.map((c) => ({
+      ...c,
+      productCount: countMap.get(Number(c.id)) || 0,
+    }));
+
+    const orphans = enriched.filter(
+      (c) => c.parentId != null && !idSet.has(Number(c.parentId)),
+    );
+
+    const tree = buildCategoryTree(enriched as any);
+
+    const attachCounts = (nodes: any[]): any[] =>
+      nodes.map((node) => ({
+        ...node,
+        productCount: node.productCount || 0,
+        subCategories: node.subCategories
+          ? attachCounts(node.subCategories)
+          : undefined,
+      }));
+
+    return {
+      tree: attachCounts(tree),
+      orphans: orphans.map((o) => ({
+        ...o,
+        hasChildren: false,
+        productCount: o.productCount || 0,
+      })),
+      totalCategories: categories.length,
+    };
+  }
+
+  private _collectDescendantIds(
+    categories: { id: number; parentId: number | null }[],
+    parentId: number,
+  ): number[] {
+    const result: number[] = [];
+    const children = categories.filter(
+      (c) => Number(c.parentId) === Number(parentId),
+    );
+    for (const child of children) {
+      result.push(child.id);
+      result.push(...this._collectDescendantIds(categories, child.id));
+    }
+    return result;
   }
 
   /**

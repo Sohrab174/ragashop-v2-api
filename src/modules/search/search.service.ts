@@ -6,8 +6,16 @@ import {
   CanonicalCategoryEntity,
   CanonicalCategoryStatus,
 } from '../catalog/entities/canonical-category.entity';
-import { SourceCategoryMappingEntity } from '../catalog/entities/source-category-mapping.entity';
 import { resolveCanonicalCategoryScope } from '../catalog/canonical-category-scope.resolver';
+import {
+  applyCanonicalProductEligibility,
+  CanonicalEligibilityData,
+  CanonicalProductEligibility,
+} from '../catalog/canonical-product-eligibility';
+import {
+  loadCanonicalEligibilityData,
+  resolveCanonicalProductEligibilityFromData,
+} from '../catalog/canonical-product-eligibility.loader';
 import {
   applyStorefrontPlpFilters,
   emptyStorefrontPlpFiltersPayload,
@@ -24,7 +32,6 @@ import {
   mapStorefrontPlpProduct,
   StorefrontPlpProductItem,
 } from '../catalog/storefront-plp.mapper';
-import { CategoryEntity } from '../category/entities/category.entity';
 import { CategoryStatus } from '../category/entities/category.entity';
 import { applyDiscoveryEligibilityFilters } from '../product/discovery-eligibility';
 import {
@@ -99,8 +106,6 @@ export class SearchService {
     private readonly brandRepository: Repository<BrandEntity>,
     @InjectRepository(CanonicalCategoryEntity)
     private readonly canonicalRepository: Repository<CanonicalCategoryEntity>,
-    @InjectRepository(SourceCategoryMappingEntity)
-    private readonly mappingRepository: Repository<SourceCategoryMappingEntity>,
     private readonly settingService: SettingService,
   ) {}
 
@@ -113,7 +118,9 @@ export class SearchService {
   ): Promise<StorefrontSearchResponse> {
     const started = Date.now();
     const tryToToman = await this.settingService.getTryToToman();
-    const scopeData = await this.loadScopeData();
+    const scopeData = await loadCanonicalEligibilityData(
+      this.canonicalRepository.manager,
+    );
 
     const [exactBrandIds, typoBrandIds] = await Promise.all([
       this.resolveExactBrandIds(query.tokens, query.normalizedQ),
@@ -125,23 +132,20 @@ export class SearchService {
       scopeData,
     );
 
-    let scopedSourceCategoryIds: number[] | null = null;
+    // CAT-MAP-V2-B: category scope = the same eligibility PLP uses
+    // (mapping slices + CAT-3B). Global search stays unscoped.
+    let eligibility: CanonicalProductEligibility | null = null;
     if (query.categoryId != null) {
-      const scope = resolveCanonicalCategoryScope(
+      eligibility = resolveCanonicalProductEligibilityFromData(
         query.categoryId,
-        scopeData.canonicalRows,
-        scopeData.mappings,
-        scopeData.sourceTaxonomy,
+        scopeData,
       );
-      scopedSourceCategoryIds = scope.sourceCategoryIds;
-      if (!scopedSourceCategoryIds.length) {
+      if (!eligibility.sourceCategoryIds.length) {
         return this.emptyResponse(query);
       }
     }
 
-    const listingBuilder = this.buildEligibleSearchBuilder(
-      scopedSourceCategoryIds,
-    )
+    const listingBuilder = this.buildEligibleSearchBuilder(eligibility)
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.brand', 'brand')
       .addSelect(STOREFRONT_EFFECTIVE_PRICE_SQL, 'mainPrice')
@@ -457,79 +461,9 @@ export class SearchService {
     };
   }
 
-  private async loadScopeData(): Promise<{
-    canonicalRows: Array<{
-      id: number;
-      parentId: number | null;
-      status: string;
-      displayOrder?: number | null;
-      name?: string | null;
-    }>;
-    mappings: Array<{
-      id?: number | null;
-      canonicalCategoryId: number;
-      sourceCategoryId: number;
-      status: string;
-      source?: string | null;
-    }>;
-    sourceTaxonomy: Array<{
-      id: number;
-      parentId: number | null;
-      source?: string | null;
-      status?: string;
-      displayOrder?: number | null;
-      name?: string | null;
-    }>;
-  }> {
-    const [canonicalRows, mappings, sourceTaxonomy] = await Promise.all([
-      this.canonicalRepository.find({
-        select: ['id', 'parentId', 'status', 'displayOrder', 'name'],
-        order: { displayOrder: 'ASC', id: 'ASC' },
-      }),
-      this.mappingRepository.find({
-        select: [
-          'id',
-          'canonicalCategoryId',
-          'sourceCategoryId',
-          'status',
-          'source',
-        ],
-        order: { source: 'ASC', sourceCategoryId: 'ASC', id: 'ASC' },
-      }),
-      this.canonicalRepository.manager.find(CategoryEntity, {
-        select: ['id', 'parentId', 'source', 'status', 'displayOrder', 'name'],
-        order: { displayOrder: 'ASC', id: 'ASC' },
-      }),
-    ]);
-    return {
-      canonicalRows: canonicalRows.map((row) => ({
-        id: row.id,
-        parentId: row.parentId,
-        status: row.status,
-        displayOrder: row.displayOrder,
-        name: row.name,
-      })),
-      mappings: mappings.map((m) => ({
-        id: m.id,
-        canonicalCategoryId: m.canonicalCategoryId,
-        sourceCategoryId: m.sourceCategoryId,
-        status: m.status,
-        source: m.source,
-      })),
-      sourceTaxonomy: sourceTaxonomy.map((row) => ({
-        id: row.id,
-        parentId: row.parentId,
-        source: row.source,
-        status: row.status,
-        displayOrder: row.displayOrder,
-        name: row.name,
-      })),
-    };
-  }
-
   /** Global (or category-scoped) A4-eligible product base — same gates as PLP. */
   private buildEligibleSearchBuilder(
-    sourceCategoryIds: number[] | null,
+    eligibility: CanonicalProductEligibility | null,
   ): SelectQueryBuilder<ProductEntity> {
     const qb = this.productRepository
       .createQueryBuilder('product')
@@ -544,10 +478,13 @@ export class SearchService {
       .andWhere('product.price > 0')
       .andWhere('product.categoryId != 1');
 
-    if (sourceCategoryIds?.length) {
-      qb.andWhere('product.categoryId IN (:...searchScopeCategoryIds)', {
-        searchScopeCategoryIds: sourceCategoryIds,
-      });
+    if (eligibility) {
+      applyCanonicalProductEligibility(
+        qb,
+        'product',
+        eligibility,
+        'searchElig',
+      );
     }
 
     return applyDiscoveryEligibilityFilters(qb, 'product');
@@ -673,30 +610,7 @@ export class SearchService {
   private resolveCategoryMatch(
     normalizedQuery: string,
     tokens: string[],
-    scopeData: {
-      canonicalRows: Array<{
-        id: number;
-        parentId: number | null;
-        status: string;
-        displayOrder?: number | null;
-        name?: string | null;
-      }>;
-      mappings: Array<{
-        id?: number | null;
-        canonicalCategoryId: number;
-        sourceCategoryId: number;
-        status: string;
-        source?: string | null;
-      }>;
-      sourceTaxonomy: Array<{
-        id: number;
-        parentId: number | null;
-        source?: string | null;
-        status?: string;
-        displayOrder?: number | null;
-        name?: string | null;
-      }>;
-    },
+    scopeData: CanonicalEligibilityData,
   ): { canonicalIds: number[]; sourceCategoryIds: number[] } {
     const canonicalIds: number[] = [];
     for (const cat of scopeData.canonicalRows) {

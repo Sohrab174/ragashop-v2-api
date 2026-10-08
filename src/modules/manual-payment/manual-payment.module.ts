@@ -7,16 +7,14 @@ import { PaymentSubmissionEntity } from './entities/payment-submission.entity';
 import { PaymentEvidenceEntity } from './entities/payment-evidence.entity';
 import { PaymentReviewEventEntity } from './entities/payment-review-event.entity';
 import { PrivateReceiptObjectEntity } from './entities/private-receipt-object.entity';
-import { UserCapabilityEntity } from './entities/user-capability.entity';
 import { OrderEntity } from '../order/entities/order.entity';
 import { SettingEntity } from '../setting/entities/setting.entity';
 import { ManualPaymentMethodService } from './manual-payment-method.service';
 import { BankDestinationService } from './bank-destination.service';
 import { PaymentSubmissionService } from './payment-submission.service';
 import { PrivateReceiptStorageService } from './private-receipt-storage.service';
-import { UserCapabilityService } from './user-capability.service';
 import { ManualPaymentController } from './manual-payment.controller';
-import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
   imports: [
@@ -27,11 +25,11 @@ import { PermissionsGuard } from '../auth/capability/permissions.guard';
       PaymentEvidenceEntity,
       PaymentReviewEventEntity,
       PrivateReceiptObjectEntity,
-      UserCapabilityEntity,
       OrderEntity,
       SettingEntity,
     ]),
     forwardRef(() => OrderModule),
+    CapabilityModule,
   ],
   controllers: [ManualPaymentController],
   providers: [
@@ -39,14 +37,12 @@ import { PermissionsGuard } from '../auth/capability/permissions.guard';
     BankDestinationService,
     PaymentSubmissionService,
     PrivateReceiptStorageService,
-    UserCapabilityService,
-    PermissionsGuard,
   ],
   exports: [
     PaymentSubmissionService,
-    UserCapabilityService,
     ManualPaymentMethodService,
     BankDestinationService,
+    CapabilityModule,
   ],
 })
 export class ManualPaymentModule {}

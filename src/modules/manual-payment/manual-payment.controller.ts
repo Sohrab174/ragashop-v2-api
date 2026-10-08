@@ -227,8 +227,9 @@ export class ManualPaymentController {
 
   @Get('manual-payments/methods/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.bank_destination_manage)
   async listMethodsAdmin() {
     const items = await this.methodService.listAllAdmin();
     return successfulResult([], items);
@@ -249,8 +250,9 @@ export class ManualPaymentController {
 
   @Get('manual-payments/destinations/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.bank_destination_manage)
   async listBankDestinationsAdmin() {
     const items = await this.bankDestinationService.listAllAdmin();
     return successfulResult([], items);
@@ -258,8 +260,9 @@ export class ManualPaymentController {
 
   @Get('manual-payments/destinations/:id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.bank_destination_manage)
   async getBankDestinationAdmin(@Param('id', ParseIntPipe) id: number) {
     const data = await this.bankDestinationService.getById(id);
     return successfulResult([], data);
@@ -377,7 +380,7 @@ export class ManualPaymentController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  @RequireCapabilities(UserCapabilityName.payment_submission_review)
+  @RequireCapabilities(UserCapabilityName.payment_submission_reject)
   async reject(
     @Param('id', ParseIntPipe) id: number,
     @User() user,

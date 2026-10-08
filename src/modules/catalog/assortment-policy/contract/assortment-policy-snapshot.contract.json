@@ -1,0 +1,38 @@
+{
+  "contractVersion": 1,
+  "endpoint": "GET /catalog/assortment/internal/snapshot",
+  "authHeader": "x-crawler-secret",
+  "resolutionRows": [
+    { "categoryId": 10, "status": "IN_SCOPE", "reasonCode": "FASHION_APPAREL" },
+    { "categoryId": 20, "status": "REVIEW_REQUIRED", "reasonCode": "NEEDS_REVIEW" },
+    { "categoryId": 30, "status": "OUT_OF_SCOPE", "reasonCode": "BULKY_FURNITURE" }
+  ],
+  "policyVersion": 2,
+  "provider": "trendyol",
+  "expectedEnvelope": {
+    "success": true,
+    "messages": [],
+    "data": {
+      "policyVersion": 2,
+      "generatedAt": "<ISO-8601>",
+      "provider": "trendyol",
+      "resolutions": [
+        { "sourceCategoryId": 10, "status": "IN_SCOPE", "reasonCode": "FASHION_APPAREL" },
+        { "sourceCategoryId": 20, "status": "REVIEW_REQUIRED", "reasonCode": "NEEDS_REVIEW" },
+        { "sourceCategoryId": 30, "status": "OUT_OF_SCOPE", "reasonCode": "BULKY_FURNITURE" }
+      ]
+    }
+  },
+  "gateCases": [
+    { "name": "IN", "hasValidSnapshot": true, "isStale": false, "categoryId": 10, "action": "PROCEED_IN_SCOPE", "operationalCode": "CATEGORY_IN_SCOPE", "commerceCode": "ASSORTMENT_IN_SCOPE", "purchasable": true },
+    { "name": "REVIEW", "hasValidSnapshot": true, "isStale": false, "categoryId": 20, "action": "SKIP_REVIEW_REQUIRED", "operationalCode": "CATEGORY_REVIEW_REQUIRED", "commerceCode": "ASSORTMENT_REVIEW_REQUIRED", "purchasable": false },
+    { "name": "OUT", "hasValidSnapshot": true, "isStale": false, "categoryId": 30, "action": "SKIP_OUT_OF_SCOPE", "operationalCode": "CATEGORY_OUT_OF_SCOPE", "commerceCode": "ASSORTMENT_OUT_OF_SCOPE", "purchasable": false },
+    { "name": "UNKNOWN_CATEGORY", "hasValidSnapshot": true, "isStale": false, "categoryId": 40, "action": "FAIL_CLOSED_UNKNOWN", "operationalCode": "CATEGORY_UNKNOWN", "commerceCode": "ASSORTMENT_UNRESOLVED", "purchasable": false },
+    { "name": "NO_POLICY", "hasValidSnapshot": false, "isStale": false, "categoryId": 10, "action": "FAIL_CLOSED_NO_POLICY", "operationalCode": "POLICY_UNAVAILABLE", "commerceCode": null, "purchasable": false },
+    { "name": "STALE", "hasValidSnapshot": true, "isStale": true, "categoryId": 10, "action": "FAIL_CLOSED_STALE", "operationalCode": "POLICY_STALE", "commerceCode": null, "purchasable": false }
+  ],
+  "customerMessages": {
+    "OUT": "این کالا در حال حاضر از طریق راگاشاپ قابل سفارش نیست.",
+    "REVIEW": "امکان خرید و ارسال این کالا نیاز به بررسی دارد."
+  }
+}

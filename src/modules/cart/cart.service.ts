@@ -30,6 +30,11 @@ import {
   withCartOwnershipConflictRetry,
 } from './cart-ownership-conflict.util';
 import type { ResolvedCartLineConfig } from './cart-line.resolve';
+import { AssortmentCommerceService } from '../catalog/assortment-policy/assortment-commerce.service';
+import {
+  evaluateAssortmentCommerceGate,
+  isAssortmentCommerceEnforcementEnabled,
+} from '../catalog/assortment-policy/assortment-enforcement';
 
 export const CART_SESSION_HEADER = 'x-cart-session';
 
@@ -49,6 +54,7 @@ export class CartService {
     private productRepository: Repository<ProductEntity>,
     private settingService: SettingService,
     private error: ErrorService,
+    private assortmentCommerce: AssortmentCommerceService,
   ) {}
 
   resolveOwner(
@@ -104,6 +110,7 @@ export class CartService {
 
     const tryToToman = await this.settingService.getTryToToman();
     const product = await this.loadProductSnapshot(productId);
+    await this.assertAssortmentPurchasable(product?.categoryId);
     const resolved = resolveCartLineConfig({
       product,
       quantity,
@@ -300,6 +307,7 @@ export class CartService {
 
     const tryToToman = await this.settingService.getTryToToman();
     const product = await this.loadProductSnapshot(item.productId);
+    await this.assertAssortmentPurchasable(product?.categoryId);
     const selections =
       item.productAttributeValueId != null
         ? await this.selectionsFromPav(product, item.productAttributeValueId)
@@ -419,6 +427,21 @@ export class CartService {
       qb.setLock('pessimistic_write');
     }
     return qb.getOne();
+  }
+
+  private async assertAssortmentPurchasable(
+    categoryId: number | null | undefined,
+  ): Promise<void> {
+    // Missing product → let resolveCartLineConfig emit the standard not-found error.
+    if (categoryId === undefined) return;
+    const blocked = await this.assortmentCommerce.assertPurchasableOrDecision(
+      categoryId,
+    );
+    if (blocked) {
+      this.error.unprocessableEntity([blocked.customerMessage], {
+        code: blocked.code,
+      });
+    }
   }
 
   private async loadProductSnapshot(
@@ -541,7 +564,7 @@ export class CartService {
     }
 
     const tryToToman = await this.settingService.getTryToToman();
-    return mapStorefrontCartResponse({
+    const response = mapStorefrontCartResponse({
       sessionKey: cart.sessionKey,
       items: items.map((i) => ({
         id: i.id,
@@ -552,5 +575,41 @@ export class CartService {
       productsById,
       tryToToman,
     });
+
+    if (isAssortmentCommerceEnforcementEnabled() && response.items.length) {
+      const catIds = [
+        ...new Set(
+          [...productsById.values()]
+            .map((p) => Number(p.categoryId))
+            .filter((id) => id > 0),
+        ),
+      ];
+      const statusMap = await this.assortmentCommerce.getStatusMapForCategories(
+        catIds,
+      );
+      for (const line of response.items) {
+        if (!line.available) continue;
+        const product = productsById.get(line.productId);
+        const status =
+          product?.categoryId != null
+            ? statusMap.get(Number(product.categoryId))
+            : undefined;
+        const gate = evaluateAssortmentCommerceGate(status);
+        if (!gate.purchasable) {
+          line.available = false;
+          line.maxQuantity = 0;
+          line.availabilityNote = gate.customerMessage;
+          line.unitPrice = 0;
+          line.lineTotal = 0;
+          line.compareAtPrice = null;
+          line.discount = null;
+        }
+      }
+      const purchasable = response.items.filter((l) => l.available);
+      response.itemCount = purchasable.reduce((s, l) => s + l.quantity, 0);
+      response.subtotal = purchasable.reduce((s, l) => s + l.lineTotal, 0);
+    }
+
+    return response;
   }
 }

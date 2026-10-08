@@ -17,6 +17,9 @@ import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { UserRoles } from '../user/entities/user.entity';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { successfulResult } from '../../utils';
 import { AttributeTypes } from './entities/attribute.entity';
 import { Page } from '../../utils/decorators/page.decorator';
@@ -42,8 +45,9 @@ export class AttributeController {
    */
   @Get('values/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   @ApiQuery({ name: 'attribute_id', required: false })
   @ApiQuery({ name: 'value', required: false })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -72,8 +76,9 @@ export class AttributeController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'type', required: false, enum: AttributeTypes })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -102,8 +107,9 @@ export class AttributeController {
    */
   @Get(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   async getByIdForAdmin(@Param('id') attributeId: number) {
     const data = await this.attributeService.getByIdForAdmin(attributeId);
     return successfulResult([], data);
@@ -115,8 +121,9 @@ export class AttributeController {
    */
   @Post('value/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   async addValue(@Body() dto: CreateAttributeValueDto) {
     const newValue = await this.attributeService.addValue(dto);
@@ -130,8 +137,9 @@ export class AttributeController {
    */
   @Post('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   async add(@Body() dto: CreateAttributeDto) {
     const newAttribute = await this.attributeService.add(dto);
@@ -145,8 +153,9 @@ export class AttributeController {
    */
   @Put('value/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   async updateValues(@Body() dto: UpdateAttributeValueDto) {
     await this.attributeService.updateValue(dto);
 
@@ -159,8 +168,9 @@ export class AttributeController {
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   async update(@Body() dto: UpdateAttributeDto) {
     await this.attributeService.update(dto);
 
@@ -173,8 +183,9 @@ export class AttributeController {
    */
   @Delete('value/:id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   async deleteValue(@Param('id') attributeValueId: number) {
     await this.attributeService.deleteValue(attributeValueId);
 
@@ -187,8 +198,9 @@ export class AttributeController {
    */
   @Delete(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   async delete(@Param('id') attributeId: number) {
     await this.attributeService.delete(attributeId);
 

@@ -1,4 +1,4 @@
-import { HttpStatus } from '@nestjs/common';
+import { GoneException, HttpStatus } from '@nestjs/common';
 import {
   Body,
   Controller,
@@ -16,7 +16,6 @@ import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { successfulResult } from '../../utils';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { RolesGuard } from '../auth/role/role.guard';
-import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderService } from './order.service';
 
 import { Roles } from '../auth/role/role.decorator';
@@ -31,23 +30,54 @@ import { Customer } from '../../utils/decorators/customer.decorator';
 import { CustomerJwtAuthGuard } from '../customer/jwt/jwt.guard';
 import { CreateOrderByAdminDto } from './dto/create-order-by-admin.dto';
 import { UpdateOrderByAdminDto } from './dto/update-order-by-admin.dto';
+import { OperationsDashboardService } from './operations-dashboard.service';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
+import { UserCapabilityService } from '../manual-payment/user-capability.service';
+import { User } from '../../utils/decorators/user.decorator';
 
 @ApiTags('Order')
 @Controller('orders')
 export class OrderController {
-  constructor(private orderService: OrderService) {}
+  constructor(
+    private orderService: OrderService,
+    private operationsDashboardService: OperationsDashboardService,
+    private capabilityService: UserCapabilityService,
+  ) {}
 
   /**
    * -------------------------------------------------------
-   * POST /orders/me
+   * Read-only operational queue counts for Admin dashboard
+   * GET /orders/operations-dashboard/admin
+   */
+  @Get('operations-dashboard/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
+  async operationsDashboard() {
+    const data = await this.operationsDashboardService.getCounts();
+    return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * POST /orders/me — disabled (legacy commerce bypass)
+   * Authoritative customer order creation is POST /checkout/orders.
+   * Historical GET /orders/me and GET /orders/:id/me remain intact.
    */
   @Post('me')
-  @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
   @UseGuards(CustomerJwtAuthGuard)
-  async create(@Customer('id') customerId, @Body() dto: CreateOrderDto) {
-    const newOrder = await this.orderService.addUpdate(dto, customerId);
-    return successfulResult(['سفارش جدید با موفقیت ثبت شد'], newOrder);
+  legacyCustomerCreateDisabled() {
+    throw new GoneException({
+      success: false,
+      messages: [
+        'ایجاد سفارش از این مسیر پشتیبانی نمی‌شود. از مسیر تسویه حساب استفاده کنید.',
+      ],
+      data: { code: 'legacy_order_create_disabled' },
+    });
   }
 
   /**
@@ -57,8 +87,9 @@ export class OrderController {
   @Post('admin')
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_prepare)
   async createByAdmin(@Body() dto: CreateOrderByAdminDto) {
     const newOrder = await this.orderService.addUpdate(dto);
     return successfulResult(['سفارش جدید با موفقیت ثبت شد'], newOrder);
@@ -70,8 +101,9 @@ export class OrderController {
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_prepare)
   async updateByAdmin(@Body() dto: UpdateOrderByAdminDto) {
     await this.orderService.addUpdate(dto, null, dto.id);
     return successfulResult(['سفارش با موفقیت ویرایش شد']);
@@ -83,8 +115,9 @@ export class OrderController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
   @ApiQuery({ name: 'number', required: false })
   @ApiQuery({ name: 'customer', required: false })
   @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
@@ -148,8 +181,9 @@ export class OrderController {
    */
   @Get('statistic/count/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
   @ApiQuery({ name: 'only_pending', required: false })
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
@@ -173,8 +207,9 @@ export class OrderController {
    */
   @Get('statistic/best-sales-product/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
   async statisticBestSalesByProduct(@Query('from') from, @Query('to') to) {
@@ -189,8 +224,9 @@ export class OrderController {
    */
   @Get('statistic/best-sales-category/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
   @ApiQuery({ name: 'from', required: false })
   @ApiQuery({ name: 'to', required: false })
   async statisticBestSalesByCategory(@Query('from') from, @Query('to') to) {
@@ -205,8 +241,9 @@ export class OrderController {
    */
   @Get('statistic/chart/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
   @ApiQuery({ name: 'from', required: true })
   @ApiQuery({ name: 'to', required: true })
   @ApiQuery({ name: 'type', required: true, enum: ['daily', 'monthly'] })
@@ -236,8 +273,9 @@ export class OrderController {
    */
   @Get(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_read)
   async getByIdForAdmin(@Param('id') orderId: number) {
     const data = await this.orderService.getByIdForAdmin(orderId);
     return successfulResult([], data);
@@ -271,7 +309,26 @@ export class OrderController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async update(@Body() dto: UpdateOrderStatusDto) {
+  async update(@Body() dto: UpdateOrderStatusDto, @User() user) {
+    const current = await this.orderService.getRecordById(dto.id);
+
+    let required: UserCapabilityName;
+    if (dto.status === OrderStatus.accepted) {
+      required = UserCapabilityName.order_prepare;
+    } else if (dto.status === OrderStatus.sent) {
+      required =
+        current?.status === OrderStatus.sent
+          ? UserCapabilityName.order_tracking
+          : UserCapabilityName.order_ship;
+    } else if (dto.status === OrderStatus.delivered) {
+      required = UserCapabilityName.order_ship;
+    } else if (dto.status === OrderStatus.rejected) {
+      required = UserCapabilityName.order_reject;
+    } else {
+      required = UserCapabilityName.order_prepare;
+    }
+
+    await this.capabilityService.assertUserHasCapability(user, required);
     await this.orderService.updateStatus(dto);
 
     return successfulResult(['سفارش با موفقیت آپدیت شد']);
@@ -283,8 +340,9 @@ export class OrderController {
    */
   @Delete(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.order_prepare)
   async delete(@Param('id') orderId: number) {
     await this.orderService.delete(orderId);
 

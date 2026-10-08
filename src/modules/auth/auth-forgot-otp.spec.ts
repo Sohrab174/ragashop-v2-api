@@ -53,6 +53,7 @@ function makeHarness(opts: {
     otpDelivery,
     config as any,
     null,
+    { listEffectiveCodes: jest.fn().mockResolvedValue([]) } as any,
   );
   return { service, user, amootsmsService };
 }

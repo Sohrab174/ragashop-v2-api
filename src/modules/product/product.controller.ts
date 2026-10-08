@@ -25,6 +25,10 @@ import { multerOptions } from '../../utils/multer.options';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { RolesGuard } from '../auth/role/role.guard';
+import { PermissionsGuard } from '../auth/capability/permissions.guard';
+import { RequireCapabilities } from '../auth/capability/capability.decorator';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
+import { UserCapabilityService } from '../manual-payment/user-capability.service';
 import { UserEntity, UserRoles } from '../user/entities/user.entity';
 import { CreateProductGalleryDto } from './dto/create-product-gallery.dto';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -42,6 +46,11 @@ import { Customer } from '../../utils/decorators/customer.decorator';
 import { CustomerEntity } from '../customer/entities/customer.entity';
 import { OptionalCustomerJwtAuthGuard } from '../customer/jwt/jwt.guard';
 import { UpdateGroupProductDto } from './dto/update-group-product.dto';
+import {
+  groupUpdateRequiresDisableCapability,
+  pavMutationRequiresInventoryCapability,
+  pavMutationRequiresPriceCapability,
+} from './product-mutation-capability.util';
 dotenv.config();
 
 @ApiTags('Product')
@@ -50,6 +59,7 @@ export class ProductController {
   constructor(
     private productService: ProductService,
     private error: ErrorService,
+    private capabilityService: UserCapabilityService,
   ) {}
 
   // /**
@@ -135,8 +145,9 @@ export class ProductController {
    */
   @Post('/import/excel/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
@@ -171,8 +182,9 @@ export class ProductController {
    */
   @Get('allow-file-extensions/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   async allowFileExtensions() {
     return successfulResult([], process.env.PRODUCT_FILE_TYPES.split(','));
   }
@@ -183,8 +195,9 @@ export class ProductController {
    */
   @Get('statistic/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   async statistic() {
     const data = await this.productService.statistic();
     return successfulResult([], data);
@@ -196,8 +209,9 @@ export class ProductController {
    */
   @Get('galleries/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   @ApiQuery({ name: 'product_id', required: false })
   @ApiQuery({ name: 'type', required: false, enum: ProductGalleryType })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -226,13 +240,31 @@ export class ProductController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   @ApiQuery({ name: 'category_id', required: false })
   @ApiQuery({ name: 'discount_percent', required: false })
   @ApiQuery({ name: 'brand_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'number', required: false })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Unified search across name, sourceName, and number',
+  })
+  @ApiQuery({
+    name: 'stock',
+    required: false,
+    description: 'in_stock | out_of_stock',
+  })
+  @ApiQuery({
+    name: 'discounted',
+    required: false,
+    description: '1 | 0 — products with / without discountPercent > 0',
+  })
+  @ApiQuery({ name: 'min_price', required: false })
+  @ApiQuery({ name: 'max_price', required: false })
   @ApiQuery({ name: 'gender', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ProductStatus })
   @ApiQuery({ name: 'sort', required: false, description: 'e.g. id:desc' })
@@ -252,6 +284,11 @@ export class ProductController {
     filters,
     @Query('number') number,
     @Query('name') name,
+    @Query('search') search,
+    @Query('stock') stock,
+    @Query('discounted') discounted,
+    @Query('min_price') minPrice,
+    @Query('max_price') maxPrice,
   ) {
     const list = await this.productService.getAllForAdmin(
       page,
@@ -260,6 +297,13 @@ export class ProductController {
       sorts,
       number,
       name,
+      {
+        search,
+        stock,
+        discounted,
+        minPrice,
+        maxPrice,
+      },
     );
 
     return successfulResult([], list);
@@ -271,8 +315,9 @@ export class ProductController {
    */
   @Get('with-attributes/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   async getAllForAdminWithAttributes() {
     const list = await this.productService.getAllForAdminWithAttributes();
 
@@ -285,8 +330,9 @@ export class ProductController {
    */
   @Get(':id/attributes/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   async getAttributesByProductId(@Param('id') productId: number) {
     const data = await this.productService.getAttributesByProductId(productId);
     return successfulResult([], data);
@@ -298,8 +344,9 @@ export class ProductController {
    */
   @Get(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
   async getByIdForAdmin(@Param('id') productId: number) {
     const data = await this.productService.getByIdForAdmin(productId);
     return successfulResult([], data);
@@ -445,8 +492,9 @@ export class ProductController {
    */
   @Post('/photo/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', multerOptions('products')))
   async addGalleryPhoto(
@@ -473,9 +521,10 @@ export class ProductController {
    */
   @Post('/video/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   // @Features(CompanyFeatures.productVideoGallery)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor(
@@ -508,16 +557,38 @@ export class ProductController {
   /**
    * -------------------------------------------------------
    * POST & PUT /products/attribute/admin
+   * Base: product.write
+   * Field-level: product.price / product.inventory when those fields change.
    */
   @Post('attribute/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   async addUpdateProductAttributeValue(
     @Body() dto: CreateUpdateProductAttrValueDto,
     @User() user: UserEntity,
   ) {
+    const existing = await this.productService.findCanonicalActivePav(
+      dto.productId,
+      dto.attributeValueId,
+    );
+
+    if (pavMutationRequiresPriceCapability(dto, existing)) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_price,
+      );
+    }
+
+    if (pavMutationRequiresInventoryCapability(dto, existing)) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_inventory,
+      );
+    }
+
     const data = await this.productService.addUpdateProductAttributeValue(
       dto,
       user,
@@ -532,8 +603,9 @@ export class ProductController {
    */
   @Delete('attribute/:id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   async deleteProductAttributeValue(
     @Param('id') productAttrValueId: number,
     @User() user: UserEntity,
@@ -552,8 +624,9 @@ export class ProductController {
    */
   @Post('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   async add(@Body() dto: CreateProductDto, @User() user: UserEntity) {
     const newProduct = await this.productService.add(dto, user);
@@ -567,8 +640,9 @@ export class ProductController {
    */
   @Put('sort/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @ApiQuery({ name: 'category_id', required: false })
   @ApiQuery({ name: 'name', required: false })
   @ApiQuery({ name: 'status', required: false, enum: ProductStatus })
@@ -586,12 +660,25 @@ export class ProductController {
   /**
    * -------------------------------------------------------
    * PUT /products/group/admin
+   * Base: product.write (category/gender)
+   * Status/visibility changes also require product.disable.
    */
   @Put('group/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  async groupUpdate(@Body() dto: UpdateGroupProductDto) {
+  @RequireCapabilities(UserCapabilityName.product_write)
+  async groupUpdate(
+    @Body() dto: UpdateGroupProductDto,
+    @User() user: UserEntity,
+  ) {
+    if (groupUpdateRequiresDisableCapability(dto)) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_disable,
+      );
+    }
+
     await this.productService.groupUpdate(dto);
 
     return successfulResult(['محصول(های) مورد نظر با موفقیت آپدیت شد']);
@@ -606,6 +693,50 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
   async update(@Body() dto: UpdateProductDto, @User() user: UserEntity) {
+    await this.capabilityService.assertUserHasCapability(
+      user,
+      UserCapabilityName.product_write,
+    );
+
+    const existing = await this.productService.getByIdForAdmin(dto.id);
+
+    if (
+      dto.price != null &&
+      Number(dto.price) !== Number(existing.price)
+    ) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_price,
+      );
+    }
+
+    if (
+      dto.discountedPrice != null &&
+      Number(dto.discountedPrice) !== Number(existing.discountedPrice)
+    ) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_price,
+      );
+    }
+
+    if (
+      dto.quantity != null &&
+      Number(dto.quantity) !== Number(existing.quantity)
+    ) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_inventory,
+      );
+    }
+
+    if (dto.status != null && dto.status !== existing.status) {
+      await this.capabilityService.assertUserHasCapability(
+        user,
+        UserCapabilityName.product_disable,
+      );
+    }
+
     await this.productService.update(dto, user);
 
     return successfulResult(['محصول مورد نظر با موفقیت آپدیت شد']);
@@ -617,8 +748,9 @@ export class ProductController {
    */
   @Delete('gallery/:id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_disable)
   async deleteGallery(
     @Param('id') galleryId: number,
     @User() user: UserEntity,
@@ -634,8 +766,9 @@ export class ProductController {
    */
   @Delete(':id/admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_disable)
   async delete(@Param('id') productId: number, @User() user: UserEntity) {
     await this.productService.delete(productId, user);
 
@@ -648,8 +781,9 @@ export class ProductController {
    */
   @Post('admin/crawler')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   async getProductsByCrawler(@Body() { url, count = 10 }) {
     const products = await this.productService.getProductsByCrawler(url, count);
@@ -663,8 +797,9 @@ export class ProductController {
    */
   @Post('admin/sample')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
   @HttpCode(HttpStatus.CREATED)
   async getProductSampleByCrawler(@Body() { url, count = 10 }) {
     const products = await this.productService.getProductSampleByCrawler(

@@ -5,6 +5,7 @@ import { SettingModule } from '../setting/setting.module';
 import { ProductModule } from '../product/product.module';
 import { CartModule } from '../cart/cart.module';
 import { CityModule } from '../city/city.module';
+import { CatalogModule } from '../catalog/catalog.module';
 import { CartEntity } from '../cart/entities/cart.entity';
 import { CartItemEntity } from '../cart/entities/cart-item.entity';
 import { OrderEntity } from '../order/entities/order.entity';
@@ -29,6 +30,7 @@ import { CheckoutService } from './checkout.service';
     ProductModule,
     CartModule,
     CityModule,
+    CatalogModule,
   ],
   controllers: [CheckoutController],
   providers: [CheckoutService],

@@ -3,6 +3,7 @@ import { GoneException } from '@nestjs/common';
 import { ProductController } from './product.controller';
 import { ProductService } from './product.service';
 import { ErrorService } from '../../error/error.service';
+import { UserCapabilityService } from '../manual-payment/user-capability.service';
 
 describe('Legacy product crawler routes', () => {
   let controller: ProductController;
@@ -18,6 +19,13 @@ describe('Legacy product crawler routes', () => {
       providers: [
         { provide: ProductService, useValue: productService },
         { provide: ErrorService, useValue: {} },
+        {
+          provide: UserCapabilityService,
+          useValue: {
+            assertUserHasCapability: jest.fn(),
+            userHasCapability: jest.fn().mockResolvedValue(true),
+          },
+        },
       ],
     }).compile();
 

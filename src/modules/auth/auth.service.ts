@@ -14,6 +14,7 @@ import { MailService } from '../../mail/mail.service';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
 import { OtpDeliveryService } from '../../sms/otp-delivery/otp-delivery.service';
 import { normalizeCustomerMobile } from '../../utils/mobile-normalization';
+import { UserCapabilityService } from '../manual-payment/user-capability.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
     private otpDelivery: OtpDeliveryService,
     private config: ConfigurationService,
     private jwtService: JwtService,
+    private capabilityService: UserCapabilityService,
   ) {}
 
   /**
@@ -49,7 +51,6 @@ export class AuthService {
 
     return await this.prepareUserResponse(user, dto.rememberMe);
   }
-  س;
 
   /**
    * --------------------------------------------------------
@@ -58,6 +59,7 @@ export class AuthService {
    */
   async prepareUserResponse(user: UserEntity, rememberMe = false) {
     const accessToken = await this._generateAccessToken(user, rememberMe);
+    const capabilities = await this.capabilityService.listEffectiveCodes(user);
 
     return {
       user: {
@@ -68,6 +70,7 @@ export class AuthService {
         fullName: `${user.firstName} ${user.lastName}`.trim(),
         firstName: user.firstName,
         lastName: user.lastName,
+        capabilities,
       },
       accessToken,
     };
@@ -96,7 +99,9 @@ export class AuthService {
    * --------------------------------------------------------
    */
   async getById(userId: number) {
-    return await this.userService.getById(userId);
+    const user = await this.userService.getById(userId);
+    const capabilities = await this.capabilityService.listEffectiveCodes(user);
+    return { ...user, capabilities };
   }
 
   /**

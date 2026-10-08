@@ -146,6 +146,13 @@ export class ProductService {
     sorts = null,
     number = null,
     name = null,
+    extras: {
+      search?: string | null;
+      stock?: string | null;
+      discounted?: string | null;
+      minPrice?: string | number | null;
+      maxPrice?: string | number | null;
+    } = {},
   ) {
     let builder = this.productRepository
       .createQueryBuilder('product')
@@ -181,6 +188,48 @@ export class ProductService {
           name: `%${name}%`,
         },
       );
+    }
+
+    const search = extras?.search?.toString()?.trim();
+    if (search) {
+      builder.andWhere(
+        '(product.name LIKE :search OR product.sourceName LIKE :search OR product.number LIKE :search OR productAttributeValues.number LIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    const stock = extras?.stock?.toString()?.trim();
+    if (stock === 'in_stock') {
+      // quantity -1 = untracked/available; quantity > 0 = tracked stock
+      builder.andWhere('product.quantity <> 0');
+    } else if (stock === 'out_of_stock') {
+      builder.andWhere('product.quantity = 0');
+    }
+
+    const discounted = extras?.discounted?.toString()?.trim();
+    if (discounted === '1' || discounted === 'true') {
+      builder.andWhere(
+        'product.discountPercent IS NOT NULL AND product.discountPercent > 0',
+      );
+    } else if (discounted === '0' || discounted === 'false') {
+      builder.andWhere(
+        '(product.discountPercent IS NULL OR product.discountPercent <= 0)',
+      );
+    }
+
+    const minPrice =
+      extras?.minPrice != null && extras.minPrice !== ''
+        ? Number(extras.minPrice)
+        : null;
+    const maxPrice =
+      extras?.maxPrice != null && extras.maxPrice !== ''
+        ? Number(extras.maxPrice)
+        : null;
+    if (minPrice != null && !Number.isNaN(minPrice)) {
+      builder.andWhere('product.price >= :minPrice', { minPrice });
+    }
+    if (maxPrice != null && !Number.isNaN(maxPrice)) {
+      builder.andWhere('product.price <= :maxPrice', { maxPrice });
     }
 
     const [items, totalItems] = await builder
@@ -986,6 +1035,32 @@ export class ProductService {
     const tryToToman = await this.settingService.getTryToToman();
 
     return productList.map((item) => this.mappingProduct(item, tryToToman));
+  }
+
+  /**
+   * Canonical active PAV for (productId, attributeValueId) — used by
+   * field-level capability checks before mutation.
+   */
+  async findCanonicalActivePav(
+    productId: number,
+    attributeValueId: number,
+  ): Promise<ProductAttributeValueEntity | null> {
+    const referencedPavIds = await loadOrderReferencedPavIds(
+      this.productAttributeValueRepository.manager,
+      productId,
+    );
+    const existingForValue = await this.productAttributeValueRepository.find({
+      where: {
+        productId,
+        attributeValueId,
+      },
+    });
+    return (
+      (selectCanonicalActivePav(
+        existingForValue,
+        referencedPavIds,
+      ) as ProductAttributeValueEntity | null) || null
+    );
   }
 
   /**

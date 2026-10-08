@@ -18,7 +18,7 @@ import { RolesGuard } from '../auth/role/role.guard';
 import { UserRoles } from '../user/entities/user.entity';
 import { RequireCapabilities } from '../auth/capability/capability.decorator';
 import { PermissionsGuard } from '../auth/capability/permissions.guard';
-import { UserCapabilityName } from '../manual-payment/manual-payment.types';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { SupportService } from './support.service';
 import {
   CreateSupportMessageDto,
@@ -84,7 +84,7 @@ export class SupportController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  @RequireCapabilities(UserCapabilityName.support_manage)
+  @RequireCapabilities(UserCapabilityName.support_read)
   async listAdmin() {
     const list = await this.supportService.listForStaff();
     return successfulResult([], list);
@@ -94,7 +94,7 @@ export class SupportController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  @RequireCapabilities(UserCapabilityName.support_manage)
+  @RequireCapabilities(UserCapabilityName.support_read)
   async getAdmin(@Param('id') id: string) {
     const detail = await this.supportService.getForStaff(Number(id));
     return successfulResult([], detail);
@@ -104,7 +104,7 @@ export class SupportController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
   @Roles(UserRoles.admin, UserRoles.employee)
-  @RequireCapabilities(UserCapabilityName.support_manage)
+  @RequireCapabilities(UserCapabilityName.support_reply)
   async replyAdmin(
     @User('id') userId: number,
     @Param('id') id: string,

@@ -355,6 +355,147 @@ describe('resolveCheckoutLines', () => {
       expect(result.issues[0].code).toBe('invalid_config');
     }
   });
+
+  it('rejects stocked variant when product isSellable=false', () => {
+    const result = resolveCheckoutLines({
+      items: [
+        {
+          id: 1,
+          productId: 3,
+          productAttributeValueId: 50,
+          quantity: 1,
+        },
+      ],
+      productsById: new Map([
+        [
+          3,
+          {
+            id: 3,
+            name: 'پیراهن',
+            price: 100,
+            discountedPrice: null,
+            quantity: 10,
+            isSellable: false,
+            isDeleted: false,
+            status: 'active',
+            categoryId: 2,
+            coverPath: null,
+            productAttributeValues: [
+              {
+                id: 50,
+                quantity: 5,
+                price: 120,
+                discountedPrice: null,
+                attributeValue: {
+                  id: 1,
+                  name: 'M',
+                  extraValue: null,
+                  attributeId: 7,
+                  attribute: {
+                    id: 7,
+                    name: 'سایز',
+                    type: 'other',
+                  },
+                },
+              },
+              {
+                id: 51,
+                quantity: 5,
+                price: 130,
+                discountedPrice: null,
+                attributeValue: {
+                  id: 2,
+                  name: 'L',
+                  extraValue: null,
+                  attributeId: 7,
+                  attribute: {
+                    id: 7,
+                    name: 'سایز',
+                    type: 'other',
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      ]),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.issues[0].code).toBe('unavailable');
+    }
+  });
+
+  it('accepts stocked variant when product is sellable', () => {
+    const result = resolveCheckoutLines({
+      items: [
+        {
+          id: 1,
+          productId: 3,
+          productAttributeValueId: 50,
+          quantity: 1,
+        },
+      ],
+      productsById: new Map([
+        [
+          3,
+          {
+            id: 3,
+            name: 'پیراهن',
+            price: 100,
+            discountedPrice: null,
+            quantity: 10,
+            isSellable: true,
+            isDeleted: false,
+            status: 'active',
+            categoryId: 2,
+            coverPath: null,
+            productAttributeValues: [
+              {
+                id: 50,
+                quantity: 5,
+                price: 120,
+                discountedPrice: null,
+                attributeValue: {
+                  id: 1,
+                  name: 'M',
+                  extraValue: null,
+                  attributeId: 7,
+                  attribute: {
+                    id: 7,
+                    name: 'سایز',
+                    type: 'other',
+                  },
+                },
+              },
+              {
+                id: 51,
+                quantity: 5,
+                price: 130,
+                discountedPrice: null,
+                attributeValue: {
+                  id: 2,
+                  name: 'L',
+                  extraValue: null,
+                  attributeId: 7,
+                  attribute: {
+                    id: 7,
+                    name: 'سایز',
+                    type: 'other',
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      ]),
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.lines[0].unitPriceTry).toBe(120);
+      expect(result.lines[0].productAttributeValueId).toBe(50);
+    }
+  });
 });
 
 describe('roundMoney', () => {

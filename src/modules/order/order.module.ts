@@ -16,6 +16,9 @@ import { ReferralAwardEntity } from '../customer/entities/referral-award.entity'
 import { FinanceModule } from '../finance/finance.module';
 import { ManualPaymentModule } from '../manual-payment/manual-payment.module';
 import { PaymentSubmissionEntity } from '../manual-payment/entities/payment-submission.entity';
+import { SupportRequestEntity } from '../support/entities/support-request.entity';
+import { OperationsDashboardService } from './operations-dashboard.service';
+import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
   imports: [
@@ -26,6 +29,7 @@ import { PaymentSubmissionEntity } from '../manual-payment/entities/payment-subm
       ReferralAwardEntity,
       OrderPaymentFinalizationEntity,
       PaymentSubmissionEntity,
+      SupportRequestEntity,
     ]),
     ProductModule,
     MailModule,
@@ -35,9 +39,10 @@ import { PaymentSubmissionEntity } from '../manual-payment/entities/payment-subm
     TelegrafBotModule,
     FinanceModule,
     forwardRef(() => ManualPaymentModule),
+    CapabilityModule,
   ],
   controllers: [OrderController],
-  providers: [OrderService],
+  providers: [OrderService, OperationsDashboardService],
   exports: [OrderService],
 })
 export class OrderModule {}

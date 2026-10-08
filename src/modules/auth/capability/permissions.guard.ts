@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ErrorService } from '../../../error/error.service';
 import { UserCapabilityService } from '../../manual-payment/user-capability.service';
-import { UserCapabilityName } from '../../manual-payment/manual-payment.types';
+import { UserCapabilityName } from './capability.catalog';
 import { CAPABILITIES_KEY } from './capability.decorator';
 
 /**

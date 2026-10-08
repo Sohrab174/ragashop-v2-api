@@ -25,6 +25,10 @@ import {
 } from './entities/catalog-refresh-checkpoint.entity';
 import { computeCatalogRefreshScanProgress } from './catalog-refresh-progression';
 import { isMysqlDuplicateKeyError } from '../order/utils/duplicate-key.util';
+import {
+  assortmentInScopeDiscoverySql,
+  isAssortmentCrawlerEnforcementEnabled,
+} from '../catalog/assortment-policy/assortment-enforcement';
 
 export type CatalogRefreshRunMode = 'dry_run' | 'live';
 
@@ -179,7 +183,9 @@ export class CatalogRefreshExecutorService {
       .getCount();
 
     const checkpointScopeKey = catalogRefreshCheckpointScopeKey(sourceFilter);
-    const storedCheckpoint = await this.loadCheckpointSnapshot(checkpointScopeKey);
+    const storedCheckpoint = await this.loadCheckpointSnapshot(
+      checkpointScopeKey,
+    );
     const storedAfterProductId = storedCheckpoint.afterProductId;
     const storedRevision = storedCheckpoint.revision;
     const scanAfterProductId =
@@ -305,10 +311,7 @@ export class CatalogRefreshExecutorService {
         (bySyncMap.get(String(product.sourceSyncStatus)) || 0) + 1,
       );
       if (decision.tier) {
-        byTierMap.set(
-          decision.tier,
-          (byTierMap.get(decision.tier) || 0) + 1,
-        );
+        byTierMap.set(decision.tier, (byTierMap.get(decision.tier) || 0) + 1);
       }
 
       if (
@@ -571,6 +574,12 @@ export class CatalogRefreshExecutorService {
       qb.andWhere('product.source = :source', { source });
     }
 
+    // SCOPE-5/6 refresh gate: only IN_SCOPE source categories are refresh
+    // eligible. REVIEW / OUT / missing resolution fail closed (no crawl work).
+    if (isAssortmentCrawlerEnforcementEnabled()) {
+      qb.andWhere(assortmentInScopeDiscoverySql('product'));
+    }
+
     const rows = await qb.getMany();
     return rows.map((p) => ({
       id: p.id,
@@ -707,7 +716,9 @@ export class CatalogRefreshExecutorService {
     }
 
     const currentRev = Number(existing.revision);
-    const currentRevN = Number.isFinite(currentRev) ? Math.floor(currentRev) : 0;
+    const currentRevN = Number.isFinite(currentRev)
+      ? Math.floor(currentRev)
+      : 0;
     if (currentRevN !== expectedRev) {
       return { committed: false, newRevision: null };
     }

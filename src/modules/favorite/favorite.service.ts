@@ -84,7 +84,7 @@ export class FavoriteService {
    * -------------------------------------------------------
    * GET /favorites/products/me
    */
-  async getProducts(customer: CustomerEntity) {
+  async getProducts(customer: CustomerEntity): Promise<number[]> {
     const list = await this.productFavoriteRepository
       .createQueryBuilder('favorite')
       .innerJoin(
@@ -93,10 +93,27 @@ export class FavoriteService {
         'product.id = favorite.productId AND product.isDeleted = 0 AND product.status = :activeStatus AND product.categoryId != 1',
         { activeStatus: 'active' },
       )
-      .select(['favorite.id', 'favorite.productId'])
-      .where({ customerId: customer.id, isDeleted: false })
-      .getRawMany();
+      .select('favorite.productId', 'productId')
+      .where('favorite.customerId = :customerId', { customerId: customer.id })
+      .andWhere('favorite.isDeleted = 0')
+      .orderBy('favorite.id', 'DESC')
+      .getRawMany<{ productId: unknown }>();
 
-    return list.map((item) => item.productId);
+    return mapFavoriteProductIds(list);
   }
+}
+
+/** getRawMany rows must be aliased to `productId`; TypeORM otherwise emits `favorite_productId`. */
+export function mapFavoriteProductIds(
+  rows: ReadonlyArray<{ productId: unknown }>,
+): number[] {
+  const seen = new Set<number>();
+  const ids: number[] = [];
+  for (const row of rows) {
+    const id = Number(row?.productId);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
 }

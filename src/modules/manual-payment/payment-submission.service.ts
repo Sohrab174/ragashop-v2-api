@@ -1010,7 +1010,7 @@ export class PaymentSubmissionService {
   ) {
     await this.capabilityService.assertUserHasCapability(
       user,
-      UserCapabilityName.payment_submission_review,
+      UserCapabilityName.payment_submission_reject,
       this.error,
     );
 

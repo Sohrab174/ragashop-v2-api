@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigurationModule } from '../../config/configuration.module';
 import { ConfigurationService } from '../../config/configuration.service';
 import { UserModule } from '../user/user.module';
+import { CapabilityModule } from './capability/capability.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt/jwt.strategy';
@@ -19,7 +20,7 @@ import { SecurityModule } from '../../security/security.module';
     MailModule,
     OtpDeliveryModule,
     SecurityModule,
-    // KavenegarModule,
+    CapabilityModule,
     JwtModule.registerAsync({
       imports: [ConfigurationModule],
       inject: [ConfigurationService],

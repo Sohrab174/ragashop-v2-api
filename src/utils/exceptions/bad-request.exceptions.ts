@@ -5,6 +5,7 @@ import {
   ExceptionFilter,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { structuredClientErrorData } from './client-error-body';
 
 @Catch(BadRequestException)
 export class BadRequestExceptionFilter implements ExceptionFilter {
@@ -16,7 +17,7 @@ export class BadRequestExceptionFilter implements ExceptionFilter {
     response.status(400).json({
       success: false,
       messages: typeof error === 'object' ? [error.message] : [error],
-      data: {},
+      data: structuredClientErrorData(error),
     });
   }
 }

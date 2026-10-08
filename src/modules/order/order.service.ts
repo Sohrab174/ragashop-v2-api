@@ -46,7 +46,10 @@ import {
   isOrderHardDeletionBlocked,
   FINANCIALLY_PRESERVED_TRANSACTION_STATUSES,
 } from './utils/order-financial-preservation';
-import { isOrderNumberUniqueViolation, isMysqlDuplicateKeyError } from './utils/duplicate-key.util';
+import {
+  isOrderNumberUniqueViolation,
+  isMysqlDuplicateKeyError,
+} from './utils/duplicate-key.util';
 import {
   isInventoryStillReserved,
   restoreReservedInventoryLines,
@@ -78,6 +81,7 @@ import {
   FX_RATE_SOURCE_TGJU,
   ProfitabilityStatus,
 } from '../finance/finance.types';
+import { isReferralAwardsEnabled } from '../finance/referral-launch.gate';
 import { computeSettlementFromOrderSnapshot } from '../finance/settlement-money';
 import { AuthoritativeTryToToman } from '../setting/setting.service';
 import { PaymentSubmissionEntity } from '../manual-payment/entities/payment-submission.entity';
@@ -443,7 +447,8 @@ export class OrderService {
             return {
               orderId,
               productId: product.id,
-              productAttributeValueId: product.productAttributeValue?.id || null,
+              productAttributeValueId:
+                product.productAttributeValue?.id || null,
               price: product.price,
               discountedPrice: product?.discountedPrice ?? 0,
               quantity: product.quantity,
@@ -915,12 +920,7 @@ export class OrderService {
     );
 
     if (
-      isInventoryReleaseBlocked(
-        order,
-        transactions,
-        !!finalization,
-        manualHold,
-      )
+      isInventoryReleaseBlocked(order, transactions, !!finalization, manualHold)
     ) {
       return 'skipped_financially_preserved';
     }
@@ -1176,11 +1176,16 @@ export class OrderService {
 
   /**
    * Idempotent referral reward application tied to durable ledger row.
+   * Launch: fail-closed via isReferralAwardsEnabled() — no new awards while disabled.
    */
   async applyReferralRewardsAtomic(
     orderId: number,
     queryRunner: QueryRunner,
   ): Promise<void> {
+    if (!isReferralAwardsEnabled()) {
+      return;
+    }
+
     const order = await queryRunner.manager.findOne(OrderEntity, {
       where: { id: orderId },
       relations: ['customer'],
@@ -1789,9 +1794,7 @@ export class OrderService {
    */
   async handleDeleteUnpaid() {
     const config = loadUnpaidOrderCleanupConfig();
-    const pastTime = moment()
-      .subtract(config.timeoutHours, 'hours')
-      .toDate();
+    const pastTime = moment().subtract(config.timeoutHours, 'hours').toDate();
 
     const maxRelease = config.batchSize;
     /** Scan budget among already-eligible candidates (not protected rows). */

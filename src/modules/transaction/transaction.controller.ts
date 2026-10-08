@@ -72,7 +72,7 @@ export class TransactionController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin, UserRoles.employee)
+  @Roles(UserRoles.admin)
   @ApiQuery({ name: 'order_id', required: false })
   @ApiQuery({ name: 'customer_id', required: false })
   @ApiQuery({ name: 'gateway_id', required: false })

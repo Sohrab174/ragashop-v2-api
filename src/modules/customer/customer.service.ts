@@ -37,6 +37,7 @@ import { CustomerMobileIdentityService } from './customer-mobile-identity.servic
 import { resolveCustomerByMobileDuplicates } from './customer-identity-resolver';
 import { isNormalizedCustomerMobile } from '../../utils/mobile-normalization';
 import { buildCustomerProfilePatch } from './customer-profile';
+import { isReferralAwardsEnabled } from '../finance/referral-launch.gate';
 
 const CUSTOMER_BANNED_MESSAGE =
   'حساب کاربری شما مسدود شده است، با پشتیبانی تماس حاصل نمایید';
@@ -283,40 +284,43 @@ export class CustomerService {
       if (referrerUser) {
         customer.inviteCode = dto.inviteCode;
 
-        const setting = await this.settingService.getByAdmin([
-          'invitedByReferrerCreditUSD',
-          'invitedByReferrerCreditIRT',
-          'invitedByReferrerCreditTRY',
-        ]);
+        // Launch: fail-closed — inviteCode linkage is kept; new invite credits are blocked.
+        if (isReferralAwardsEnabled()) {
+          const setting = await this.settingService.getByAdmin([
+            'invitedByReferrerCreditUSD',
+            'invitedByReferrerCreditIRT',
+            'invitedByReferrerCreditTRY',
+          ]);
 
-        if (setting.invitedByReferrerCreditUSD > 0) {
-          customer.walletUSD += setting.invitedByReferrerCreditUSD;
+          if (setting.invitedByReferrerCreditUSD > 0) {
+            customer.walletUSD += setting.invitedByReferrerCreditUSD;
 
-          await this.addWalletHistory({
-            walletUSD: setting.invitedByReferrerCreditUSD,
-            customerId: customer.id,
-            type: WalletHistoryType.invite,
-          });
-        }
+            await this.addWalletHistory({
+              walletUSD: setting.invitedByReferrerCreditUSD,
+              customerId: customer.id,
+              type: WalletHistoryType.invite,
+            });
+          }
 
-        if (setting.invitedByReferrerCreditIRT > 0) {
-          customer.walletIRT += setting.invitedByReferrerCreditIRT;
+          if (setting.invitedByReferrerCreditIRT > 0) {
+            customer.walletIRT += setting.invitedByReferrerCreditIRT;
 
-          await this.addWalletHistory({
-            walletIRT: setting.invitedByReferrerCreditIRT,
-            customerId: customer.id,
-            type: WalletHistoryType.invite,
-          });
-        }
+            await this.addWalletHistory({
+              walletIRT: setting.invitedByReferrerCreditIRT,
+              customerId: customer.id,
+              type: WalletHistoryType.invite,
+            });
+          }
 
-        if (setting.invitedByReferrerCreditTRY > 0) {
-          customer.walletTRY += setting.invitedByReferrerCreditTRY;
+          if (setting.invitedByReferrerCreditTRY > 0) {
+            customer.walletTRY += setting.invitedByReferrerCreditTRY;
 
-          await this.addWalletHistory({
-            walletTRY: setting.invitedByReferrerCreditTRY,
-            customerId: customer.id,
-            type: WalletHistoryType.invite,
-          });
+            await this.addWalletHistory({
+              walletTRY: setting.invitedByReferrerCreditTRY,
+              customerId: customer.id,
+              type: WalletHistoryType.invite,
+            });
+          }
         }
       }
     }

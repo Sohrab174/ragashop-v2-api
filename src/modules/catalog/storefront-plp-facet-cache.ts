@@ -32,6 +32,8 @@ export function buildStorefrontPlpFacetCacheKey(input: {
   tryToToman: number;
   /** CAT-3B — audience gender filter must be part of facet identity. */
   audienceGenders?: string[] | null;
+  /** CAT-MAP-V2-B — non-`any` slice clause shape; '' for V1-shaped scopes. */
+  eligibilitySuffix?: string;
 }): string {
   const cats = [...input.sourceCategoryIds].sort((a, b) => a - b).join(',');
   const brands = [...input.filters.brandIds].sort((a, b) => a - b).join(',');
@@ -46,7 +48,10 @@ export function buildStorefrontPlpFacetCacheKey(input: {
   const genders = input.audienceGenders?.length
     ? [...input.audienceGenders].sort().join(',')
     : '';
-  return `cats=${cats}|brands=${brands}|min=${min}|max=${max}|attrs=${attrs}|rate=${rate}|genders=${genders}`;
+  const base = `cats=${cats}|brands=${brands}|min=${min}|max=${max}|attrs=${attrs}|rate=${rate}|genders=${genders}`;
+  return input.eligibilitySuffix
+    ? `${base}|slices=${input.eligibilitySuffix}`
+    : base;
 }
 
 function clonePayload(

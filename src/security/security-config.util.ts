@@ -76,6 +76,23 @@ export function parsePositiveIntEnv(
 }
 
 /**
+ * Exact CORS request-header allowlist used by Nest `cors.allowedHeaders`.
+ * Includes `Cache-Control` because the Admin axios client always sends
+ * `cache-control: no-cache` (ragashop-site/src/api/index.js). Omitting it
+ * breaks browser preflight for every Admin call. Never use `*`.
+ */
+export const CORS_ALLOWED_HEADERS: readonly string[] = [
+  'Content-Type',
+  'Accept',
+  'Authorization',
+  'Cache-Control',
+  'X-Cart-Session',
+  'X-Order-Access-Token',
+  'Idempotency-Key',
+  'X-RagaShop-Import-Token',
+];
+
+/**
  * Exact-match CORS allowlist.
  * Production fails closed when CORS_ORIGINS is missing/empty.
  * Non-production falls back to SITE_BASE_URL / PANEL_BASE_URL plus exact

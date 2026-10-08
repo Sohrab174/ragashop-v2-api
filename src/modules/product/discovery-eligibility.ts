@@ -1,6 +1,7 @@
 import { SelectQueryBuilder } from 'typeorm';
 import { ProductSupplyType } from '../catalog-lifecycle/catalog-lifecycle.types';
 import { SourceCommercialAvailability } from '../source-availability';
+import { applyAssortmentDiscoveryFilter } from '../catalog/assortment-policy/assortment-enforcement';
 
 /**
  * Phase A4 — customer-facing catalog DISCOVERY eligibility.
@@ -28,6 +29,9 @@ export type DiscoveryEligibilityInput = {
   isDeleted?: boolean;
   categoryId?: number | null;
   price?: number | null;
+  hasStock?: boolean | null;
+  isSellable?: boolean | null;
+  quantity?: number | null;
 };
 
 export type DiscoveryExclusionReason =
@@ -38,6 +42,7 @@ export type DiscoveryExclusionReason =
   | 'not_curated_external'
   | 'confirmed_unavailable'
   | 'removed'
+  | 'not_purchasable'
   | null;
 
 export type DiscoveryEligibilityDecision = {
@@ -49,30 +54,93 @@ export type DiscoveryEligibilityDecision = {
 const STUB_CATEGORY_ID = 1;
 
 /**
- * SQL fragment for discovery membership + external availability suppression.
- * Safe to AND into listing/search/home/category product queries.
+ * Discovery stock gate (read-only over existing columns; C1 inventory semantics unchanged).
+ * - isSellable = 1 and quantity <> 0 (quantity -1 = untracked, not sold out)
+ * - hasStock = 1, except native_marketplace where `quantity` is authoritative
+ *   (native hasStock is only derived at create time).
+ * PDP by id is not gated here and may still render «ناموجود».
+ */
+export function discoveryPurchasableSql(alias = 'product'): string {
+  return `(
+    ${alias}.isSellable = 1
+    AND ${alias}.quantity <> 0
+    AND (
+      ${alias}.hasStock = 1
+      OR ${alias}.supplyType = '${ProductSupplyType.native_marketplace}'
+    )
+  )`;
+}
+
+export type DiscoveryStockInput = {
+  supplyType?: ProductSupplyType | string | null;
+  hasStock?: boolean | number | null;
+  isSellable?: boolean | number | null;
+  quantity?: number | string | null;
+};
+
+export type DiscoveryStockExclusion =
+  | 'isSellable_false'
+  | 'quantity_zero'
+  | 'hasStock_false'
+  | null;
+
+function isFalseFlag(value: boolean | number | null | undefined): boolean {
+  return value === false || value === 0;
+}
+
+/**
+ * In-memory mirror of discoveryPurchasableSql. Missing (null/undefined)
+ * fields are treated as no evidence, never as unavailable.
+ */
+export function discoveryStockExclusion(
+  product: DiscoveryStockInput,
+): DiscoveryStockExclusion {
+  if (isFalseFlag(product.isSellable)) return 'isSellable_false';
+  if (product.quantity != null && Number(product.quantity) === 0) {
+    return 'quantity_zero';
+  }
+  if (
+    isFalseFlag(product.hasStock) &&
+    product.supplyType !== ProductSupplyType.native_marketplace
+  ) {
+    return 'hasStock_false';
+  }
+  return null;
+}
+
+/**
+ * SQL fragment for discovery membership + external availability suppression
+ * + stock gate. Safe to AND into listing/search/home/category product queries.
  */
 export function discoveryEligibilitySql(alias = 'product'): string {
   return `(
     (
-      ${alias}.supplyType = '${ProductSupplyType.external_source}'
-      AND ${alias}.isCuratedExternalCatalog = 1
-      AND ${alias}.sourceAvailability NOT IN (
-        '${SourceCommercialAvailability.unavailable}',
-        '${SourceCommercialAvailability.removed}'
+      (
+        ${alias}.supplyType = '${ProductSupplyType.external_source}'
+        AND ${alias}.isCuratedExternalCatalog = 1
+        AND ${alias}.sourceAvailability NOT IN (
+          '${SourceCommercialAvailability.unavailable}',
+          '${SourceCommercialAvailability.removed}'
+        )
       )
+      OR ${alias}.supplyType = '${ProductSupplyType.native_marketplace}'
+      OR ${alias}.supplyType = '${ProductSupplyType.unclassified}'
     )
-    OR ${alias}.supplyType = '${ProductSupplyType.native_marketplace}'
-    OR ${alias}.supplyType = '${ProductSupplyType.unclassified}'
+    AND ${discoveryPurchasableSql(alias)}
   )`;
 }
 
-/** Apply A4 discovery predicates to a TypeORM product query builder. */
+/**
+ * Apply A4 discovery predicates to a TypeORM product query builder.
+ * When ASSORTMENT_DISCOVERY_ENFORCEMENT=1, also requires IN_SCOPE resolution
+ * (shared path for PLP / Search / home — no scattered per-controller filters).
+ */
 export function applyDiscoveryEligibilityFilters<T>(
   builder: SelectQueryBuilder<T>,
   alias = 'product',
 ): SelectQueryBuilder<T> {
-  return builder.andWhere(discoveryEligibilitySql(alias));
+  builder.andWhere(discoveryEligibilitySql(alias));
+  return applyAssortmentDiscoveryFilter(builder, alias);
 }
 
 /**
@@ -89,7 +157,11 @@ export function evaluateDiscoveryEligibility(
     return { eligible: false, reason: 'inactive', detail: 'status_not_active' };
   }
   if (product.price != null && !(Number(product.price) > 0)) {
-    return { eligible: false, reason: 'invalid_price', detail: 'price_not_positive' };
+    return {
+      eligible: false,
+      reason: 'invalid_price',
+      detail: 'price_not_positive',
+    };
   }
   if (
     product.categoryId != null &&
@@ -99,6 +171,15 @@ export function evaluateDiscoveryEligibility(
       eligible: false,
       reason: 'category_not_discoverable',
       detail: 'stub_category',
+    };
+  }
+
+  const stockExclusion = discoveryStockExclusion(product);
+  if (stockExclusion) {
+    return {
+      eligible: false,
+      reason: 'not_purchasable',
+      detail: stockExclusion,
     };
   }
 

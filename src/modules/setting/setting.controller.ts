@@ -9,7 +9,7 @@ import { RolesGuard } from '../auth/role/role.guard';
 import { Roles } from '../auth/role/role.decorator';
 import { PermissionsGuard } from '../auth/capability/permissions.guard';
 import { RequireCapabilities } from '../auth/capability/capability.decorator';
-import { UserCapabilityName } from '../manual-payment/manual-payment.types';
+import { UserCapabilityName } from '../auth/capability/capability.catalog';
 
 @ApiTags('Setting')
 @Controller('settings')
@@ -22,8 +22,9 @@ export class SettingController {
    */
   @Get('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.settings_read)
   async getByAdmin() {
     const data = await this.settingService.getByAdmin();
     return successfulResult([], data);
@@ -35,8 +36,9 @@ export class SettingController {
    */
   @Put('admin')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRoles.admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.settings_write)
   async update(@Body() dto: UpdateSettingDto) {
     await this.settingService.update(dto);
     return successfulResult(['تنظیمات سایت با موفقیت بروز شد']);

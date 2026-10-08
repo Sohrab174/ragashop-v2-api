@@ -211,12 +211,14 @@ export async function seedLocalCanonicalTaxonomy(
 
       await conn.query(
         `INSERT INTO source_category_mapping
-          (source, sourceCategoryId, canonicalCategoryId, status, note, createdAt, updatedAt)
-         VALUES (?, ?, ?, 'active', ?, ?, ?)
+          (source, sourceCategoryId, canonicalCategoryId, genderSlice, status, reviewStatus, note, createdAt, updatedAt)
+         VALUES (?, ?, ?, 'any', 'active', 'legacy_unreviewed', ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            source = VALUES(source),
            canonicalCategoryId = VALUES(canonicalCategoryId),
+           genderSlice = 'any',
            status = VALUES(status),
+           reviewStatus = 'legacy_unreviewed',
            note = VALUES(note)`,
         [
           mapping.source,

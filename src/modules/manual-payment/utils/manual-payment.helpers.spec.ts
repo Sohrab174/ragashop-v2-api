@@ -280,24 +280,32 @@ describe('C2A manual payment helpers', () => {
   });
 
   describe('RBAC capability checks', () => {
-    it('admin always allowed', async () => {
-      const svc = new UserCapabilityService({
+    const mockRepo = (row: any = null) =>
+      ({
         findOne: jest.fn(),
+        createQueryBuilder: jest.fn(() => ({
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(row),
+        })),
       } as any);
+    const errorStub = { forbidden: jest.fn() } as any;
+
+    it('admin always allowed', async () => {
+      const repo = mockRepo();
+      const svc = new UserCapabilityService(repo, errorStub);
       await expect(
         svc.userHasCapability(
           { id: 1, role: UserRoles.admin },
           UserCapabilityName.payment_submission_approve,
         ),
       ).resolves.toBe(true);
-      expect(
-        (svc as any).capabilityRepository.findOne,
-      ).not.toHaveBeenCalled();
+      expect(repo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
     it('employee needs explicit row', async () => {
-      const findOne = jest.fn().mockResolvedValue(null);
-      const svc = new UserCapabilityService({ findOne } as any);
+      const repo = mockRepo(null);
+      const svc = new UserCapabilityService(repo, errorStub);
       await expect(
         svc.userHasCapability(
           { id: 2, role: UserRoles.employee },
@@ -305,9 +313,10 @@ describe('C2A manual payment helpers', () => {
         ),
       ).resolves.toBe(false);
 
-      findOne.mockResolvedValue({ id: 1 });
+      const repo2 = mockRepo({ id: 1 });
+      const svc2 = new UserCapabilityService(repo2, errorStub);
       await expect(
-        svc.userHasCapability(
+        svc2.userHasCapability(
           { id: 2, role: UserRoles.employee },
           UserCapabilityName.payment_submission_approve,
         ),

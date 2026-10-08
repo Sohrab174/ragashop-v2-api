@@ -206,8 +206,8 @@ export class MarketplaceImportJobWorkerService
             reason: nativeSkip
               ? 'native_no_refresh'
               : removedSkip
-                ? 'removed_no_refresh'
-                : 'scheduled_force_refresh',
+              ? 'removed_no_refresh'
+              : 'scheduled_force_refresh',
             phase: 'worker',
           }),
         );
@@ -216,7 +216,9 @@ export class MarketplaceImportJobWorkerService
             jobId,
             claimToken,
             removedSkip ? 'SOURCE_UNAVAILABLE' : 'UNSUPPORTED_SUPPLY',
-            removedSkip ? 'محصولی یافت نشد!' : 'Native inventory is not crawl-refreshed',
+            removedSkip
+              ? 'محصولی یافت نشد!'
+              : 'Native inventory is not crawl-refreshed',
             false,
           );
           return;
@@ -304,6 +306,11 @@ export class MarketplaceImportJobWorkerService
         );
       } else {
         await this.applySupplyMembershipBestEffort(job.requestType, result.id);
+        await this.logPasteLinkAssortmentOutcomeBestEffort(
+          job.requestType,
+          jobId,
+          result.id,
+        );
       }
     } catch (error) {
       const classification = this.jobService.classifyFailure(error);
@@ -321,6 +328,46 @@ export class MarketplaceImportJobWorkerService
       }
     } finally {
       permit?.release();
+    }
+  }
+
+  /**
+   * SCOPE-5/6 observability: paste-link outcome by assortment (no PII).
+   * Purchase blocking itself is enforced by Cart/Checkout, not here.
+   */
+  private async logPasteLinkAssortmentOutcomeBestEffort(
+    requestType: string,
+    jobId: number,
+    productId: number,
+  ): Promise<void> {
+    if (requestType !== 'customer') return;
+    try {
+      const rows: Array<{ status: string | null }> =
+        await this.productRepository.manager.query(
+          `SELECT r.status AS status
+             FROM product p
+             LEFT JOIN category_assortment_resolution r ON r.categoryId = p.categoryId
+            WHERE p.id = ?`,
+          [productId],
+        );
+      const status = rows?.[0]?.status ?? null;
+      this.logger.log(
+        JSON.stringify({
+          event: 'paste_link_assortment_outcome',
+          jobId,
+          productId,
+          outcome:
+            status === 'IN_SCOPE'
+              ? 'in_scope'
+              : status === 'OUT_OF_SCOPE'
+              ? 'out_of_scope'
+              : status === 'REVIEW_REQUIRED'
+              ? 'review_required'
+              : 'unresolved',
+        }),
+      );
+    } catch {
+      // observability only
     }
   }
 
