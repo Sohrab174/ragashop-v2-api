@@ -78,6 +78,19 @@ describe('resolveOtpProvider', () => {
 });
 
 describe('OtpDeliveryService environment gate', () => {
+  const uatEnvKeys = [
+    'UAT_FIXED_OTP',
+    'DEPLOY_ENV',
+    'DATABASE_NAME',
+    'UAT_REQUIRED_DATABASE_NAME',
+  ] as const;
+
+  afterEach(() => {
+    for (const key of uatEnvKeys) {
+      delete process.env[key];
+    }
+  });
+
   it.each(['development', 'local', 'test'])(
     'issues the fixed code and skips providers in %s',
     async (nodeEnv) => {
@@ -109,6 +122,37 @@ describe('OtpDeliveryService environment gate', () => {
     expect(await service.issueCode(generate)).toBe('54321');
     expect(generate).toHaveBeenCalledTimes(1);
     expect(service.isFixedDevOtpMode()).toBe(false);
+  });
+
+  it('issues fixed OTP in isolated UAT even when NODE_ENV=production', async () => {
+    process.env.UAT_FIXED_OTP = '1';
+    process.env.DEPLOY_ENV = 'uat';
+    process.env.DATABASE_NAME = 'ragashop_v2_uat';
+    const { service, amootsmsService, vatansmsService } =
+      makeService('production');
+    const generate = jest.fn(async () => '54321');
+    expect(await service.issueCode(generate)).toBe(FIXED_DEV_OTP_CODE);
+    expect(generate).not.toHaveBeenCalled();
+    expect(
+      await service.deliver('+989999999999', FIXED_DEV_OTP_CODE),
+    ).toEqual({ ok: true, mode: 'fixed_uat' });
+    expect(amootsmsService.sendOTP).not.toHaveBeenCalled();
+    expect(vatansmsService.sendOTP).not.toHaveBeenCalled();
+  });
+
+  it('does not enable UAT fixed OTP against ragashop_local', async () => {
+    process.env.UAT_FIXED_OTP = '1';
+    process.env.DEPLOY_ENV = 'uat';
+    process.env.DATABASE_NAME = 'ragashop_local';
+    const { service, amootsmsService } = makeService('production');
+    const generate = jest.fn(async () => '54321');
+    expect(await service.issueCode(generate)).toBe('54321');
+    expect(service.isUatFixedOtpMode()).toBe(false);
+    expect(await service.deliver('+989121234567', '54321')).toEqual({
+      ok: true,
+      mode: 'provider',
+    });
+    expect(amootsmsService.sendOTP).toHaveBeenCalled();
   });
 });
 

@@ -307,6 +307,7 @@ describe('SCOPE-5/6 API ⇄ crawler contract fixture', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       snapshotService,
       {} as any,
       {} as any,

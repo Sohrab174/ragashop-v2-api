@@ -17,7 +17,10 @@ export class TypeOrmConfigService implements TypeOrmOptionsFactory {
       password: env.DATABASE_PASSWORD,
       name: env.DATABASE_NAME,
       username: env.DATABASE_USERNAME,
-      logging: env.NODE_ENV === 'development',
+      // Full query logging retains multi-megabyte SQL strings during homepage
+      // loads and has exhausted the local Node heap. Errors stay visible.
+      // Set TYPEORM_LOGGING=all only when a short diagnostic session is needed.
+      logging: env.TYPEORM_LOGGING === 'all' ? true : ['error'],
       synchronize: false,
     };
   }

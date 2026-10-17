@@ -85,6 +85,34 @@ export class CommonController {
       return this.error.methodNotAllowed();
     }
 
+    // Homepage uploads: only raster extensions; never execute as active content.
+    if (path === 'home') {
+      const safeName = String(filename || '');
+      if (
+        !/^[a-zA-Z0-9._-]+$/.test(safeName) ||
+        safeName.includes('..') ||
+        safeName.includes('/') ||
+        safeName.includes('\\')
+      ) {
+        return this.error.notFound(['فایل پیدا نشد']);
+      }
+      const ext = safeName.split('.').pop()?.toLowerCase();
+      const mimeByExt: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp',
+      };
+      const mime = ext ? mimeByExt[ext] : undefined;
+      if (!mime) {
+        return this.error.notFound(['فایل پیدا نشد']);
+      }
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.type(mime);
+    }
+
     return res.sendFile(`${path}/${filename}`, { root: './uploads' });
   }
 

@@ -36,6 +36,8 @@ import { AssortmentPolicySnapshotService } from './assortment-policy/assortment-
 import { AssortmentPolicyRecomputeService } from './assortment-policy/assortment-policy.recompute.service';
 import { AssortmentCommerceService } from './assortment-policy/assortment-commerce.service';
 import { InternalAuthGuard } from '../../common/internal-auth.guard';
+import { GenderReviewAdminService } from './gender-review.admin.service';
+import { GenderReviewValidationError } from './gender-review.util';
 
 @ApiTags('Catalog')
 @Controller('catalog')
@@ -44,6 +46,7 @@ export class CatalogController {
     private readonly catalogService: CatalogService,
     private readonly searchService: SearchService,
     private readonly catMapV2cAdminService: CatMapV2cAdminService,
+    private readonly genderReviewAdminService: GenderReviewAdminService,
     private readonly assortmentPolicyAdminService: AssortmentPolicyAdminService,
     private readonly assortmentPolicySnapshotService: AssortmentPolicySnapshotService,
     private readonly assortmentPolicyRecomputeService: AssortmentPolicyRecomputeService,
@@ -427,6 +430,127 @@ export class CatalogController {
   }
 
   /**
+   * GET /catalog/gender-review/summary/admin
+   * Counts for the adult gender-review queue.
+   * reviewRequired is gender-relevant or ambiguous and still missing gender.
+   * notApplicable is excluded (household, kids, general cosmetics).
+   * resolved is an existing female/male/unisex value and is left unchanged.
+   */
+  @Get('gender-review/summary/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
+  async genderReviewSummaryAdmin(
+    @Query('scope') scope?: string,
+    @Query('sourceCategoryId') sourceCategoryId?: string,
+  ) {
+    const data = await this.genderReviewAdminService.getSummaryAdmin({
+      scope: scope || null,
+      sourceCategoryId: sourceCategoryId ? Number(sourceCategoryId) : null,
+    });
+    return successfulResult([], data);
+  }
+
+  /**
+   * GET /catalog/gender-review/queue/admin
+   * Paginated queue of unresolved-gender products.
+   */
+  @Get('gender-review/queue/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
+  async genderReviewQueueAdmin(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('scope') scope?: string,
+    @Query('sourceCategoryId') sourceCategoryId?: string,
+    @Query('q') q?: string,
+  ) {
+    const data = await this.genderReviewAdminService.listQueueAdmin({
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 30,
+      scope: scope || null,
+      sourceCategoryId: sourceCategoryId ? Number(sourceCategoryId) : null,
+      q: q || null,
+    });
+    return successfulResult([], data);
+  }
+
+  /**
+   * GET /catalog/gender-review/product/:productId/admin
+   * Product + safe destination preview for each candidate gender.
+   */
+  @Get('gender-review/product/:productId/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_read)
+  async genderReviewProductPreviewAdmin(
+    @Param('productId') productId?: string,
+  ) {
+    const id = Number(productId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new BadRequestException('شناسه محصول نامعتبر است.');
+    }
+    try {
+      const data = await this.genderReviewAdminService.getProductPreviewAdmin(
+        id,
+      );
+      return successfulResult([], data);
+    } catch (err) {
+      if (err instanceof GenderReviewValidationError) {
+        throw new BadRequestException({
+          message: err.message,
+          code: err.code,
+        });
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * PUT /catalog/gender-review/resolve/admin
+   * Explicit employee assignment of female | male | unisex.
+   * Never auto-classifies; never clears gender back to null.
+   */
+  @Put('gender-review/resolve/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.product_write)
+  async genderReviewResolveAdmin(
+    @Req() req: { user?: { id?: number; email?: string } },
+    @Body() body?: { productId?: number; gender?: string },
+  ) {
+    const user = req?.user;
+    const actor = user?.email
+      ? `user:${user.email}`
+      : user?.id
+      ? `user:${user.id}`
+      : 'admin:unknown';
+    try {
+      const data = await this.genderReviewAdminService.resolveProductGenderAdmin(
+        {
+          productId: body?.productId,
+          gender: body?.gender,
+          actor,
+        },
+      );
+      return successfulResult(['جنسیت محصول ثبت شد'], data);
+    } catch (err) {
+      if (err instanceof GenderReviewValidationError) {
+        throw new BadRequestException({
+          message: err.message,
+          code: err.code,
+        });
+      }
+      throw err;
+    }
+  }
+
+  /**
    * GET /catalog/assortment/internal/snapshot
    * Versioned minimal policy snapshot for crawler (x-crawler-secret).
    */
@@ -736,6 +860,7 @@ export class CatalogController {
   @Get('products')
   async getProducts(
     @Query('categoryId') categoryId?: string,
+    @Query('scope') scope?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sort') sort?: string,
@@ -744,6 +869,25 @@ export class CatalogController {
     @Query('maxPrice') maxPrice?: string,
     @Query('attrs') attrs?: string,
   ) {
+    if (
+      String(scope || '') === 'catalog' &&
+      (categoryId == null || categoryId === '')
+    ) {
+      const pageNum = Number(page || 1);
+      const limitNum = Number(limit || 24);
+      if (!Number.isInteger(pageNum) || pageNum < 1) {
+        throw new BadRequestException('page must be an integer >= 1');
+      }
+      if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 48) {
+        throw new BadRequestException('limit must be an integer between 1 and 48');
+      }
+      const data = await this.catalogService.getStorefrontCatalogNewest({
+        page: pageNum,
+        limit: limitNum,
+      });
+      return successfulResult([], data);
+    }
+
     const parsed = parseStorefrontPlpQuery({
       categoryId,
       page,

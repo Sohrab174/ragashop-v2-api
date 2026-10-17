@@ -29,6 +29,7 @@ import { ProductStatus } from '../product/entities/product.entity';
 import { CategoryStatus } from '../category/entities/category.entity';
 import { SettingService } from '../setting/setting.service';
 import { discoveryEligibilitySql } from '../product/discovery-eligibility';
+import { homepageSectionProductGenderSql } from '../catalog/storefront-gender-safety';
 
 @Injectable()
 export class PageService {
@@ -124,7 +125,7 @@ export class PageService {
         'product',
         `product.isDeleted = 0 AND product.status = :productActive AND ${discoveryEligibilitySql(
           'product',
-        )}`,
+        )} AND ${homepageSectionProductGenderSql('sections', 'product')}`,
         { productActive: ProductStatus.active },
       )
       .leftJoin('product.cover', 'productCover')

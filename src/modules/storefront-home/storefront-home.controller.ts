@@ -2,8 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Header,
+  Headers,
+  Param,
   Post,
   Put,
+  Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -34,6 +39,82 @@ export class StorefrontHomeController {
   @Get()
   async getPublic() {
     const data = await this.homeService.getPublicHome();
+    return successfulResult([], data);
+  }
+
+  /**
+   * GET /storefront/home/preview/:token
+   * Unpublished preview. Requires a redeemed preview-only credential.
+   * Admin JWTs are not accepted. Token alone is never enough.
+   * Never reads or writes published rows. Do not log the credential.
+   */
+  @Get('preview/:token')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  async getPreview(
+    @Param('token') token: string,
+    @Headers('x-home-preview-credential') credential?: string,
+  ) {
+    const data = this.homeService.getHomePreviewSession(
+      token,
+      String(credential || ''),
+    );
+    return successfulResult([], data);
+  }
+
+  /**
+   * POST /storefront/home/preview/:token/redeem
+   * One-time handoff. Does not return homepage content and does not accept Admin JWTs.
+   */
+  @Post('preview/:token/redeem')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, private')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  async redeemPreview(
+    @Param('token') token: string,
+    @Headers('x-home-preview-credential') credential?: string,
+    @Body() body?: { nonce?: string },
+  ) {
+    this.homeService.redeemHomePreviewHandoff(
+      token,
+      String(credential || ''),
+      String(body?.nonce || ''),
+    );
+    return successfulResult([], { ok: true });
+  }
+
+  /**
+   * POST /storefront/home/admin/preview-session
+   * Maps unsaved Admin sections with the public mapper; stores result in memory only.
+   */
+  @Post('admin/preview-session')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_read)
+  async createPreviewSession(
+    @Req() req: { user?: { id?: number } },
+    @Body() dto: UpsertStorefrontHomeDto,
+  ) {
+    const data = await this.homeService.createHomePreviewSession(
+      dto.sections,
+      Number(req?.user?.id),
+    );
+    return successfulResult([], data);
+  }
+
+  /**
+   * GET /storefront/home/admin/product-eligibility?ids=1,2
+   * Read-only. Same product set as the current public homepage mapper.
+   */
+  @Get('admin/product-eligibility')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_read)
+  async getProductEligibility(@Query('ids') ids?: string) {
+    const data = await this.homeService.findPublicHomepageEligibleProductIds(ids);
     return successfulResult([], data);
   }
 

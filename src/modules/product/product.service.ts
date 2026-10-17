@@ -75,6 +75,10 @@ import {
   galleryLogicalKey,
   isAdminOwnedDescription,
 } from './product-child-sync.util';
+import {
+  legacyListingGenderPredicate,
+  splitEqualityGenderFilter,
+} from '../catalog/storefront-gender-safety';
 
 @Injectable()
 export class ProductService {
@@ -846,6 +850,16 @@ export class ProductService {
     } else {
       // builder.orderBy('product.displayOrder', 'ASC');
       builder.orderBy('RAND()');
+    }
+
+    const genderSplit = splitEqualityGenderFilter(filters);
+    filters = genderSplit.filters;
+    const sectionGender = legacyListingGenderPredicate(
+      'product',
+      genderSplit.gender,
+    );
+    if (sectionGender) {
+      builder.andWhere(sectionGender.sql, sectionGender.params);
     }
 
     builder = applyFiltersToBuilder(builder, filters);

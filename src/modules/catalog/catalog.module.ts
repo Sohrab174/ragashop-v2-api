@@ -23,6 +23,7 @@ import { AssortmentPolicyAdminService } from './assortment-policy/assortment-pol
 import { AssortmentAutoMapService } from './assortment-policy/assortment-auto-map.service';
 import { AssortmentPolicySnapshotService } from './assortment-policy/assortment-policy-snapshot.service';
 import { AssortmentCommerceService } from './assortment-policy/assortment-commerce.service';
+import { GenderReviewAdminService } from './gender-review.admin.service';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AssortmentCommerceService } from './assortment-policy/assortment-commer
   providers: [
     CatalogService,
     CatMapV2cAdminService,
+    GenderReviewAdminService,
     AssortmentPolicyRuleService,
     AssortmentPolicyRecomputeService,
     AssortmentPolicyAdminService,
@@ -57,6 +59,7 @@ import { AssortmentCommerceService } from './assortment-policy/assortment-commer
   exports: [
     CatalogService,
     CatMapV2cAdminService,
+    GenderReviewAdminService,
     AssortmentPolicyRuleService,
     AssortmentPolicyRecomputeService,
     AssortmentPolicyAdminService,

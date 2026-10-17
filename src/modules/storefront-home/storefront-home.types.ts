@@ -60,6 +60,23 @@ export type CategoryPresentationConfig = {
   objectPosition?: string;
 };
 
+export type CampaignSlideConfig = {
+  id: string;
+  enabled: boolean;
+  order: number;
+  title: string;
+  subtitle?: string;
+  eyebrow?: string;
+  ctaLabel?: string;
+  ctaDestinationType?: HomeCtaDestinationType;
+  ctaDestinationValue?: string | number;
+  desktopImagePath?: string;
+  mobileImagePath?: string;
+  preferredProductId?: number;
+  objectPositionDesktop?: string;
+  objectPositionMobile?: string;
+};
+
 export type CampaignSectionConfig = {
   eyebrow?: string;
   ctaLabel?: string;
@@ -71,6 +88,11 @@ export type CampaignSectionConfig = {
   galleryImageIndex?: number;
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  /**
+   * Present only when Admin sent `slides` (including []).
+   * Omitted means the legacy single campaign is still the hero.
+   */
+  slides?: CampaignSlideConfig[];
 };
 
 export type RailSectionConfig = {
@@ -140,6 +162,27 @@ export type PublicHomeHeroDto = {
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
   /** Resolved preferred product when imagery comes from catalog — no Admin notes. */
+  preferredProductId?: number;
+  /**
+   * `managed` — `slides` is the enabled list (possibly empty).
+   * Omitted — legacy single campaign; clients must ignore `slides`.
+   */
+  slideMode?: 'managed';
+  slides?: PublicHomeHeroSlideDto[];
+};
+
+export type PublicHomeHeroSlideDto = {
+  id: string;
+  order: number;
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  ctaLabel: string;
+  ctaHref: string;
+  desktopImageUrl: string | null;
+  mobileImageUrl: string | null;
+  objectPositionDesktop?: string;
+  objectPositionMobile?: string;
   preferredProductId?: number;
 };
 

@@ -74,6 +74,7 @@ describe('CatalogController — Admin category architecture (canonical + mapping
         service as any,
         {} as any,
         v2c as any,
+        {} as any,
         assortmentAdmin as any,
         {} as any,
         {} as any,

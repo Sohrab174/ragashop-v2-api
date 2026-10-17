@@ -42,6 +42,12 @@ import {
   CanonicalCategoryScopeResult,
 } from './canonical-category-scope.resolver';
 import { applyDiscoveryEligibilityFilters } from '../product/discovery-eligibility';
+import { isAdultAudienceBrowse } from './canonical-audience-policy';
+import {
+  applyAdultListingKidsExclusion,
+  kidsExclusionCacheToken,
+  loadStorefrontGenderSafetySnapshot,
+} from './storefront-gender-safety';
 import {
   applyStorefrontDiscountDiscoveryFilter,
   applyStorefrontPlpSort,
@@ -51,6 +57,8 @@ import {
 } from './storefront-plp.query';
 import {
   applyStorefrontPlpFilters,
+  emptyStorefrontPlpFilters,
+  emptyStorefrontPlpFiltersPayload,
   isExcludedFilterAttributeName,
   sanitizeStorefrontPlpAttributeOwnership,
   STOREFRONT_PLP_EXCLUDED_ATTRIBUTE_NAMES,
@@ -98,6 +106,7 @@ import {
 } from '../product/entities/product.entity';
 import {
   applyCanonicalProductEligibility,
+  buildCanonicalEligibilityClauseSql,
   canonicalEligibilityCacheSuffix,
   CanonicalProductEligibility,
 } from './canonical-product-eligibility';
@@ -509,8 +518,18 @@ export class CatalogService {
 
     const tryToToman = await this.settingService.getTryToToman();
     const filters = await this._sanitizeStorefrontPlpFilters(query.filters);
+    const adultKidsProductIds = isAdultAudienceBrowse(eligibility.audience)
+      ? (
+          await loadStorefrontGenderSafetySnapshot(
+            this.productRepository.manager,
+          )
+        ).kidsExclusionProductIds
+      : [];
 
-    const listingBuilder = this._buildEligibleProductBuilder(eligibility)
+    const listingBuilder = this._buildEligibleProductBuilder(
+      eligibility,
+      adultKidsProductIds,
+    )
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.brand', 'brand')
       .addSelect(STOREFRONT_EFFECTIVE_PRICE_SQL, 'mainPrice')
@@ -528,7 +547,11 @@ export class CatalogService {
       filters,
       tryToToman,
       audienceGenders: eligibility.audienceGenders,
-      eligibilitySuffix: canonicalEligibilityCacheSuffix(eligibility),
+      eligibilitySuffix: `${canonicalEligibilityCacheSuffix(eligibility)}${
+        adultKidsProductIds.length
+          ? `|kids=${kidsExclusionCacheToken(adultKidsProductIds)}`
+          : ''
+      }`,
     });
     const cachedFacets = getStorefrontPlpFacetCache(facetCacheKey);
 
@@ -539,7 +562,12 @@ export class CatalogService {
         .getManyAndCount(),
       cachedFacets
         ? Promise.resolve(cachedFacets)
-        : this._buildStorefrontFacets(eligibility, filters, tryToToman).then(
+        : this._buildStorefrontFacets(
+            eligibility,
+            filters,
+            tryToToman,
+            adultKidsProductIds,
+          ).then(
             (payload) => {
               setStorefrontPlpFacetCache(facetCacheKey, payload);
               return payload;
@@ -552,6 +580,101 @@ export class CatalogService {
       items: rows.map((row) => mapStorefrontPlpProduct(row, tryToToman)),
       pagination: buildStorefrontPlpPagination(query.page, query.limit, total),
       filters: filtersPayload,
+      appliedFilters: toAppliedStorefrontPlpFilters(filters),
+    };
+  }
+
+  /**
+   * Cross-category newest listing. One SQL predicate over every active
+   * canonical root — not a client merge of per-category pages.
+   * Category PLP is unchanged.
+   */
+  async getStorefrontCatalogNewest(query: {
+    page: number;
+    limit: number;
+  }): Promise<StorefrontPlpResponse & { scope: 'catalog' }> {
+    const category = { id: 0, name: 'تازه‌ها' };
+    const filters = emptyStorefrontPlpFilters();
+    const data = await loadCanonicalEligibilityData(
+      this.canonicalRepository.manager,
+    );
+    const activeIds = new Set(
+      data.canonicalRows
+        .filter((row) => row.status === CanonicalCategoryStatus.active)
+        .map((row) => row.id),
+    );
+    const roots = data.canonicalRows.filter(
+      (row) =>
+        row.status === CanonicalCategoryStatus.active &&
+        (row.parentId == null || !activeIds.has(Number(row.parentId))),
+    );
+    const parts: string[] = [];
+    const params: Record<string, unknown> = {};
+    roots.forEach((root, index) => {
+      const eligibility = resolveCanonicalProductEligibilityFromData(
+        root.id,
+        data,
+      );
+      const clause = buildCanonicalEligibilityClauseSql(
+        'product',
+        eligibility,
+        `newest${index}`,
+      );
+      if (!clause) return;
+      let sql = clause.sql;
+      Object.assign(params, clause.params);
+      if (eligibility.audienceGenders?.length) {
+        const key = `newestAud${index}`;
+        params[key] = eligibility.audienceGenders;
+        sql = `(${sql} AND product.gender IN (:...${key}))`;
+      }
+      parts.push(`(${sql})`);
+    });
+
+    if (!parts.length) {
+      return {
+        ...buildEmptyStorefrontPlpResponse(
+          category,
+          query.page,
+          query.limit,
+          filters,
+        ),
+        scope: 'catalog',
+      };
+    }
+
+    const tryToToman = await this.settingService.getTryToToman();
+    const listingBuilder = this.productRepository
+      .createQueryBuilder('product')
+      .innerJoin(
+        'product.category',
+        'category',
+        'category.status = :catStatus',
+        { catStatus: CategoryStatus.active },
+      )
+      .leftJoinAndSelect('product.cover', 'cover')
+      .leftJoinAndSelect('product.brand', 'brand')
+      .andWhere('product.status = :status', { status: ProductStatus.active })
+      .andWhere('product.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('product.price > 0')
+      .andWhere('product.categoryId != 1')
+      .andWhere(parts.join(' OR '), params);
+    applyDiscoveryEligibilityFilters(listingBuilder, 'product');
+    listingBuilder
+      .orderBy('product.createdAt', 'DESC')
+      .addOrderBy('product.id', 'DESC');
+
+    const [rows, total] = await listingBuilder
+      .take(query.limit)
+      .skip((query.page - 1) * query.limit)
+      .getManyAndCount();
+
+    return {
+      scope: 'catalog',
+      category,
+      items: rows.map((row) => mapStorefrontPlpProduct(row, tryToToman)),
+      pagination: buildStorefrontPlpPagination(query.page, query.limit, total),
+      filters: emptyStorefrontPlpFiltersPayload(),
       appliedFilters: toAppliedStorefrontPlpFilters(filters),
     };
   }
@@ -824,6 +947,7 @@ export class CatalogService {
    */
   private _buildEligibleProductBuilder(
     eligibility: CanonicalProductEligibility,
+    adultKidsProductIds: readonly number[] = [],
   ): SelectQueryBuilder<ProductEntity> {
     const qb = this.productRepository
       .createQueryBuilder('product')
@@ -840,6 +964,12 @@ export class CatalogService {
       .andWhere('product.price > 0')
       .andWhere('product.categoryId != 1');
     applyCanonicalProductEligibility(qb, 'product', eligibility, 'plpElig');
+    applyAdultListingKidsExclusion(
+      qb,
+      'product',
+      eligibility,
+      adultKidsProductIds,
+    );
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
@@ -851,6 +981,7 @@ export class CatalogService {
       ) => Repository<ProductEntity>;
     },
     eligibility: CanonicalProductEligibility,
+    adultKidsProductIds: readonly number[] = [],
   ): SelectQueryBuilder<ProductEntity> {
     const qb = manager
       .getRepository(ProductEntity)
@@ -867,6 +998,12 @@ export class CatalogService {
       .andWhere('product.price > 0')
       .andWhere('product.categoryId != 1');
     applyCanonicalProductEligibility(qb, 'product', eligibility, 'plpElig');
+    applyAdultListingKidsExclusion(
+      qb,
+      'product',
+      eligibility,
+      adultKidsProductIds,
+    );
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
@@ -910,6 +1047,7 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpFiltersPayload> {
     const hasSelectedAttrs = filters.attributes.some(
       (g) => g.valueIds.length > 0,
@@ -922,13 +1060,29 @@ export class CatalogService {
         eligibility,
         filters,
         tryToToman,
+        adultKidsProductIds,
       );
     }
 
     const [brands, price, attributes] = await Promise.all([
-      this._computeBrandFacets(eligibility, filters, tryToToman),
-      this._computePriceFacet(eligibility, filters, tryToToman),
-      this._computeAttributeFacets(eligibility, filters, tryToToman),
+      this._computeBrandFacets(
+        eligibility,
+        filters,
+        tryToToman,
+        adultKidsProductIds,
+      ),
+      this._computePriceFacet(
+        eligibility,
+        filters,
+        tryToToman,
+        adultKidsProductIds,
+      ),
+      this._computeAttributeFacets(
+        eligibility,
+        filters,
+        tryToToman,
+        adultKidsProductIds,
+      ),
     ]);
 
     return { brands, price, attributes };
@@ -943,17 +1097,20 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpFiltersPayload> {
     const [brandPrice, attributes] = await Promise.all([
       this._computeBrandPriceFacetsWithAttrMatch(
         eligibility,
         filters,
         tryToToman,
+        adultKidsProductIds,
       ),
       this._aggregateAttributeFacetsSelectedPath(
         eligibility,
         filters,
         tryToToman,
+        adultKidsProductIds,
       ),
     ]);
     return {
@@ -971,6 +1128,7 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<{
     brands: StorefrontPlpBrandFacet[];
     price: StorefrontPlpPriceFacet;
@@ -984,6 +1142,7 @@ export class CatalogService {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
         eligibility,
+        adultKidsProductIds,
       );
 
       const [eligibleSql, eligibleParams] = eligibleQb.getQueryAndParameters();
@@ -1139,8 +1298,12 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpBrandFacet[]> {
-    const qb = this._buildEligibleProductBuilder(eligibility)
+    const qb = this._buildEligibleProductBuilder(
+      eligibility,
+      adultKidsProductIds,
+    )
       .innerJoin('product.brand', 'brand')
       .select('product.brandId', 'id')
       .addSelect(`COALESCE(NULLIF(brand.sourceName, ''), brand.name)`, 'name')
@@ -1180,8 +1343,12 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpPriceFacet> {
-    const qb = this._buildEligibleProductBuilder(eligibility)
+    const qb = this._buildEligibleProductBuilder(
+      eligibility,
+      adultKidsProductIds,
+    )
       .select(`MIN(${STOREFRONT_EFFECTIVE_PRICE_SQL})`, 'minTry')
       .addSelect(`MAX(${STOREFRONT_EFFECTIVE_PRICE_SQL})`, 'maxTry');
 
@@ -1219,11 +1386,13 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpAttributeFacet[]> {
     return this.productRepository.manager.transaction(async (manager) => {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
         eligibility,
+        adultKidsProductIds,
       );
 
       applyStorefrontPlpFilters(eligibleQb, filters, tryToToman, {
@@ -1375,6 +1544,7 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpAttributeFacet[]> {
     const selectedAttrIds = filters.attributes
       .filter((g) => g.valueIds.length > 0)
@@ -1386,6 +1556,7 @@ export class CatalogService {
         eligibility,
         filters,
         tryToToman,
+        adultKidsProductIds,
       );
     }
 
@@ -1395,6 +1566,7 @@ export class CatalogService {
       eligibility,
       filters,
       tryToToman,
+      adultKidsProductIds,
     );
   }
 
@@ -1417,6 +1589,7 @@ export class CatalogService {
     eligibility: CanonicalProductEligibility,
     filters: StorefrontPlpFilters,
     tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
   ): Promise<StorefrontPlpAttributeFacet[]> {
     const selectedGroups = filters.attributes.filter(
       (g) => g.valueIds.length > 0,
@@ -1426,6 +1599,7 @@ export class CatalogService {
         eligibility,
         filters,
         tryToToman,
+        adultKidsProductIds,
       );
     }
 
@@ -1437,6 +1611,7 @@ export class CatalogService {
       const eligibleQb = this._buildEligibleProductIdBuilder(
         manager,
         eligibility,
+        adultKidsProductIds,
       );
 
       applyStorefrontPlpFilters(eligibleQb, filters, tryToToman, {

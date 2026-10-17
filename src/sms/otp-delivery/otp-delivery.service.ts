@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigurationService } from '../../config/configuration.service';
 import { ErrorService } from '../../error/error.service';
 import { isFixedDevOtpAllowed } from '../../security/security-config.util';
+import { isUatFixedOtpEnabled } from '../../security/uat-fixed-otp.util';
 import { AmootsmsService } from '../amootsms/amootsms.service';
 import { VatansmsService } from '../vatansms/vatansms.service';
 
@@ -20,7 +21,7 @@ export type OtpDeliveryFailureReason =
   | 'provider_failed';
 
 export type OtpDeliveryResult =
-  | { ok: true; mode: 'provider' | 'fixed_dev' }
+  | { ok: true; mode: 'provider' | 'fixed_dev' | 'fixed_uat' }
   | { ok: false; reason: OtpDeliveryFailureReason };
 
 /** +98 → AmootSMS, +90 → VatanSMS; anything else has no provider. */
@@ -52,14 +53,31 @@ export class OtpDeliveryService {
     private vatansmsService: VatansmsService,
   ) {}
 
+  /**
+   * Local developer NODE_ENV gate (development|local|test). Unchanged for
+   * day-to-day local work — never used as the UAT public-share mechanism.
+   */
   isFixedDevOtpMode(): boolean {
     return isFixedDevOtpAllowed({
       NODE_ENV: this.config.app?.nodeEnv,
     } as NodeJS.ProcessEnv);
   }
 
+  /**
+   * Isolated UAT gate (UAT_FIXED_OTP + DEPLOY_ENV=uat + matching DATABASE_NAME).
+   * Reads process.env so launch validation and delivery share one authority.
+   */
+  isUatFixedOtpMode(): boolean {
+    return isUatFixedOtpEnabled(process.env);
+  }
+
+  /** True when either developer or isolated-UAT fixed OTP is active. */
+  isFixedOtpMode(): boolean {
+    return this.isFixedDevOtpMode() || this.isUatFixedOtpMode();
+  }
+
   async issueCode(generateRandomCode: () => Promise<string>): Promise<string> {
-    return this.isFixedDevOtpMode()
+    return this.isFixedOtpMode()
       ? FIXED_DEV_OTP_CODE
       : await generateRandomCode();
   }
@@ -74,12 +92,15 @@ export class OtpDeliveryService {
 
   /**
    * Succeeds only when a supported, configured provider confirms the send.
-   * Fixed developer mode never contacts a provider.
+   * Fixed developer / isolated-UAT modes never contact a provider.
    */
   async deliver(
     mobile: string | null | undefined,
     code: string,
   ): Promise<OtpDeliveryResult> {
+    if (this.isUatFixedOtpMode()) {
+      return { ok: true, mode: 'fixed_uat' };
+    }
     if (this.isFixedDevOtpMode()) {
       return { ok: true, mode: 'fixed_dev' };
     }

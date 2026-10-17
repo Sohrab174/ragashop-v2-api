@@ -3,7 +3,7 @@
  * assortment + catalog-mapping flags.
  *
  * Development and Jest remain opt-in (unset ⇒ enforcement off).
- * Only DEPLOY_ENV=staging|pre-staging requires exact literal '1'.
+ * Only DEPLOY_ENV=staging|pre-staging|uat requires exact literal '1'.
  */
 
 import {
@@ -28,7 +28,7 @@ export function isStagingLaunchEnv(
   const raw = String(env[DEPLOY_ENV_KEY] || '')
     .trim()
     .toLowerCase();
-  return raw === 'staging' || raw === 'pre-staging';
+  return raw === 'staging' || raw === 'pre-staging' || raw === 'uat';
 }
 
 function requireExactOne(

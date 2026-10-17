@@ -1,5 +1,9 @@
 import {
+  incompleteSlideDestinationMessages,
+  isIncompleteStorefrontHref,
   isWithinSchedule,
+  mergeHomeConfigForPersistence,
+  normalizeCampaignSlides,
   normalizeCategoryChaptersConfig,
   optionalStorefrontHref,
   parseProductIdList,
@@ -44,6 +48,34 @@ describe('storefront-home.validate', () => {
     ).toBe(false);
   });
 
+  it('rejects incomplete slide paths and keeps valid saved destinations', () => {
+    expect(isIncompleteStorefrontHref('/category/')).toBe(true);
+    expect(isIncompleteStorefrontHref('category/')).toBe(true);
+    expect(isIncompleteStorefrontHref('/product/')).toBe(true);
+    expect(isIncompleteStorefrontHref('/category')).toBe(false);
+    expect(isIncompleteStorefrontHref('/category/12')).toBe(false);
+    expect(isIncompleteStorefrontHref('/product/9')).toBe(false);
+    expect(isIncompleteStorefrontHref('/sale')).toBe(false);
+    expect(
+      incompleteSlideDestinationMessages({
+        ctaDestinationType: 'absolute_path',
+        ctaDestinationValue: '/category/12',
+        slides: [
+          { ctaDestinationType: 'absolute_path', ctaDestinationValue: '/category/' },
+          { ctaDestinationType: 'category', ctaDestinationValue: 4 },
+        ],
+      }),
+    ).toEqual([
+      'اسلاید 1: مسیر مقصد ناقص است. مسیرهایی مثل /category/ پذیرفته نمی‌شوند.',
+    ]);
+    expect(
+      resolveCampaignHref({
+        ctaDestinationType: 'absolute_path',
+        ctaDestinationValue: '/category/12',
+      }),
+    ).toBe('/category/12');
+  });
+
   it('resolves campaign destinations safely', () => {
     expect(
       resolveCampaignHref({
@@ -85,5 +117,113 @@ describe('storefront-home.validate', () => {
     expect(cfg.chapters?.[0]?.categoryId).toBe(14);
     expect(cfg.chapters?.[0]?.surfaceTone).toBe('blush');
     expect(cfg.chapters?.[0]?.productIds).toEqual([1, 2]);
+  });
+
+  it('keeps previous slides when the key is omitted and stores an empty list when sent', () => {
+    expect(normalizeCampaignSlides({ ctaLabel: 'x' })).toBeUndefined();
+    expect(normalizeCampaignSlides({ slides: [] })).toEqual([]);
+    const draft = normalizeCampaignSlides({
+      slides: [
+        {
+          id: 'draft',
+          title: 'پیش‌نویس',
+          ctaDestinationType: 'absolute_path',
+          ctaDestinationValue: 'https://evil.test',
+          desktopImagePath: 'https://cdn.example/a.jpg',
+        },
+      ],
+    });
+    expect(draft).toEqual([
+      expect.objectContaining({
+        id: 'draft',
+        title: 'پیش‌نویس',
+        enabled: true,
+      }),
+    ]);
+    expect(draft?.[0].desktopImagePath).toBeUndefined();
+    expect(resolveCampaignHref(draft![0])).toBe('/');
+    const kept = mergeHomeConfigForPersistence(
+      'campaign',
+      { ctaLabel: 'جدید', desktopImagePath: '/home/legacy.webp' },
+      {
+        ctaLabel: 'قدیم',
+        desktopImagePath: '/home/legacy.webp',
+        slides: [{ id: 's1', enabled: false, order: 10, title: 'قدیم' }],
+      },
+    );
+    expect(kept.ctaLabel).toBe('جدید');
+    expect(kept.desktopImagePath).toBe('/home/legacy.webp');
+    expect(kept.slides).toEqual([
+      { id: 's1', enabled: false, order: 10, title: 'قدیم' },
+    ]);
+    const cleared = mergeHomeConfigForPersistence(
+      'campaign',
+      { ctaLabel: 'جدید', slides: [] },
+      { ctaLabel: 'قدیم', slides: [{ id: 's1', title: 'قدیم' }] },
+    );
+    expect(cleared.slides).toEqual([]);
+    expect(cleared.ctaLabel).toBe('جدید');
+  });
+
+  it('merges preserved unknown keys without accepting client unknowns', () => {
+    const merged = mergeHomeConfigForPersistence(
+      'campaign',
+      { ctaLabel: 'جدید', preferredProductId: 5 },
+      { ctaLabel: 'قدیم', preferredProductId: 5, mystery: true, clientHack: 'old' },
+    );
+    expect(merged).toEqual({
+      ctaLabel: 'جدید',
+      preferredProductId: 5,
+      mystery: true,
+      clientHack: 'old',
+    });
+  });
+
+  it('preserves nested unknown presentation fields by categoryId identity', () => {
+    const merged = mergeHomeConfigForPersistence(
+      'categories',
+      {
+        limit: 6,
+        categoryIds: [14],
+        presentation: [{ categoryId: 14, imagePath: '/home/a.webp' }],
+      },
+      {
+        limit: 4,
+        categoryIds: [14],
+        presentation: [
+          {
+            categoryId: 14,
+            imagePath: '/home/old.webp',
+            legacyBadge: 'keep-me',
+          },
+        ],
+        clientInvented: 'nope',
+      },
+    );
+    expect(merged.clientInvented).toBe('nope');
+    expect(merged.presentation).toEqual([
+      {
+        categoryId: 14,
+        imagePath: '/home/a.webp',
+        legacyBadge: 'keep-me',
+      },
+    ]);
+    expect(
+      mergeHomeConfigForPersistence(
+        'categories',
+        {
+          presentation: [
+            { categoryId: 14, imagePath: '/home/a.webp', hack: 'from-client' },
+          ],
+        },
+        { presentation: [{ categoryId: 14, legacyBadge: 'keep-me' }] },
+      ).presentation,
+    ).toEqual([
+      {
+        categoryId: 14,
+        imagePath: '/home/a.webp',
+        legacyBadge: 'keep-me',
+      },
+    ]);
   });
 });

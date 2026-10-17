@@ -5,9 +5,10 @@ import {
 } from './assortment-launch-config.util';
 
 describe('assortment launch config (staging fail-closed)', () => {
-  it('isStagingLaunchEnv only for staging|pre-staging', () => {
+  it('isStagingLaunchEnv only for staging|pre-staging|uat', () => {
     expect(isStagingLaunchEnv({ DEPLOY_ENV: 'staging' })).toBe(true);
     expect(isStagingLaunchEnv({ DEPLOY_ENV: 'pre-staging' })).toBe(true);
+    expect(isStagingLaunchEnv({ DEPLOY_ENV: 'uat' })).toBe(true);
     expect(isStagingLaunchEnv({ DEPLOY_ENV: 'development' })).toBe(false);
     expect(isStagingLaunchEnv({ DEPLOY_ENV: 'production' })).toBe(false);
     expect(isStagingLaunchEnv({})).toBe(false);

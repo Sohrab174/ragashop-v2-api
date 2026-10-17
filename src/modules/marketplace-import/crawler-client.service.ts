@@ -53,9 +53,17 @@ export class CrawlerClientService {
       );
       return data;
     } catch (error) {
+      const body = error?.response?.data;
+      const crawlerCode = body?.data?.code ?? body?.code ?? null;
       this.logger.error(
-        'Crawler import request failed',
-        error?.message || error,
+        JSON.stringify({
+          event: 'crawler_import_request_failed',
+          marketplace: identity.marketplace,
+          sourceProductId: identity.sourceProductId,
+          httpStatus: error?.response?.status ?? null,
+          crawlerCode: typeof crawlerCode === 'string' ? crawlerCode : null,
+          transportCode: typeof error?.code === 'string' ? error.code : null,
+        }),
       );
       throw error;
     }

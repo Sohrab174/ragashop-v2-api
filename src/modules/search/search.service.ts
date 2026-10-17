@@ -35,6 +35,12 @@ import {
 import { CategoryStatus } from '../category/entities/category.entity';
 import { applyDiscoveryEligibilityFilters } from '../product/discovery-eligibility';
 import {
+  applyAdultListingKidsExclusion,
+  applyUnresolvedGenderDiscoveryFilter,
+  loadStorefrontGenderSafetySnapshot,
+  StorefrontGenderSafetySnapshot,
+} from '../catalog/storefront-gender-safety';
+import {
   ProductEntity,
   ProductStatus,
 } from '../product/entities/product.entity';
@@ -145,7 +151,10 @@ export class SearchService {
       }
     }
 
-    const listingBuilder = this.buildEligibleSearchBuilder(eligibility)
+    const safety = await loadStorefrontGenderSafetySnapshot(
+      this.productRepository.manager,
+    );
+    const listingBuilder = this.buildEligibleSearchBuilder(eligibility, safety)
       .leftJoinAndSelect('product.cover', 'cover')
       .leftJoinAndSelect('product.brand', 'brand')
       .addSelect(STOREFRONT_EFFECTIVE_PRICE_SQL, 'mainPrice')
@@ -217,11 +226,14 @@ export class SearchService {
     const prefix = `${escapeLikePattern(needle)}%`;
     const limit = Math.min(query.limit, SUGGESTION_MAX_RESULTS);
 
+    const safety = await loadStorefrontGenderSafetySnapshot(
+      this.productRepository.manager,
+    );
     const [brandHits, categoryHits, productHits] = await Promise.all([
       this.suggestBrands(needle, prefix, limit),
       this.suggestCategories(needle, prefix, limit),
       needle.length >= SUGGESTION_MIN_PRODUCT_QUERY_LENGTH
-        ? this.suggestProducts(needle, prefix, Math.min(3, limit))
+        ? this.suggestProducts(needle, prefix, Math.min(3, limit), safety)
         : Promise.resolve([] as StorefrontSuggestionItem[]),
     ]);
 
@@ -415,6 +427,7 @@ export class SearchService {
     needle: string,
     prefix: string,
     limit: number,
+    safety: StorefrontGenderSafetySnapshot,
   ): Promise<StorefrontSuggestionItem[]> {
     const w = SUGGESTION_RANKING_WEIGHTS;
     const nameNorm = persianNormalizeSql('product.name');
@@ -435,6 +448,7 @@ export class SearchService {
         prefix,
         esc: '\\',
       });
+    applyUnresolvedGenderDiscoveryFilter(qb, 'product', safety);
     applyDiscoveryEligibilityFilters(qb, 'product');
     qb.orderBy('product.id', 'DESC').take(limit);
 
@@ -464,6 +478,7 @@ export class SearchService {
   /** Global (or category-scoped) A4-eligible product base — same gates as PLP. */
   private buildEligibleSearchBuilder(
     eligibility: CanonicalProductEligibility | null,
+    safety: StorefrontGenderSafetySnapshot,
   ): SelectQueryBuilder<ProductEntity> {
     const qb = this.productRepository
       .createQueryBuilder('product')
@@ -485,6 +500,14 @@ export class SearchService {
         eligibility,
         'searchElig',
       );
+      applyAdultListingKidsExclusion(
+        qb,
+        'product',
+        eligibility,
+        safety.kidsExclusionProductIds,
+      );
+    } else {
+      applyUnresolvedGenderDiscoveryFilter(qb, 'product', safety);
     }
 
     return applyDiscoveryEligibilityFilters(qb, 'product');

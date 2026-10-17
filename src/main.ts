@@ -22,12 +22,14 @@ import {
   resolveCorsAllowedOrigins,
   validateLaunchSecurityRuntimeConfig,
 } from './security/security-config.util';
+import { validateUatFixedOtpRuntimeConfig } from './security/uat-fixed-otp.util';
 import { createHelmetMiddleware } from './security/helmet.util';
 
 async function bootstrap() {
   await validateMarketplaceImportRuntimeConfig();
   validateLaunchSecurityRuntimeConfig();
   validateAssortmentLaunchRuntimeConfig();
+  validateUatFixedOtpRuntimeConfig();
 
   const corsOrigins = resolveCorsAllowedOrigins();
   const swaggerEnabled = isSwaggerEnabled();
