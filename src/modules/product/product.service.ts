@@ -154,6 +154,7 @@ export class ProductService {
       search?: string | null;
       stock?: string | null;
       discounted?: string | null;
+      missingImage?: string | null;
       minPrice?: string | number | null;
       maxPrice?: string | number | null;
     } = {},
@@ -219,6 +220,13 @@ export class ProductService {
       builder.andWhere(
         '(product.discountPercent IS NULL OR product.discountPercent <= 0)',
       );
+    }
+
+    const missingImage = extras?.missingImage?.toString()?.trim();
+    if (missingImage === '1' || missingImage === 'true') {
+      builder.andWhere('product.coverId IS NULL');
+    } else if (missingImage === '0' || missingImage === 'false') {
+      builder.andWhere('product.coverId IS NOT NULL');
     }
 
     const minPrice =

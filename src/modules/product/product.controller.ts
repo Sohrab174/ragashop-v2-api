@@ -263,6 +263,11 @@ export class ProductController {
     required: false,
     description: '1 | 0 — products with / without discountPercent > 0',
   })
+  @ApiQuery({
+    name: 'missing_image',
+    required: false,
+    description: '1 | 0 — products without / with a cover image',
+  })
   @ApiQuery({ name: 'min_price', required: false })
   @ApiQuery({ name: 'max_price', required: false })
   @ApiQuery({ name: 'gender', required: false })
@@ -287,6 +292,7 @@ export class ProductController {
     @Query('search') search,
     @Query('stock') stock,
     @Query('discounted') discounted,
+    @Query('missing_image') missingImage,
     @Query('min_price') minPrice,
     @Query('max_price') maxPrice,
   ) {
@@ -301,6 +307,7 @@ export class ProductController {
         search,
         stock,
         discounted,
+        missingImage,
         minPrice,
         maxPrice,
       },
