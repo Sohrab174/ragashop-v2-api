@@ -5,6 +5,7 @@ import {
   mergeHomeConfigForPersistence,
   normalizeCampaignSlides,
   normalizeCategoryChaptersConfig,
+  normalizeCategoryChaptersList,
   optionalStorefrontHref,
   parseProductIdList,
   resolveCampaignHref,
@@ -117,6 +118,53 @@ describe('storefront-home.validate', () => {
     expect(cfg.chapters?.[0]?.categoryId).toBe(14);
     expect(cfg.chapters?.[0]?.surfaceTone).toBe('blush');
     expect(cfg.chapters?.[0]?.productIds).toEqual([1, 2]);
+  });
+
+  it('treats legacy {} chapter config as unmanaged and keeps explicit empty chapters', () => {
+    expect(normalizeCategoryChaptersList({})).toBeUndefined();
+    expect(normalizeCategoryChaptersConfig({})).toEqual({});
+    expect(normalizeCategoryChaptersList({ chapters: [] })).toEqual([]);
+    expect(normalizeCategoryChaptersConfig({ chapters: [] })).toEqual({
+      chapters: [],
+    });
+    expect(
+      mergeHomeConfigForPersistence('category_chapters', {}, { chapters: [] }),
+    ).toEqual({ chapters: [] });
+    expect(
+      mergeHomeConfigForPersistence(
+        'category_chapters',
+        { chapters: [] },
+        { chapters: [{ categoryId: 1 }] },
+      ),
+    ).toEqual({ chapters: [] });
+  });
+
+  it('keeps legacy {} chapters unmanaged and preserves an explicit empty list', () => {
+    expect(normalizeCategoryChaptersList({})).toBeUndefined();
+    expect(normalizeCategoryChaptersConfig({}).chapters).toBeUndefined();
+    expect(normalizeCategoryChaptersList({ chapters: [] })).toEqual([]);
+    expect(normalizeCategoryChaptersConfig({ chapters: [] }).chapters).toEqual([]);
+
+    const keptDefault = mergeHomeConfigForPersistence(
+      'category_chapters',
+      normalizeCategoryChaptersConfig({}) as Record<string, unknown>,
+      {},
+    );
+    expect(keptDefault.chapters).toBeUndefined();
+
+    const keptEmpty = mergeHomeConfigForPersistence(
+      'category_chapters',
+      normalizeCategoryChaptersConfig({ chapters: [] }) as Record<string, unknown>,
+      {},
+    );
+    expect(keptEmpty.chapters).toEqual([]);
+
+    const preservedPrior = mergeHomeConfigForPersistence(
+      'category_chapters',
+      normalizeCategoryChaptersConfig({ limit: 4 }) as Record<string, unknown>,
+      { chapters: [] },
+    );
+    expect(preservedPrior.chapters).toEqual([]);
   });
 
   it('keeps previous slides when the key is omitted and stores an empty list when sent', () => {

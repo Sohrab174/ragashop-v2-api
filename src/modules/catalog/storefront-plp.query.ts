@@ -28,16 +28,23 @@ export const STOREFRONT_PLP_SORTS = [
 
 export type StorefrontPlpSort = typeof STOREFRONT_PLP_SORTS[number];
 
+export type StorefrontPlpFacetMode = 'full' | 'brands' | 'none';
+
 export type StorefrontPlpQuery = {
   categoryId: number;
   page: number;
   limit: number;
   sort: StorefrontPlpSort;
   filters: StorefrontPlpFilters;
+  /**
+   * `full` is the public PLP default.
+   * Homepage listings use `none` or `brands` so they do not build attribute facets.
+   */
+  facetMode?: StorefrontPlpFacetMode;
 };
 
 export type StorefrontPlpQueryError = {
-  code: 'invalid_category' | 'invalid_page' | 'invalid_limit' | 'invalid_sort';
+  code: 'invalid_category' | 'invalid_page' | 'invalid_limit' | 'invalid_sort' | 'invalid_facets';
   message: string;
 };
 
@@ -51,6 +58,7 @@ export function parseStorefrontPlpQuery(input: {
   maxPrice?: unknown;
   attrs?: unknown;
   attributes?: unknown;
+  facets?: unknown;
 }):
   | { ok: true; value: StorefrontPlpQuery }
   | { ok: false; error: StorefrontPlpQueryError } {
@@ -113,6 +121,20 @@ export function parseStorefrontPlpQuery(input: {
     };
   }
 
+  const facetRaw =
+    input.facets === undefined || input.facets === null || input.facets === ''
+      ? 'full'
+      : String(input.facets);
+  if (facetRaw !== 'full' && facetRaw !== 'brands' && facetRaw !== 'none') {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_facets',
+        message: 'facets must be full, brands, or none',
+      },
+    };
+  }
+
   const filters = parseStorefrontPlpFilters({
     brands: input.brands,
     minPrice: input.minPrice,
@@ -129,6 +151,7 @@ export function parseStorefrontPlpQuery(input: {
       limit: limitRaw,
       sort: sortRaw as StorefrontPlpSort,
       filters,
+      facetMode: facetRaw,
     },
   };
 }

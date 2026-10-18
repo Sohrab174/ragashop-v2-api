@@ -25,6 +25,24 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>();
+const inflight = new Map<string, Promise<StorefrontPlpFiltersPayload>>();
+
+/**
+ * Concurrent homepage listings share one facet build per cache key.
+ * The listing query itself is not shared; only the facet payload is.
+ */
+export function coalesceStorefrontPlpFacetWork(
+  key: string,
+  build: () => Promise<StorefrontPlpFiltersPayload>,
+): Promise<StorefrontPlpFiltersPayload> {
+  const existing = inflight.get(key);
+  if (existing) return existing;
+  const pending = build().finally(() => {
+    inflight.delete(key);
+  });
+  inflight.set(key, pending);
+  return pending;
+}
 
 export function buildStorefrontPlpFacetCacheKey(input: {
   sourceCategoryIds: number[];
@@ -109,6 +127,7 @@ export function setStorefrontPlpFacetCache(
 /** Test helper — clears all facet cache entries. */
 export function clearStorefrontPlpFacetCache(): void {
   cache.clear();
+  inflight.clear();
 }
 
 /** Test helper — current entry count. */

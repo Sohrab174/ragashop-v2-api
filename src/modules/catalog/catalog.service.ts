@@ -75,6 +75,7 @@ import {
 } from './storefront-plp.filters';
 import {
   buildStorefrontPlpFacetCacheKey,
+  coalesceStorefrontPlpFacetWork,
   getStorefrontPlpFacetCache,
   setStorefrontPlpFacetCache,
 } from './storefront-plp-facet-cache';
@@ -542,7 +543,8 @@ export class CatalogService {
     applyStorefrontPlpSort(listingBuilder, query.sort);
 
     // Facets are independent of page/sort — reuse when filters+scope unchanged.
-    const facetCacheKey = buildStorefrontPlpFacetCacheKey({
+    const facetMode = query.facetMode ?? 'full';
+    const facetCacheKey = `${buildStorefrontPlpFacetCacheKey({
       sourceCategoryIds: eligibility.sourceCategoryIds,
       filters,
       tryToToman,
@@ -552,27 +554,41 @@ export class CatalogService {
           ? `|kids=${kidsExclusionCacheToken(adultKidsProductIds)}`
           : ''
       }`,
-    });
-    const cachedFacets = getStorefrontPlpFacetCache(facetCacheKey);
+    })}|facets=${facetMode}`;
+    const cachedFacets =
+      facetMode === 'none' ? null : getStorefrontPlpFacetCache(facetCacheKey);
 
     const [[rows, total], filtersPayload] = await Promise.all([
       listingBuilder
         .take(query.limit)
         .skip((query.page - 1) * query.limit)
         .getManyAndCount(),
-      cachedFacets
-        ? Promise.resolve(cachedFacets)
-        : this._buildStorefrontFacets(
-            eligibility,
-            filters,
-            tryToToman,
-            adultKidsProductIds,
-          ).then(
-            (payload) => {
-              setStorefrontPlpFacetCache(facetCacheKey, payload);
-              return payload;
-            },
-          ),
+      facetMode === 'none'
+        ? Promise.resolve(emptyStorefrontPlpFiltersPayload())
+        : cachedFacets
+          ? Promise.resolve(cachedFacets)
+          : coalesceStorefrontPlpFacetWork(facetCacheKey, () => {
+              const again = getStorefrontPlpFacetCache(facetCacheKey);
+              if (again) return Promise.resolve(again);
+              const build =
+                facetMode === 'brands'
+                  ? this._buildStorefrontBrandFacets(
+                      eligibility,
+                      filters,
+                      tryToToman,
+                      adultKidsProductIds,
+                    )
+                  : this._buildStorefrontFacets(
+                      eligibility,
+                      filters,
+                      tryToToman,
+                      adultKidsProductIds,
+                    );
+              return build.then((payload) => {
+                setStorefrontPlpFacetCache(facetCacheKey, payload);
+                return payload;
+              });
+            }),
     ]);
 
     return {
@@ -1040,6 +1056,25 @@ export class CatalogService {
         filters.attributes,
         ownership,
       ),
+    };
+  }
+
+  private async _buildStorefrontBrandFacets(
+    eligibility: CanonicalProductEligibility,
+    filters: StorefrontPlpFilters,
+    tryToToman: number,
+    adultKidsProductIds: readonly number[] = [],
+  ): Promise<StorefrontPlpFiltersPayload> {
+    const brands = await this._computeBrandFacets(
+      eligibility,
+      filters,
+      tryToToman,
+      adultKidsProductIds,
+    );
+    return {
+      brands,
+      price: { min: null, max: null },
+      attributes: [],
     };
   }
 

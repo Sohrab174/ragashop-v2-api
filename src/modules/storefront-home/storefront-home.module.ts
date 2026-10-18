@@ -4,6 +4,7 @@ import { ProductEntity } from '../product/entities/product.entity';
 import { CategoryEntity } from '../category/entities/category.entity';
 import { CanonicalCategoryEntity } from '../catalog/entities/canonical-category.entity';
 import { StorefrontHomeSectionEntity } from './entities/storefront-home-section.entity';
+import { StorefrontHomeSectionInstanceEntity } from './entities/storefront-home-section-instance.entity';
 import { StorefrontHomeController } from './storefront-home.controller';
 import { StorefrontHomeService } from './storefront-home.service';
 import { CapabilityModule } from '../auth/capability/capability.module';
@@ -12,6 +13,7 @@ import { CapabilityModule } from '../auth/capability/capability.module';
   imports: [
     TypeOrmModule.forFeature([
       StorefrontHomeSectionEntity,
+      StorefrontHomeSectionInstanceEntity,
       ProductEntity,
       CategoryEntity,
       CanonicalCategoryEntity,

@@ -24,7 +24,10 @@ import { PermissionsGuard } from '../auth/capability/permissions.guard';
 import { RequireCapabilities } from '../auth/capability/capability.decorator';
 import { UserCapabilityName } from '../auth/capability/capability.catalog';
 import { UserRoles } from '../user/entities/user.entity';
-import { UpsertStorefrontHomeDto } from './dto/upsert-storefront-home.dto';
+import {
+  PublishHomeArrangementDto,
+  UpsertStorefrontHomeDto,
+} from './dto/upsert-storefront-home.dto';
 import { StorefrontHomeService } from './storefront-home.service';
 
 @ApiTags('Storefront Home')
@@ -100,6 +103,30 @@ export class StorefrontHomeController {
     const data = await this.homeService.createHomePreviewSession(
       dto.sections,
       Number(req?.user?.id),
+      dto.instances,
+    );
+    return successfulResult([], data);
+  }
+
+  /**
+   * PUT /storefront/home/admin/preview-session/:token
+   * Updates the unpublished payload for the current iframe. Does not publish.
+   */
+  @Put('admin/preview-session/:token')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_read)
+  async replacePreviewSession(
+    @Req() req: { user?: { id?: number } },
+    @Param('token') token: string,
+    @Body() dto: UpsertStorefrontHomeDto,
+  ) {
+    const data = await this.homeService.replaceHomePreviewSession(
+      token,
+      dto.sections,
+      Number(req?.user?.id),
+      dto.instances,
     );
     return successfulResult([], data);
   }
@@ -132,6 +159,21 @@ export class StorefrontHomeController {
   }
 
   /**
+   * PUT /storefront/home/admin/arrangement
+   * Arrangement-only replace. The Admin publish button uses PUT /admin so
+   * sections and instances commit together.
+   */
+  @Put('admin/arrangement')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_manage)
+  async publishArrangement(@Body() dto: PublishHomeArrangementDto) {
+    const data = await this.homeService.publishHomeArrangement(dto.instances);
+    return successfulResult(['چیدمان صفحه اصلی ذخیره شد'], data);
+  }
+
+  /**
    * PUT /storefront/home/admin
    */
   @Put('admin')
@@ -140,7 +182,7 @@ export class StorefrontHomeController {
   @Roles(UserRoles.admin, UserRoles.employee)
   @RequireCapabilities(UserCapabilityName.storefront_home_manage)
   async upsertAdmin(@Body() dto: UpsertStorefrontHomeDto) {
-    const data = await this.homeService.upsertAdminHome(dto.sections);
+    const data = await this.homeService.upsertAdminHome(dto.sections, dto.instances);
     return successfulResult(['پیکربندی صفحه اصلی ذخیره شد'], data);
   }
 

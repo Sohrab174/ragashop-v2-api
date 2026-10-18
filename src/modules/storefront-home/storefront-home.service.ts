@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ErrorService } from '../../error/error.service';
 import { ConfigurationService } from '../../config/configuration.service';
 import { ProductEntity, ProductStatus } from '../product/entities/product.entity';
@@ -12,7 +12,16 @@ import {
 } from '../catalog/entities/canonical-category.entity';
 import { discoveryEligibilitySql } from '../product/discovery-eligibility';
 import { StorefrontHomeSectionEntity } from './entities/storefront-home-section.entity';
-import { UpsertHomeSectionDto } from './dto/upsert-storefront-home.dto';
+import { StorefrontHomeSectionInstanceEntity } from './entities/storefront-home-section-instance.entity';
+import { UpsertHomeInstanceDto, UpsertHomeSectionDto } from './dto/upsert-storefront-home.dto';
+import {
+  HOME_INSTANCE_EDITOR_KEYS,
+  HOME_LAYOUT_MARKER_KEY,
+  HOME_LAYOUT_SECTION_TYPE,
+  HomeRepeatableSectionType,
+  normalizeHomeArrangement,
+  NormalizedHomeInstance,
+} from './storefront-home.instances';
 import {
   isStorefrontHomeSectionKey,
   PublicHomeSectionDto,
@@ -30,8 +39,13 @@ import {
   normalizeCampaignSlides,
   normalizeCategoriesConfig,
   normalizeCategoryChaptersConfig,
+  normalizeCategoryChaptersList,
   normalizeEditorialConfig,
+  normalizeFeaturedBrandsConfig,
   normalizeRailConfig,
+  normalizeSiteFooterConfig,
+  normalizeSiteHeaderConfig,
+  normalizeSiteIntroConfig,
   optionalStorefrontHref,
   parseJsonObject,
   resolveCampaignHref,
@@ -58,8 +72,21 @@ const HOME_PREVIEW_MAX_GLOBAL = 48;
 const HOME_PREVIEW_MAX_PER_USER = 5;
 const homePreviewSessions = new Map<string, HomePreviewSession>();
 
+type AdminArrangementInstance = {
+  instanceKey: string;
+  sectionType: string;
+  enabled: boolean;
+  displayOrder: number;
+  title: string | null;
+  subtitle: string | null;
+  config: Record<string, unknown>;
+};
+
 @Injectable()
 export class StorefrontHomeService {
+  /** Overlapping publishes run one at a time so their transactions cannot interleave. */
+  private homepagePublishTail: Promise<void> = Promise.resolve();
+
   constructor(
     @InjectRepository(StorefrontHomeSectionEntity)
     private readonly sectionRepo: Repository<StorefrontHomeSectionEntity>,
@@ -71,6 +98,9 @@ export class StorefrontHomeService {
     private readonly canonicalCategoryRepo: Repository<CanonicalCategoryEntity>,
     private readonly error: ErrorService,
     private readonly config: ConfigurationService,
+    @Optional()
+    @InjectRepository(StorefrontHomeSectionInstanceEntity)
+    private readonly instanceRepo?: Repository<StorefrontHomeSectionInstanceEntity>,
   ) {}
 
   /**
@@ -87,7 +117,12 @@ export class StorefrontHomeService {
       }
       return a.id - b.id;
     });
-    return this.buildPublicHomeFromRows(rows, now);
+    const layoutRows = this.instanceRepo
+      ? await this.instanceRepo.find({
+          order: { displayOrder: 'ASC', id: 'ASC' },
+        })
+      : undefined;
+    return this.buildPublicHomeFromRows(rows, now, layoutRows);
   }
 
   /**
@@ -97,6 +132,7 @@ export class StorefrontHomeService {
   async mapAdminSectionsToPublic(
     sections: UpsertHomeSectionDto[],
     now = new Date(),
+    instances?: UpsertHomeInstanceDto[],
   ): Promise<PublicStorefrontHomeDto> {
     this.assertValidPreviewSections(sections);
     const rows = sections
@@ -107,7 +143,10 @@ export class StorefrontHomeService {
         }
         return a.id - b.id;
       });
-    return this.buildPublicHomeFromRows(rows, now);
+    const layoutRows = Array.isArray(instances)
+      ? this.previewLayoutRows(instances)
+      : undefined;
+    return this.buildPublicHomeFromRows(rows, now, layoutRows);
   }
 
   /**
@@ -118,6 +157,7 @@ export class StorefrontHomeService {
   async createHomePreviewSession(
     sections: UpsertHomeSectionDto[],
     userId: number,
+    instances?: UpsertHomeInstanceDto[],
   ): Promise<{
     token: string;
     credential: string;
@@ -132,7 +172,11 @@ export class StorefrontHomeService {
     if (!secret) {
       this.error.unauthorized(['پیکربندی امنیتی پیش‌نمایش موجود نیست']);
     }
-    const payload = await this.mapAdminSectionsToPublic(sections);
+    const payload = await this.mapAdminSectionsToPublic(
+      sections,
+      new Date(),
+      instances,
+    );
     this.pruneExpiredPreviewSessions();
     this.enforcePreviewSessionLimits(uid);
     const token = randomBytes(32).toString('hex');
@@ -164,15 +208,47 @@ export class StorefrontHomeService {
   }
 
   /**
-   * One-time handoff redeem. Marks the nonce used so a copied grant cannot
-   * be replayed. Does not return homepage content.
+   * Replace the merchandising payload of an existing preview session.
+   * Does not rotate the token, credential, or iframe URL, and does not publish.
+   */
+  async replaceHomePreviewSession(
+    token: string,
+    sections: UpsertHomeSectionDto[],
+    userId: number,
+    instances?: UpsertHomeInstanceDto[],
+  ): Promise<{ ok: true }> {
+    const uid = Number(userId);
+    if (!Number.isFinite(uid) || uid <= 0) {
+      this.error.unauthorized(['نشست مدیریت معتبر نیست']);
+    }
+    this.pruneExpiredPreviewSessions();
+    const key = String(token || '').trim();
+    if (!/^[a-f0-9]{64}$/i.test(key)) {
+      this.error.notFound(['پیش‌نمایش پیدا نشد یا منقضی شده است']);
+    }
+    const session = homePreviewSessions.get(key);
+    if (!session || session.expiresAt <= Date.now() || session.userId !== uid) {
+      this.error.notFound(['پیش‌نمایش پیدا نشد یا منقضی شده است']);
+    }
+    session.payload = await this.mapAdminSectionsToPublic(
+      sections,
+      new Date(),
+      instances,
+    );
+    return { ok: true };
+  }
+
+  /**
+   * Handoff redeem. The same nonce may be presented again for the same
+   * session (iframe cookie retries). A different nonce cannot replay.
+   * Does not return homepage content.
    */
   redeemHomePreviewHandoff(token: string, credential: string, nonce: string): void {
     const session = this.requirePreviewCredential(token, credential, {
       requireRedeemed: false,
     });
     const presented = String(nonce || '').trim();
-    if (!presented || presented !== session.handoffNonce || session.handoffRedeemed) {
+    if (!presented || presented !== session.handoffNonce) {
       this.error.unauthorized(['دسترسی به پیش‌نمایش مجاز نیست']);
     }
     session.handoffRedeemed = true;
@@ -322,11 +398,16 @@ export class StorefrontHomeService {
   private async buildPublicHomeFromRows(
     rows: StorefrontHomeSectionEntity[],
     now: Date,
+    layoutRows?: StorefrontHomeSectionInstanceEntity[],
   ): Promise<PublicStorefrontHomeDto> {
+    const publishedInstances = this.publishedContentInstances(layoutRows);
+    const instanceSectionRows = (publishedInstances ?? []).map((row, index) =>
+      this.instanceToSectionRow(row, index),
+    );
     const productIdsNeeded = new Set<number>();
     const categoryIdsNeeded = new Set<number>();
     const canonicalCategoryIdsNeeded = new Set<number>();
-    for (const row of rows) {
+    for (const row of [...rows, ...instanceSectionRows]) {
       if (!isStorefrontHomeSectionKey(row.sectionKey)) continue;
       const cfg = parseJsonObject(row.configJson);
       if (row.sectionKey === 'campaign') {
@@ -385,7 +466,33 @@ export class StorefrontHomeService {
       if (mapped) sections.push(mapped);
     }
 
-    return { sections };
+    if (!publishedInstances) return { sections };
+    const instances = publishedInstances
+      .slice()
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id)
+      .flatMap((row) => {
+        const section = this.mapPublicSection(
+          this.instanceToSectionRow(row, 0),
+          Boolean(row.enabled),
+          activeProductIds,
+          activeCategoryIds,
+          activeCanonicalCategoryIds,
+          now,
+        );
+        if (!section) return [];
+        return [
+          {
+            instanceKey: row.instanceKey,
+            sectionType: row.sectionType,
+            enabled: Boolean(row.enabled),
+            order: row.displayOrder,
+            title: row.title ?? undefined,
+            subtitle: row.subtitle ?? undefined,
+            section,
+          },
+        ];
+      });
+    return { sections, layout: { managed: true, instances } };
   }
 
   /**
@@ -411,6 +518,7 @@ export class StorefrontHomeService {
           endAt: row.endAt,
           updatedAt: row.updatedAt,
         })),
+      arrangement: await this.readAdminArrangement(),
     };
   }
 
@@ -418,9 +526,30 @@ export class StorefrontHomeService {
    * PUT /storefront/home/admin — upsert by sectionKey.
    * Known config fields are normalized; stored unknown keys are preserved.
    * Omitted config leaves the previous configJson untouched.
-   * All section writes run in one DB transaction — no partial publish.
+   * Sections and, when `instances` is present, the arrangement commit in one
+   * transaction. Omitted `instances` leaves the published arrangement as it is.
+   * An empty `instances` array publishes an intentional empty arrangement.
    */
-  async upsertAdminHome(sections: UpsertHomeSectionDto[]) {
+  async upsertAdminHome(
+    sections: UpsertHomeSectionDto[],
+    instances?: UpsertHomeInstanceDto[],
+  ) {
+    this.assertUpsertSections(sections);
+    const arrangement =
+      instances === undefined ? null : this.requireArrangement(instances);
+    const now = new Date();
+    await this.enqueueHomepagePublish(() =>
+      this.sectionRepo.manager.transaction(async (manager) => {
+        if (arrangement) {
+          await this.writeArrangement(manager, arrangement, now);
+        }
+        await this.writeSections(manager, sections, now);
+      }),
+    );
+    return this.getAdminHome();
+  }
+
+  private assertUpsertSections(sections: UpsertHomeSectionDto[]) {
     if (!Array.isArray(sections) || sections.length === 0) {
       this.error.unprocessableEntity(['حداقل یک سکشن لازم است']);
     }
@@ -452,46 +581,56 @@ export class StorefrontHomeService {
       }
       seen.add(section.sectionKey);
     }
+  }
 
-    const now = new Date();
-    await this.sectionRepo.manager.transaction(async (manager) => {
-      const repo = manager.getRepository(StorefrontHomeSectionEntity);
-      for (const section of sections) {
-        let row = await repo.findOne({
-          where: { sectionKey: section.sectionKey },
+  private async writeSections(
+    manager: EntityManager,
+    sections: UpsertHomeSectionDto[],
+    now: Date,
+  ) {
+    const repo = manager.getRepository(StorefrontHomeSectionEntity);
+    for (const section of sections) {
+      let row = await repo.findOne({
+        where: { sectionKey: section.sectionKey },
+      });
+
+      if (!row) {
+        row = repo.create({
+          sectionKey: section.sectionKey,
+          createdAt: now,
         });
-
-        if (!row) {
-          row = repo.create({
-            sectionKey: section.sectionKey,
-            createdAt: now,
-          });
-        }
-
-        row.enabled = Boolean(section.enabled);
-        row.displayOrder = Math.floor(Number(section.displayOrder) || 0);
-        row.title =
-          section.title == null || section.title === ''
-            ? null
-            : String(section.title).slice(0, 128);
-        row.subtitle =
-          section.subtitle == null || section.subtitle === ''
-            ? null
-            : String(section.subtitle).slice(0, 255);
-        row.configJson = this.resolveConfigJsonForUpsert(
-          section.sectionKey as StorefrontHomeSectionKey,
-          section.config,
-          row.configJson,
-        );
-        row.startAt = this.parseOptionalDate(section.startAt);
-        row.endAt = this.parseOptionalDate(section.endAt);
-        row.updatedAt = now;
-
-        await repo.save(row);
       }
-    });
 
-    return this.getAdminHome();
+      row.enabled = Boolean(section.enabled);
+      row.displayOrder = Math.floor(Number(section.displayOrder) || 0);
+      row.title =
+        section.title == null || section.title === ''
+          ? null
+          : String(section.title).slice(0, 128);
+      row.subtitle =
+        section.subtitle == null || section.subtitle === ''
+          ? null
+          : String(section.subtitle).slice(0, 255);
+      row.configJson = this.resolveConfigJsonForUpsert(
+        section.sectionKey as StorefrontHomeSectionKey,
+        section.config,
+        row.configJson,
+      );
+      row.startAt = this.parseOptionalDate(section.startAt);
+      row.endAt = this.parseOptionalDate(section.endAt);
+      row.updatedAt = now;
+
+      await repo.save(row);
+    }
+  }
+
+  private enqueueHomepagePublish<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.homepagePublishTail.then(() => work());
+    this.homepagePublishTail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   /**
@@ -585,6 +724,18 @@ export class StorefrontHomeService {
               : 6,
         };
       }
+      case 'paste_link': {
+        const ctaLabel = String(raw.ctaLabel || '').trim().slice(0, 80);
+        return ctaLabel ? { ctaLabel } : {};
+      }
+      case 'featured_brands':
+        return normalizeFeaturedBrandsConfig(raw);
+      case 'site_header':
+        return normalizeSiteHeaderConfig(raw);
+      case 'site_intro':
+        return normalizeSiteIntroConfig(raw);
+      case 'site_footer':
+        return normalizeSiteFooterConfig(raw);
       default:
         return {};
     }
@@ -702,6 +853,8 @@ export class StorefrontHomeService {
             categoryId: p.categoryId,
             imageUrl: this.toStaticUrl(p.imagePath),
             objectPosition: p.objectPosition,
+            ...(p.label ? { label: p.label } : {}),
+            ...(p.hidden ? { hidden: true } : {}),
             ...(p.preferredProductId != null &&
             activeProductIds.has(p.preferredProductId)
               ? { preferredProductId: p.preferredProductId }
@@ -748,7 +901,8 @@ export class StorefrontHomeService {
       }
       case 'category_chapters': {
         const c = normalizeCategoryChaptersConfig(cfg);
-        const chapters = (c.chapters ?? [])
+        const managedChapters = normalizeCategoryChaptersList(cfg);
+        const chapters = (managedChapters ?? [])
           .filter((chapter) =>
             activeCanonicalCategoryIds.has(chapter.categoryId),
           )
@@ -774,10 +928,7 @@ export class StorefrontHomeService {
               chapterEnd,
               now,
             );
-            const source =
-              chapter.source === 'curated' && productIds.length === 0
-                ? 'newest'
-                : (chapter.source ?? 'newest');
+            const source = chapter.source ?? 'newest';
             return {
               enabled: chapter.enabled !== false && chapterScheduled,
               order: chapter.order ?? index + 1,
@@ -785,6 +936,12 @@ export class StorefrontHomeService {
               title: chapter.title,
               subtitle: chapter.subtitle,
               imageUrl: this.toStaticUrl(chapter.imagePath),
+              desktopImageUrl: this.toStaticUrl(
+                chapter.desktopImagePath || chapter.imagePath,
+              ),
+              mobileImageUrl: this.toStaticUrl(
+                chapter.mobileImagePath || chapter.imagePath,
+              ),
               preferredProductId,
               source,
               productIds,
@@ -799,14 +956,83 @@ export class StorefrontHomeService {
           .sort((a, b) => a.order - b.order);
         base.categoryChapters = {
           limit: c.limit ?? 6,
+          ...(managedChapters !== undefined
+            ? { chaptersMode: 'managed' as const }
+            : {}),
           chapters,
         };
         return base;
       }
+      case 'paste_link': {
+        const ctaLabel = String(cfg.ctaLabel || '').trim().slice(0, 80);
+        if (ctaLabel) base.ctaLabel = ctaLabel;
+        return base;
+      }
+      case 'featured_brands': {
+        const brands = normalizeFeaturedBrandsConfig(cfg).brands;
+        if (Array.isArray(brands)) {
+          base.brands = brands.map((brand) => ({
+            brandId: Number(brand.brandId),
+            logoUrl: this.toStaticUrl(
+              typeof brand.logoPath === 'string' ? brand.logoPath : undefined,
+            ),
+            order: Number(brand.order) || 0,
+            enabled: brand.enabled !== false,
+          }));
+        }
+        return base;
+      }
+      case 'site_header': {
+        const header = normalizeSiteHeaderConfig(cfg);
+        const links = Array.isArray(header.links)
+          ? (header.links as Array<{ label: string; href: string }>)
+          : [];
+        base.header = {
+          logoUrl: this.toStaticUrl(
+            typeof header.logoPath === 'string' ? header.logoPath : undefined,
+          ),
+          ...(typeof header.wordmark === 'string'
+            ? { wordmark: header.wordmark }
+            : {}),
+          links,
+        };
+        return base;
+      }
+      case 'site_intro': {
+        const intro = normalizeSiteIntroConfig(cfg);
+        base.intro = {
+          ...(typeof intro.kicker === 'string' ? { kicker: intro.kicker } : {}),
+          imageUrl: this.toStaticUrl(
+            typeof intro.imagePath === 'string' ? intro.imagePath : undefined,
+          ),
+          ...(Array.isArray(intro.links)
+            ? { links: intro.links as Array<{ label: string; href: string }> }
+            : {}),
+        };
+        return base;
+      }
+      case 'site_footer': {
+        const footer = normalizeSiteFooterConfig(cfg);
+        base.footer = {
+          logoUrl: this.toStaticUrl(
+            typeof footer.logoPath === 'string' ? footer.logoPath : undefined,
+          ),
+          ...(Array.isArray(footer.groups)
+            ? {
+                groups: footer.groups as Array<{
+                  title: string;
+                  links: Array<{ label: string; href: string }>;
+                }>,
+              }
+            : {}),
+          social: Array.isArray(footer.social)
+            ? (footer.social as Array<{ label: string; href: string }>)
+            : [],
+        };
+        return base;
+      }
       case 'quick_guide':
-      case 'paste_link':
       case 'link_shopping':
-      case 'featured_brands':
         return base;
       default:
         return null;
@@ -866,6 +1092,182 @@ export class StorefrontHomeService {
       select: ['id'],
     });
     return new Set(rows.map((r) => r.id));
+  }
+
+  /**
+   * Replace the published repeatable arrangement in one transaction.
+   * Does not update or delete storefront_home_section.
+   * An empty list publishes an intentional empty body.
+   */
+  async publishHomeArrangement(instances: UpsertHomeInstanceDto[]) {
+    const repo = this.instanceRepo;
+    if (!repo) {
+      this.error.unprocessableEntity(['جدول چیدمان صفحه در این محیط آماده نیست']);
+    }
+    const arrangement = this.requireArrangement(instances);
+    const now = new Date();
+    await this.enqueueHomepagePublish(() =>
+      repo.manager.transaction(async (manager) => {
+        await this.writeArrangement(manager, arrangement, now);
+      }),
+    );
+    return this.readAdminArrangement();
+  }
+
+  private requireArrangement(instances: UpsertHomeInstanceDto[]): NormalizedHomeInstance[] {
+    if (!this.instanceRepo) {
+      this.error.unprocessableEntity(['جدول چیدمان صفحه در این محیط آماده نیست']);
+    }
+    const normalized = normalizeHomeArrangement(instances);
+    if (!('instances' in normalized)) {
+      this.error.unprocessableEntity([normalized.message]);
+    }
+    return normalized.instances;
+  }
+
+  private async writeArrangement(
+    manager: EntityManager,
+    instances: NormalizedHomeInstance[],
+    now: Date,
+  ) {
+    const instanceRepo = manager.getRepository(StorefrontHomeSectionInstanceEntity);
+    await instanceRepo
+      .createQueryBuilder()
+      .delete()
+      .from(StorefrontHomeSectionInstanceEntity)
+      .execute();
+    const marker = instanceRepo.create({
+      instanceKey: HOME_LAYOUT_MARKER_KEY,
+      sectionType: HOME_LAYOUT_SECTION_TYPE,
+      enabled: true,
+      displayOrder: 0,
+      title: null,
+      subtitle: null,
+      configJson: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await instanceRepo.save(marker);
+    if (instances.length) {
+      await instanceRepo.save(
+        instances.map((row) =>
+          instanceRepo.create({
+            instanceKey: row.instanceKey,
+            sectionType: row.sectionType,
+            enabled: row.enabled,
+            displayOrder: row.displayOrder,
+            title: row.title,
+            subtitle: row.subtitle,
+            configJson: JSON.stringify(row.config),
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ),
+      );
+    }
+  }
+
+  private async readAdminArrangement() {
+    if (!this.instanceRepo) {
+      return { managed: false, instances: [] as AdminArrangementInstance[] };
+    }
+    const rows = await this.instanceRepo.find({
+      order: { displayOrder: 'ASC', id: 'ASC' },
+    });
+    const content = this.publishedContentInstances(rows);
+    if (!content) return { managed: false, instances: [] as AdminArrangementInstance[] };
+    return {
+      managed: true,
+      instances: content
+        .slice()
+        .sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id)
+        .map((row) => ({
+          instanceKey: row.instanceKey,
+          sectionType: row.sectionType,
+          enabled: Boolean(row.enabled),
+          displayOrder: row.displayOrder,
+          title: row.title,
+          subtitle: row.subtitle,
+          config: parseJsonObject(row.configJson),
+        })),
+    };
+  }
+
+  /**
+   * null means no published arrangement. An empty array is intentional.
+   */
+  private publishedContentInstances(
+    rows: StorefrontHomeSectionInstanceEntity[] | undefined,
+  ): StorefrontHomeSectionInstanceEntity[] | null {
+    if (!rows) return null;
+    if (!rows.some((row) => row.instanceKey === HOME_LAYOUT_MARKER_KEY)) {
+      return null;
+    }
+    return rows.filter(
+      (row) =>
+        row.instanceKey !== HOME_LAYOUT_MARKER_KEY &&
+        row.sectionType !== HOME_LAYOUT_SECTION_TYPE,
+    );
+  }
+
+  private previewLayoutRows(
+    instances: UpsertHomeInstanceDto[],
+  ): StorefrontHomeSectionInstanceEntity[] {
+    const normalized = normalizeHomeArrangement(instances);
+    if (!('instances' in normalized)) {
+      this.error.unprocessableEntity([normalized.message]);
+    }
+    const now = new Date(0);
+    const marker = {
+      id: 0,
+      instanceKey: HOME_LAYOUT_MARKER_KEY,
+      sectionType: HOME_LAYOUT_SECTION_TYPE,
+      enabled: true,
+      displayOrder: 0,
+      title: null,
+      subtitle: null,
+      configJson: null,
+      createdAt: now,
+      updatedAt: null,
+    } as StorefrontHomeSectionInstanceEntity;
+    return [
+      marker,
+      ...normalized.instances.map(
+        (row, index) =>
+          ({
+            id: index + 1,
+            instanceKey: row.instanceKey,
+            sectionType: row.sectionType,
+            enabled: row.enabled,
+            displayOrder: row.displayOrder,
+            title: row.title,
+            subtitle: row.subtitle,
+            configJson: JSON.stringify(row.config),
+            createdAt: now,
+            updatedAt: null,
+          }) as StorefrontHomeSectionInstanceEntity,
+      ),
+    ];
+  }
+
+  private instanceToSectionRow(
+    row: StorefrontHomeSectionInstanceEntity,
+    index: number,
+  ): StorefrontHomeSectionEntity {
+    const sectionType = row.sectionType as HomeRepeatableSectionType;
+    return {
+      id: 100000 + index,
+      sectionKey: HOME_INSTANCE_EDITOR_KEYS[sectionType] || 'campaign',
+      enabled: Boolean(row.enabled),
+      displayOrder: row.displayOrder,
+      title: row.title,
+      subtitle: row.subtitle,
+      configJson: row.configJson,
+      startAt: null,
+      endAt: null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    } as StorefrontHomeSectionEntity;
   }
 
   /** Category chapters reference canonical taxonomy (storefront navigation). */

@@ -868,6 +868,7 @@ export class CatalogController {
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
     @Query('attrs') attrs?: string,
+    @Query('facets') facets?: string,
   ) {
     if (
       String(scope || '') === 'catalog' &&
@@ -897,6 +898,7 @@ export class CatalogController {
       minPrice,
       maxPrice,
       attrs,
+      facets,
     });
     if (parsed.ok === false) {
       throw new BadRequestException(parsed.error.message);

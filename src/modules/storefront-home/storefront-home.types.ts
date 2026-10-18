@@ -14,6 +14,9 @@ export const STOREFRONT_HOME_SECTION_KEYS = [
   'discounts',
   'category_chapters',
   'paste_link',
+  'site_header',
+  'site_intro',
+  'site_footer',
 ] as const;
 
 /** Approved HOME-3 surface washes — presentation hint only. */
@@ -58,6 +61,9 @@ export type CategoryPresentationConfig = {
   imagePath?: string;
   preferredProductId?: number;
   objectPosition?: string;
+  /** Circle label on the homepage. Catalog name stays authoritative when empty. */
+  label?: string;
+  hidden?: boolean;
 };
 
 export type CampaignSlideConfig = {
@@ -133,6 +139,10 @@ export type CategoryChapterConfig = {
   title?: string;
   subtitle?: string;
   imagePath?: string;
+  /** Desktop banner. Empty falls back to imagePath, then the autumn photo. */
+  desktopImagePath?: string;
+  /** Mobile banner. Empty falls back to imagePath, then the desktop image. */
+  mobileImagePath?: string;
   preferredProductId?: number;
   source?: HomeRailSource;
   productIds?: number[];
@@ -201,6 +211,20 @@ export type PublicCategoryPresentationDto = {
   objectPosition?: string;
   /** Catalog product used for presentation imagery when no upload override. */
   preferredProductId?: number;
+  label?: string;
+  hidden?: boolean;
+};
+
+export type PublicHomeLinkDto = {
+  label: string;
+  href: string;
+};
+
+export type PublicHomeBrandOverrideDto = {
+  brandId: number;
+  logoUrl: string | null;
+  order: number;
+  enabled: boolean;
 };
 
 export type PublicHomeSectionDto = {
@@ -209,6 +233,24 @@ export type PublicHomeSectionDto = {
   order: number;
   title?: string;
   subtitle?: string;
+  /** Trendyol bar button when the Admin set one. */
+  ctaLabel?: string;
+  header?: {
+    logoUrl: string | null;
+    wordmark?: string;
+    links: PublicHomeLinkDto[];
+  };
+  intro?: {
+    kicker?: string;
+    imageUrl: string | null;
+    links?: PublicHomeLinkDto[];
+  };
+  footer?: {
+    logoUrl: string | null;
+    groups?: Array<{ title: string; links: PublicHomeLinkDto[] }>;
+    social: PublicHomeLinkDto[];
+  };
+  brands?: PublicHomeBrandOverrideDto[];
   hero?: PublicHomeHeroDto;
   rail?: PublicHomeRailDto;
   categories?: {
@@ -230,6 +272,11 @@ export type PublicHomeSectionDto = {
   spotlight?: { limit: number };
   categoryChapters?: {
     limit: number;
+    /**
+     * `managed` — Admin sent an explicit `chapters` array (possibly empty).
+     * Omitted — legacy/default config (including `{}`); clients may auto-fill.
+     */
+    chaptersMode?: 'managed';
     chapters: Array<{
       enabled: boolean;
       order: number;
@@ -237,6 +284,8 @@ export type PublicHomeSectionDto = {
       title?: string;
       subtitle?: string;
       imageUrl: string | null;
+      desktopImageUrl: string | null;
+      mobileImageUrl: string | null;
       objectPosition?: string;
       preferredProductId?: number;
       source: HomeRailSource;
@@ -251,6 +300,27 @@ export type PublicHomeSectionDto = {
   };
 };
 
+export type PublicHomeInstanceDto = {
+  instanceKey: string;
+  sectionType: string;
+  enabled: boolean;
+  order: number;
+  title?: string;
+  subtitle?: string;
+  section: PublicHomeSectionDto;
+};
+
+export type PublicHomeLayoutDto = {
+  managed: true;
+  instances: PublicHomeInstanceDto[];
+};
+
 export type PublicStorefrontHomeDto = {
   sections: PublicHomeSectionDto[];
+  /**
+   * Present only after an arrangement has been published.
+   * `instances: []` is an intentional empty body and must not fall back
+   * to singleton sections.
+   */
+  layout?: PublicHomeLayoutDto;
 };

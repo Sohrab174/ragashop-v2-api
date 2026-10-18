@@ -373,6 +373,11 @@ export function normalizeCategoriesConfig(
           typeof row.objectPosition === 'string'
             ? row.objectPosition.slice(0, 32)
             : undefined,
+        label:
+          typeof row.label === 'string' && row.label.trim()
+            ? row.label.trim().slice(0, 80)
+            : undefined,
+        hidden: row.hidden === true ? true : undefined,
       };
     })
     .filter(Boolean) as CategoriesSectionConfig['presentation'];
@@ -434,6 +439,8 @@ function normalizeCategoryChapter(
     subtitle:
       typeof row.subtitle === 'string' ? row.subtitle.slice(0, 255) : undefined,
     imagePath: sanitizeHomeUploadPath(row.imagePath),
+    desktopImagePath: sanitizeHomeUploadPath(row.desktopImagePath),
+    mobileImagePath: sanitizeHomeUploadPath(row.mobileImagePath),
     preferredProductId: parsePositiveInt(row.preferredProductId),
     source,
     productIds: parseProductIdList(row.productIds, 24),
@@ -447,18 +454,29 @@ function normalizeCategoryChapter(
   };
 }
 
+/**
+ * `chapters` is omitted when the key is absent or not an array.
+ * An empty array is kept so legacy `{}` is not confused with managed-empty.
+ */
+export function normalizeCategoryChaptersList(
+  raw: Record<string, unknown>,
+): CategoryChapterConfig[] | undefined {
+  if (!Object.prototype.hasOwnProperty.call(raw, 'chapters')) return undefined;
+  if (!Array.isArray(raw.chapters)) return undefined;
+  const chapters = raw.chapters
+    .map(normalizeCategoryChapter)
+    .filter(Boolean) as CategoryChapterConfig[];
+  return chapters.slice(0, 12);
+}
+
 export function normalizeCategoryChaptersConfig(
   raw: Record<string, unknown>,
 ): CategoryChaptersSectionConfig {
   const limit = parsePositiveInt(raw.limit);
-  const chaptersRaw = Array.isArray(raw.chapters) ? raw.chapters : [];
-  const chapters = chaptersRaw
-    .map(normalizeCategoryChapter)
-    .filter(Boolean) as CategoryChapterConfig[];
-
+  const chapters = normalizeCategoryChaptersList(raw);
   return {
     limit: limit != null ? Math.min(limit, 12) : undefined,
-    chapters: chapters.length ? chapters.slice(0, 12) : undefined,
+    ...(chapters !== undefined ? { chapters } : {}),
   };
 }
 
@@ -469,11 +487,138 @@ export function assertSectionKey(value: unknown): StorefrontHomeSectionKey {
   return value;
 }
 
-/** Fix sanitizeStorefrontHref optional fallback misuse for optional fields. */
+/** Relative storefront paths only. Empty input stays empty. */
 export function optionalStorefrontHref(raw: unknown): string | undefined {
   if (raw == null || raw === '') return undefined;
   const href = sanitizeStorefrontHref(raw, '');
   return href || undefined;
+}
+
+/** Relative storefront paths, or https links for social profiles. */
+export function sanitizeSocialHref(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('/')) {
+    const href = optionalStorefrontHref(trimmed);
+    return href;
+  }
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'https:') return undefined;
+    if (url.username || url.password) return undefined;
+    return url.toString().slice(0, 300);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeLinkList(
+  raw: unknown,
+  max: number,
+  hrefOf: (value: unknown) => string | undefined,
+): Array<{ label: string; href: string }> {
+  if (!Array.isArray(raw)) return [];
+  const links: Array<{ label: string; href: string }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const label = typeof row.label === 'string' ? row.label.trim().slice(0, 80) : '';
+    const href = hrefOf(row.href);
+    if (!label || !href) continue;
+    links.push({ label, href });
+    if (links.length >= max) break;
+  }
+  return links;
+}
+
+export function normalizeSiteHeaderConfig(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const logoPath = sanitizeHomeUploadPath(raw.logoPath);
+  const wordmark =
+    typeof raw.wordmark === 'string' && raw.wordmark.trim()
+      ? raw.wordmark.trim().slice(0, 40)
+      : undefined;
+  const links = normalizeLinkList(raw.links, 6, (href) =>
+    optionalStorefrontHref(href),
+  );
+  return {
+    ...(logoPath ? { logoPath } : {}),
+    ...(wordmark ? { wordmark } : {}),
+    ...(links.length ? { links } : {}),
+  };
+}
+
+export function normalizeSiteIntroConfig(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const kicker =
+    typeof raw.kicker === 'string' && raw.kicker.trim()
+      ? raw.kicker.trim().slice(0, 40)
+      : undefined;
+  const imagePath = sanitizeHomeUploadPath(raw.imagePath);
+  const links = normalizeLinkList(raw.links, 8, (href) =>
+    optionalStorefrontHref(href),
+  );
+  return {
+    ...(kicker ? { kicker } : {}),
+    ...(imagePath ? { imagePath } : {}),
+    ...(Object.prototype.hasOwnProperty.call(raw, 'links') ? { links } : {}),
+  };
+}
+
+export function normalizeSiteFooterConfig(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const logoPath = sanitizeHomeUploadPath(raw.logoPath);
+  const groups = Array.isArray(raw.groups)
+    ? raw.groups.slice(0, 4).flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const row = item as Record<string, unknown>;
+        const title =
+          typeof row.title === 'string' ? row.title.trim().slice(0, 80) : '';
+        if (!title) return [];
+        return [
+          {
+            title,
+            links: normalizeLinkList(row.links, 8, (href) =>
+              optionalStorefrontHref(href),
+            ),
+          },
+        ];
+      })
+    : undefined;
+  const social = normalizeLinkList(raw.social, 6, sanitizeSocialHref);
+  return {
+    ...(logoPath ? { logoPath } : {}),
+    ...(groups ? { groups } : {}),
+    ...(social.length ? { social } : {}),
+  };
+}
+
+export function normalizeFeaturedBrandsConfig(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!Object.prototype.hasOwnProperty.call(raw, 'brands')) return {};
+  if (!Array.isArray(raw.brands)) return {};
+  const brands = raw.brands.slice(0, 24).flatMap((item, index) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    const brandId = parsePositiveInt(row.brandId);
+    if (brandId == null) return [];
+    const order = parsePositiveInt(row.order) ?? index + 1;
+    const logoPath = sanitizeHomeUploadPath(row.logoPath);
+    return [
+      {
+        brandId,
+        order,
+        enabled: row.enabled === false ? false : true,
+        ...(logoPath ? { logoPath } : {}),
+      },
+    ];
+  });
+  return { brands };
 }
 
 /** Sections with no Admin-editable config schema. */
@@ -544,8 +689,11 @@ export const KNOWN_HOME_CONFIG_KEYS: Record<
   category_spotlight: ['limit'],
   link_shopping: [],
   quick_guide: [],
-  featured_brands: [],
-  paste_link: [],
+  featured_brands: ['brands'],
+  paste_link: ['ctaLabel'],
+  site_header: ['logoPath', 'wordmark', 'links'],
+  site_intro: ['kicker', 'imagePath', 'links'],
+  site_footer: ['logoPath', 'groups', 'social'],
 };
 
 export function compactConfigObject(
@@ -598,6 +746,8 @@ const PRESENTATION_KNOWN_KEYS = [
   'imagePath',
   'preferredProductId',
   'objectPosition',
+  'label',
+  'hidden',
 ] as const;
 
 const CHAPTER_KNOWN_KEYS = [
@@ -607,6 +757,8 @@ const CHAPTER_KNOWN_KEYS = [
   'title',
   'subtitle',
   'imagePath',
+  'desktopImagePath',
+  'mobileImagePath',
   'preferredProductId',
   'source',
   'productIds',
@@ -641,6 +793,13 @@ export function mergeHomeConfigForPersistence(
     Object.prototype.hasOwnProperty.call(previous || {}, 'slides')
   ) {
     out.slides = previous.slides;
+  }
+  if (
+    key === 'category_chapters' &&
+    !Object.prototype.hasOwnProperty.call(normalized, 'chapters') &&
+    Object.prototype.hasOwnProperty.call(previous || {}, 'chapters')
+  ) {
+    out.chapters = previous.chapters;
   }
 
   if (key === 'categories' && Array.isArray(out.presentation)) {

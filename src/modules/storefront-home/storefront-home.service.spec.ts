@@ -444,6 +444,57 @@ describe('StorefrontHomeService config persistence', () => {
     });
   });
 
+  it('stores a Trendyol button label and can clear it', async () => {
+    const { service, store } = buildPersistingService([
+      makeRow({ sectionKey: 'paste_link', configJson: '{"slideTheme":"legacy"}' }),
+    ]);
+
+    await service.upsertAdminHome([
+      {
+        sectionKey: 'paste_link',
+        enabled: true,
+        displayOrder: 14,
+        title: 'خرید با لینک',
+        config: { ctaLabel: 'ادامه' },
+      } as any,
+    ]);
+
+    expect(JSON.parse(store.get('paste_link').configJson)).toEqual({
+      ctaLabel: 'ادامه',
+      slideTheme: 'legacy',
+    });
+
+    await service.upsertAdminHome([
+      {
+        sectionKey: 'paste_link',
+        enabled: true,
+        displayOrder: 14,
+        config: { ctaLabel: '' },
+      } as any,
+    ]);
+
+    expect(JSON.parse(store.get('paste_link').configJson)).toEqual({
+      slideTheme: 'legacy',
+    });
+
+    const mapped = await service.mapAdminSectionsToPublic([
+      {
+        sectionKey: 'paste_link',
+        enabled: true,
+        displayOrder: 14,
+        title: 'خرید با لینک',
+        subtitle: 'آدرس ترندیول را بچسبانید',
+        config: { ctaLabel: 'ادامه' },
+      } as any,
+    ]);
+    expect(mapped.sections[0]).toMatchObject({
+      key: 'paste_link',
+      title: 'خرید با لینک',
+      subtitle: 'آدرس ترندیول را بچسبانید',
+      ctaLabel: 'ادامه',
+    });
+  });
+
   it('leaves an unrelated section untouched', async () => {
     const { service, store, sectionRepo } = buildPersistingService([
       makeRow({
@@ -637,11 +688,19 @@ describe('StorefrontHomeService unpublished preview sessions', () => {
     );
     expect(payload.sections[0].hero?.title).toBe('Tok');
 
+    // Same nonce may be redeemed again (iframe cookie retry). Wrong nonce cannot.
     expect(() =>
       service.redeemHomePreviewHandoff(
         created.token,
         created.credential,
         created.handoffNonce,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      service.redeemHomePreviewHandoff(
+        created.token,
+        created.credential,
+        'f'.repeat(32),
       ),
     ).toThrow(/مجاز نیست/);
     expect(() => service.getHomePreviewSession(created.token, '')).toThrow(

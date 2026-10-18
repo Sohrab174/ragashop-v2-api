@@ -1,6 +1,7 @@
 import {
   buildStorefrontPlpFacetCacheKey,
   clearStorefrontPlpFacetCache,
+  coalesceStorefrontPlpFacetWork,
   getStorefrontPlpFacetCache,
   setStorefrontPlpFacetCache,
   storefrontPlpFacetCacheSize,
@@ -75,6 +76,21 @@ describe('storefront-plp-facet-cache', () => {
       if (prev == null) delete process.env.PLP_FACET_CACHE_DISABLED;
       else process.env.PLP_FACET_CACHE_DISABLED = prev;
     }
+  });
+
+  it('runs one facet build when identical keys overlap', async () => {
+    let builds = 0;
+    const first = coalesceStorefrontPlpFacetWork('same', async () => {
+      builds += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return emptyPayload();
+    });
+    const second = coalesceStorefrontPlpFacetWork('same', async () => {
+      builds += 1;
+      return emptyPayload();
+    });
+    await Promise.all([first, second]);
+    expect(builds).toBe(1);
   });
 
   it('evicts oldest entries when over max size', () => {
