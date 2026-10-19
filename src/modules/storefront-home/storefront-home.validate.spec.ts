@@ -6,6 +6,7 @@ import {
   normalizeCampaignSlides,
   normalizeCategoryChaptersConfig,
   normalizeCategoryChaptersList,
+  normalizeFeaturedBrandsConfig,
   optionalStorefrontHref,
   parseProductIdList,
   resolveCampaignHref,
@@ -137,6 +138,29 @@ describe('storefront-home.validate', () => {
         { chapters: [{ categoryId: 1 }] },
       ),
     ).toEqual({ chapters: [] });
+  });
+
+  it('keeps featured brands automatic unless an intentional empty list is sent', () => {
+    expect(normalizeFeaturedBrandsConfig({})).toEqual({});
+    expect(normalizeFeaturedBrandsConfig({ brands: [] })).toEqual({
+      brands: [],
+    });
+    expect(
+      normalizeFeaturedBrandsConfig({
+        brands: [{ enabled: true, order: 1 }],
+      }),
+    ).toEqual({});
+    expect(
+      normalizeFeaturedBrandsConfig({
+        brands: [
+          { brandId: 9, enabled: true, order: 1, logoPath: '/home/a.webp' },
+        ],
+      }),
+    ).toEqual({
+      brands: [
+        { brandId: 9, order: 1, enabled: true, logoPath: '/home/a.webp' },
+      ],
+    });
   });
 
   it('keeps legacy {} chapters unmanaged and preserves an explicit empty list', () => {

@@ -618,6 +618,23 @@ export function normalizeFeaturedBrandsConfig(
       },
     ];
   });
+  /**
+   * `brands: []` is an intentional managed-empty list.
+   * Draft rows without a catalog brandId must not collapse into that empty
+   * list and silently clear automatic catalog brands on preview/publish.
+   */
+  if (
+    brands.length === 0 &&
+    raw.brands.length > 0 &&
+    !raw.brands.some(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        parsePositiveInt((item as Record<string, unknown>).brandId) != null,
+    )
+  ) {
+    return {};
+  }
   return { brands };
 }
 
