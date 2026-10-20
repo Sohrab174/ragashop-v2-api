@@ -36,7 +36,7 @@ export function sanitizeClientErrorDetails(
     if (kept >= MAX_DETAIL_KEYS) break;
     if (!DETAIL_KEY_PATTERN.test(key) || UNSAFE_DETAIL_KEY.test(key)) continue;
     if (raw === null || typeof raw === 'boolean') {
-      out[key] = raw;
+      out[key] = raw as any;
     } else if (typeof raw === 'number') {
       if (!Number.isFinite(raw)) continue;
       out[key] = raw as any;
