@@ -85,6 +85,11 @@ export class CommonController {
       return this.error.methodNotAllowed();
     }
 
+    // Retained masters are private (Admin recrop only) — never serve publicly.
+    if (path === 'home-masters' || String(path || '').includes('..')) {
+      return this.error.notFound(['فایل پیدا نشد']);
+    }
+
     // Homepage uploads: only raster extensions; never execute as active content.
     if (path === 'home') {
       const safeName = String(filename || '');

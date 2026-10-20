@@ -29,6 +29,10 @@ import {
   UpsertStorefrontHomeDto,
 } from './dto/upsert-storefront-home.dto';
 import { StorefrontHomeService } from './storefront-home.service';
+import {
+  assertHomeMasterBodyFields,
+  homeMasterMulterOptions,
+} from './home-master-multer';
 
 @ApiTags('Storefront Home')
 @Controller('storefront/home')
@@ -159,6 +163,20 @@ export class StorefrontHomeController {
   }
 
   /**
+   * GET /storefront/home/admin/image-retention-report
+   * Dry-run only — never deletes. Lists referenced vs candidate orphan files.
+   */
+  @Get('admin/image-retention-report')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_manage)
+  async imageRetentionReport() {
+    const data = await this.homeService.reportHomeImageRetentionDryRun();
+    return successfulResult(['گزارش نگهداری تصویر (فقط گزارش، بدون حذف)'], data);
+  }
+
+  /**
    * PUT /storefront/home/admin/arrangement
    * Arrangement-only replace. The Admin publish button uses PUT /admin so
    * sections and instances commit together.
@@ -199,5 +217,65 @@ export class StorefrontHomeController {
   async uploadImage(@UploadedFile() file) {
     const data = await this.homeService.saveUploadedImage(file);
     return successfulResult(['تصویر آپلود شد'], data);
+  }
+
+  /**
+   * POST /storefront/home/image/admin/master
+   * One source image → retained master + desktop/mobile(+wide) Concept D WebP.
+   * Higher size / multipart field limits apply only here (legacy stays at 1 MB).
+   *
+   * multipart fields:
+   * - file (required)
+   * - profile: hero | category | pets (default hero)
+   * - focusDesktopX / focusDesktopY / focusMobileX / focusMobileY (0–100)
+   */
+  @Post('image/admin/master')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_manage)
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', homeMasterMulterOptions()))
+  async uploadMasterImage(
+    @UploadedFile() file,
+    @Body()
+    body: {
+      profile?: string;
+      focusDesktopX?: string;
+      focusDesktopY?: string;
+      focusMobileX?: string;
+      focusMobileY?: string;
+    },
+  ) {
+    assertHomeMasterBodyFields(body as Record<string, unknown>);
+    const data = await this.homeService.saveMasterUploadedImage(file, body || {});
+    return successfulResult(['تصویر اصلی پردازش شد'], data);
+  }
+
+  /**
+   * POST /storefront/home/image/admin/recrop
+   * Re-generate desktop/mobile(+wide) WebP from a retained master (no re-upload).
+   * JSON body — no multipart.
+   */
+  @Post('image/admin/recrop')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_manage)
+  async recropMasterImage(
+    @Body()
+    body: {
+      masterPath?: string;
+      profile?: string;
+      focusDesktopX?: string | number;
+      focusDesktopY?: string | number;
+      focusMobileX?: string | number;
+      focusMobileY?: string | number;
+      focusMobileWideX?: string | number;
+      focusMobileWideY?: string | number;
+    },
+  ) {
+    const data = await this.homeService.recropMasterImage(body || {});
+    return successfulResult(['برش تصویر اعمال شد'], data);
   }
 }

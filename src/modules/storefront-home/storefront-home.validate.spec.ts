@@ -10,7 +10,10 @@ import {
   optionalStorefrontHref,
   parseProductIdList,
   resolveCampaignHref,
+  sanitizeHomeImageProfile,
+  sanitizeHomeMasterConfigPath,
   sanitizeHomeUploadPath,
+  sanitizePreviousImageSnapshot,
   sanitizeStorefrontHref,
 } from './storefront-home.validate';
 
@@ -28,6 +31,163 @@ describe('storefront-home.validate', () => {
     expect(sanitizeHomeUploadPath('/home/abc.webp')).toBe('/home/abc.webp');
     expect(sanitizeHomeUploadPath('/products/x.jpg')).toBeUndefined();
     expect(sanitizeHomeUploadPath('/home/../secret')).toBeUndefined();
+  });
+
+  it('accepts only /home-masters retained paths', () => {
+    expect(sanitizeHomeMasterConfigPath('/home-masters/a.jpg')).toBe(
+      '/home-masters/a.jpg',
+    );
+    expect(sanitizeHomeMasterConfigPath('/home/a.jpg')).toBeUndefined();
+    expect(sanitizeHomeMasterConfigPath('/home-masters/../x')).toBeUndefined();
+  });
+
+  it('preserves complete previousImage metadata and rejects unsafe paths', () => {
+    const snap = sanitizePreviousImageSnapshot({
+      desktopImagePath: '/home/d.webp',
+      mobileImagePath: '/home/m.webp',
+      mobileWideImagePath: '/home/w.webp',
+      masterImagePath: '/home-masters/src.jpg',
+      masterPreviewPath: '/home/p.webp',
+      imageProfile: 'category',
+      objectPositionDesktop: '12% 34%',
+      objectPositionMobile: '56% 78%',
+      evil: '/etc/passwd',
+      imagePath: '/products/nope.jpg',
+    });
+    expect(snap).toEqual({
+      desktopImagePath: '/home/d.webp',
+      mobileImagePath: '/home/m.webp',
+      mobileWideImagePath: '/home/w.webp',
+      masterImagePath: '/home-masters/src.jpg',
+      masterPreviewPath: '/home/p.webp',
+      imageProfile: 'category',
+      objectPositionDesktop: '12% 34%',
+      objectPositionMobile: '56% 78%',
+      imagePath: undefined,
+    });
+    expect(
+      sanitizePreviousImageSnapshot({
+        desktopImagePath: '/home/../secret.webp',
+        masterImagePath: '/home/not-master.webp',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('keeps legacy previousImage snapshots with fewer fields', () => {
+    expect(
+      sanitizePreviousImageSnapshot({
+        desktopImagePath: '/home/old.webp',
+        objectPositionDesktop: '10% 20%',
+      }),
+    ).toEqual({
+      desktopImagePath: '/home/old.webp',
+      mobileImagePath: undefined,
+      mobileWideImagePath: undefined,
+      imagePath: undefined,
+      masterImagePath: undefined,
+      masterPreviewPath: undefined,
+      imageProfile: undefined,
+      objectPositionDesktop: '10% 20%',
+      objectPositionMobile: undefined,
+    });
+  });
+
+  it('coerces invalid hero chapter profiles to category', () => {
+    expect(sanitizeHomeImageProfile('hero', { allowHero: false })).toBe(
+      'category',
+    );
+    expect(sanitizeHomeImageProfile('hero', { allowHero: true })).toBe('hero');
+    expect(sanitizeHomeImageProfile('pets', { allowHero: false })).toBe('pets');
+    const cfg = normalizeCategoryChaptersConfig({
+      chapters: [
+        {
+          categoryId: 14,
+          imageProfile: 'hero',
+          masterImagePath: '/home-masters/m.jpg',
+          previousImage: {
+            desktopImagePath: '/home/old.webp',
+            masterImagePath: '/home-masters/old.jpg',
+            imageProfile: 'hero',
+          },
+        },
+      ],
+    });
+    expect(cfg.chapters?.[0]?.imageProfile).toBe('category');
+    expect(cfg.chapters?.[0]?.previousImage?.imageProfile).toBe('category');
+    expect(cfg.chapters?.[0]?.masterImagePath).toBe('/home-masters/m.jpg');
+    expect(cfg.chapters?.[0]?.previousImage?.masterImagePath).toBe(
+      '/home-masters/old.jpg',
+    );
+  });
+
+  it('round-trips chapter image-manager fields through normalize + merge', () => {
+    const normalized = normalizeCategoryChaptersConfig({
+      chapters: [
+        {
+          categoryId: 99,
+          desktopImagePath: '/home/new-d.webp',
+          mobileImagePath: '/home/new-m.webp',
+          mobileWideImagePath: '/home/new-w.webp',
+          masterImagePath: '/home-masters/new.jpg',
+          masterPreviewPath: '/home/new-p.webp',
+          imageProfile: 'pets',
+          objectPositionDesktop: '11% 22%',
+          objectPositionMobile: '33% 44%',
+          previousImage: {
+            desktopImagePath: '/home/old-d.webp',
+            mobileImagePath: '/home/old-m.webp',
+            mobileWideImagePath: '/home/old-w.webp',
+            masterImagePath: '/home-masters/old.jpg',
+            masterPreviewPath: '/home/old-p.webp',
+            imageProfile: 'category',
+            objectPositionDesktop: '1% 2%',
+            objectPositionMobile: '3% 4%',
+          },
+        },
+      ],
+    });
+    const merged = mergeHomeConfigForPersistence(
+      'category_chapters',
+      normalized as Record<string, unknown>,
+      {},
+    );
+    expect(merged.chapters).toEqual([
+      expect.objectContaining({
+        categoryId: 99,
+        desktopImagePath: '/home/new-d.webp',
+        mobileWideImagePath: '/home/new-w.webp',
+        masterImagePath: '/home-masters/new.jpg',
+        imageProfile: 'pets',
+        previousImage: expect.objectContaining({
+          masterImagePath: '/home-masters/old.jpg',
+          mobileWideImagePath: '/home/old-w.webp',
+          imageProfile: 'category',
+          objectPositionMobile: '3% 4%',
+        }),
+      }),
+    ]);
+  });
+
+  it('preserves hero profile on campaign slides', () => {
+    const slides = normalizeCampaignSlides({
+      slides: [
+        {
+          id: 's1',
+          title: 'هیرو',
+          desktopImagePath: '/home/h.webp',
+          imageProfile: 'hero',
+          masterImagePath: '/home-masters/h.jpg',
+          previousImage: {
+            desktopImagePath: '/home/prev.webp',
+            masterImagePath: '/home-masters/prev.jpg',
+            imageProfile: 'hero',
+          },
+        },
+      ],
+    });
+    expect(slides?.[0]?.imageProfile).toBe('hero');
+    expect(slides?.[0]?.previousImage?.imageProfile).toBe('hero');
+    expect(slides?.[0]?.masterImagePath).toBe('/home-masters/h.jpg');
   });
 
   it('parses product id lists and drops junk', () => {
@@ -119,6 +279,64 @@ describe('storefront-home.validate', () => {
     expect(cfg.chapters?.[0]?.categoryId).toBe(14);
     expect(cfg.chapters?.[0]?.surfaceTone).toBe('blush');
     expect(cfg.chapters?.[0]?.productIds).toEqual([1, 2]);
+  });
+
+  it('preserves chapter objectPositionDesktop and objectPositionMobile', () => {
+    const cfg = normalizeCategoryChaptersConfig({
+      chapters: [
+        {
+          categoryId: 14,
+          desktopImagePath: '/home/desk.webp',
+          mobileImagePath: '/home/mob.webp',
+          objectPositionDesktop: '42% 18%',
+          objectPositionMobile: '55% 30%',
+          hack: 'drop-me',
+        },
+      ],
+    });
+    expect(cfg.chapters?.[0]).toEqual(
+      expect.objectContaining({
+        categoryId: 14,
+        desktopImagePath: '/home/desk.webp',
+        mobileImagePath: '/home/mob.webp',
+        objectPositionDesktop: '42% 18%',
+        objectPositionMobile: '55% 30%',
+      }),
+    );
+    expect((cfg.chapters?.[0] as Record<string, unknown>).hack).toBeUndefined();
+
+    const merged = mergeHomeConfigForPersistence(
+      'category_chapters',
+      normalizeCategoryChaptersConfig({
+        chapters: [
+          {
+            categoryId: 14,
+            desktopImagePath: '/home/desk.webp',
+            objectPositionDesktop: '10% 20%',
+            objectPositionMobile: '30% 40%',
+          },
+        ],
+      }) as Record<string, unknown>,
+      {
+        chapters: [
+          {
+            categoryId: 14,
+            desktopImagePath: '/home/old.webp',
+            objectPositionDesktop: '1% 2%',
+            legacyNote: 'keep',
+          },
+        ],
+      },
+    );
+    expect(merged.chapters).toEqual([
+      expect.objectContaining({
+        categoryId: 14,
+        desktopImagePath: '/home/desk.webp',
+        objectPositionDesktop: '10% 20%',
+        objectPositionMobile: '30% 40%',
+        legacyNote: 'keep',
+      }),
+    ]);
   });
 
   it('treats legacy {} chapter config as unmanaged and keeps explicit empty chapters', () => {

@@ -81,6 +81,25 @@ export type CampaignSlideConfig = {
   preferredProductId?: number;
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  /** Retained private master for recrop (`/home-masters/...`). */
+  masterImagePath?: string;
+  /** Public low-res preview of the master for Admin focal UI. */
+  masterPreviewPath?: string;
+  imageProfile?: 'hero' | 'category' | 'pets';
+  previousImage?: PreviousHomeImageSnapshot;
+};
+
+/** One-step Admin restore snapshot (mirrors validate.PreviousHomeImageSnapshot). */
+export type PreviousHomeImageSnapshot = {
+  desktopImagePath?: string;
+  mobileImagePath?: string;
+  mobileWideImagePath?: string;
+  imagePath?: string;
+  masterImagePath?: string;
+  masterPreviewPath?: string;
+  imageProfile?: 'hero' | 'category' | 'pets';
+  objectPositionDesktop?: string;
+  objectPositionMobile?: string;
 };
 
 export type CampaignSectionConfig = {
@@ -94,6 +113,11 @@ export type CampaignSectionConfig = {
   galleryImageIndex?: number;
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  masterImagePath?: string;
+  masterPreviewPath?: string;
+  imageProfile?: 'hero' | 'category' | 'pets';
+  /** Immediate previous desktop/mobile + focal snapshot for Admin restore. */
+  previousImage?: PreviousHomeImageSnapshot;
   /**
    * Present only when Admin sent `slides` (including []).
    * Omitted means the legacy single campaign is still the hero.
@@ -144,6 +168,17 @@ export type CategoryChapterConfig = {
   /** Mobile banner. Empty falls back to imagePath, then the desktop image. */
   mobileImagePath?: string;
   preferredProductId?: number;
+  /** CSS object-position for the desktop banner frame. */
+  objectPositionDesktop?: string;
+  /** CSS object-position for the mobile banner frame. */
+  objectPositionMobile?: string;
+  masterImagePath?: string;
+  masterPreviewPath?: string;
+  /** Wide ≈2.15:1 mobile crop for odd-last Concept D banners. */
+  mobileWideImagePath?: string;
+  /** Master processing profile used for this chapter (category | pets only). */
+  imageProfile?: 'category' | 'pets';
+  previousImage?: PreviousHomeImageSnapshot;
   source?: HomeRailSource;
   productIds?: number[];
   limit?: number;
@@ -286,7 +321,12 @@ export type PublicHomeSectionDto = {
       imageUrl: string | null;
       desktopImageUrl: string | null;
       mobileImageUrl: string | null;
+      /** Wide ≈2.15:1 mobile asset for odd-last showcase banners. */
+      mobileWideImageUrl?: string | null;
+      /** @deprecated Prefer objectPositionDesktop; kept for older clients. */
       objectPosition?: string;
+      objectPositionDesktop?: string;
+      objectPositionMobile?: string;
       preferredProductId?: number;
       source: HomeRailSource;
       productIds: number[];

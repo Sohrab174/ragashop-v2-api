@@ -32,6 +32,62 @@ const RAIL_SOURCES: readonly HomeRailSource[] = [
   'curated',
 ];
 
+/** One-step undo snapshot for Admin image restore (configJson only). */
+export type PreviousHomeImageSnapshot = {
+  desktopImagePath?: string;
+  mobileImagePath?: string;
+  mobileWideImagePath?: string;
+  imagePath?: string;
+  masterImagePath?: string;
+  masterPreviewPath?: string;
+  imageProfile?: 'hero' | 'category' | 'pets';
+  objectPositionDesktop?: string;
+  objectPositionMobile?: string;
+};
+
+export type HomeImageProfile = 'hero' | 'category' | 'pets';
+
+/** Hero slides use hero; category chapters only category|pets (legacy hero → category). */
+export function sanitizeHomeImageProfile(
+  raw: unknown,
+  options: { allowHero?: boolean } = {},
+): HomeImageProfile | undefined {
+  if (raw === 'pets') return 'pets';
+  if (raw === 'category') return 'category';
+  if (raw === 'hero') {
+    return options.allowHero === false ? 'category' : 'hero';
+  }
+  return undefined;
+}
+
+export function sanitizePreviousImageSnapshot(
+  raw: unknown,
+  options: { allowHeroProfile?: boolean } = {},
+): PreviousHomeImageSnapshot | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const row = raw as Record<string, unknown>;
+  const snap: PreviousHomeImageSnapshot = {
+    desktopImagePath: sanitizeHomeUploadPath(row.desktopImagePath),
+    mobileImagePath: sanitizeHomeUploadPath(row.mobileImagePath),
+    mobileWideImagePath: sanitizeHomeUploadPath(row.mobileWideImagePath),
+    imagePath: sanitizeHomeUploadPath(row.imagePath),
+    masterImagePath: sanitizeHomeMasterConfigPath(row.masterImagePath),
+    masterPreviewPath: sanitizeHomeUploadPath(row.masterPreviewPath),
+    imageProfile: sanitizeHomeImageProfile(row.imageProfile, {
+      allowHero: options.allowHeroProfile !== false,
+    }),
+    objectPositionDesktop:
+      typeof row.objectPositionDesktop === 'string'
+        ? row.objectPositionDesktop.slice(0, 32)
+        : undefined,
+    objectPositionMobile:
+      typeof row.objectPositionMobile === 'string'
+        ? row.objectPositionMobile.slice(0, 32)
+        : undefined,
+  };
+  return Object.values(snap).some((value) => value != null) ? snap : undefined;
+}
+
 /**
  * Incomplete internal paths such as `/category/` or `category/`.
  * Complete paths (`/category`, `/category/12`, `/product/9`, `/sale`) stay valid.
@@ -119,6 +175,17 @@ export function sanitizeHomeUploadPath(raw: unknown): string | undefined {
   if (!normalized.startsWith('/home/')) return undefined;
   if (normalized.includes('..')) return undefined;
   if (!/^\/home\/[a-zA-Z0-9._-]+$/.test(normalized)) return undefined;
+  return normalized;
+}
+
+/** Retained master paths under /home-masters only (private, not public static). */
+export function sanitizeHomeMasterConfigPath(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !raw.trim()) return undefined;
+  const trimmed = raw.trim().replace(/\\/g, '/');
+  const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  if (!normalized.startsWith('/home-masters/')) return undefined;
+  if (normalized.includes('..')) return undefined;
+  if (!/^\/home-masters\/[a-zA-Z0-9._-]+$/.test(normalized)) return undefined;
   return normalized;
 }
 
@@ -239,6 +306,12 @@ export function normalizeCampaignConfig(
       typeof raw.objectPositionMobile === 'string'
         ? raw.objectPositionMobile.slice(0, 32)
         : undefined,
+    masterImagePath: sanitizeHomeMasterConfigPath(raw.masterImagePath),
+    masterPreviewPath: sanitizeHomeUploadPath(raw.masterPreviewPath),
+    imageProfile: sanitizeHomeImageProfile(raw.imageProfile, { allowHero: true }),
+    previousImage: sanitizePreviousImageSnapshot(raw.previousImage, {
+      allowHeroProfile: true,
+    }),
   };
 }
 
@@ -294,6 +367,18 @@ function normalizeCampaignSlide(
   if (typeof row.objectPositionMobile === 'string') {
     slide.objectPositionMobile = row.objectPositionMobile.slice(0, 32);
   }
+  const masterImagePath = sanitizeHomeMasterConfigPath(row.masterImagePath);
+  if (masterImagePath) slide.masterImagePath = masterImagePath;
+  const masterPreviewPath = sanitizeHomeUploadPath(row.masterPreviewPath);
+  if (masterPreviewPath) slide.masterPreviewPath = masterPreviewPath;
+  const imageProfile = sanitizeHomeImageProfile(row.imageProfile, {
+    allowHero: true,
+  });
+  if (imageProfile) slide.imageProfile = imageProfile;
+  const previousImage = sanitizePreviousImageSnapshot(row.previousImage, {
+    allowHeroProfile: true,
+  });
+  if (previousImage) slide.previousImage = previousImage;
   return slide;
 }
 
@@ -442,6 +527,24 @@ function normalizeCategoryChapter(
     desktopImagePath: sanitizeHomeUploadPath(row.desktopImagePath),
     mobileImagePath: sanitizeHomeUploadPath(row.mobileImagePath),
     preferredProductId: parsePositiveInt(row.preferredProductId),
+    objectPositionDesktop:
+      typeof row.objectPositionDesktop === 'string'
+        ? row.objectPositionDesktop.slice(0, 32)
+        : undefined,
+    objectPositionMobile:
+      typeof row.objectPositionMobile === 'string'
+        ? row.objectPositionMobile.slice(0, 32)
+        : undefined,
+    masterImagePath: sanitizeHomeMasterConfigPath(row.masterImagePath),
+    masterPreviewPath: sanitizeHomeUploadPath(row.masterPreviewPath),
+    mobileWideImagePath: sanitizeHomeUploadPath(row.mobileWideImagePath),
+    // Chapters never use hero crops; coerce legacy invalid hero → category.
+    imageProfile: sanitizeHomeImageProfile(row.imageProfile, {
+      allowHero: false,
+    }) as 'category' | 'pets' | undefined,
+    previousImage: sanitizePreviousImageSnapshot(row.previousImage, {
+      allowHeroProfile: false,
+    }),
     source,
     productIds: parseProductIdList(row.productIds, 24),
     limit: limit != null ? Math.min(limit, 24) : undefined,
@@ -674,6 +777,10 @@ export const KNOWN_HOME_CONFIG_KEYS: Record<
     'galleryImageIndex',
     'objectPositionDesktop',
     'objectPositionMobile',
+    'masterImagePath',
+    'masterPreviewPath',
+    'imageProfile',
+    'previousImage',
     'slides',
   ],
   newest: [
@@ -777,6 +884,13 @@ const CHAPTER_KNOWN_KEYS = [
   'desktopImagePath',
   'mobileImagePath',
   'preferredProductId',
+  'objectPositionDesktop',
+  'objectPositionMobile',
+  'masterImagePath',
+  'masterPreviewPath',
+  'mobileWideImagePath',
+  'imageProfile',
+  'previousImage',
   'source',
   'productIds',
   'limit',

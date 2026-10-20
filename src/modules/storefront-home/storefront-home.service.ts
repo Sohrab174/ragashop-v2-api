@@ -53,6 +53,13 @@ import {
 } from './storefront-home.validate';
 import { finalizeVerifiedHomeUpload } from './home-image-upload';
 import {
+  finalizeHomeMasterUpload,
+  isHomeMasterProfile,
+  parseFocalPoint,
+  recropFromRetainedMaster,
+  sanitizeHomeMasterPath,
+} from './home-master-image';
+import {
   signHomePreviewCredential,
   verifyHomePreviewCredential,
 } from './home-preview-credential';
@@ -300,6 +307,38 @@ export class StorefrontHomeService {
       this.error.unauthorized(['دسترسی به پیش‌نمایش مجاز نیست']);
     }
     return session;
+  }
+
+  /**
+   * Dry-run image retention report — never deletes files.
+   * Inventories section + instance configJson and active preview sessions.
+   */
+  async reportHomeImageRetentionDryRun() {
+    const { buildHomeImageRetentionDryRunReport } = await import(
+      './home-image-retention'
+    );
+    const sections = await this.sectionRepo.find();
+    const instances = this.instanceRepo
+      ? await this.instanceRepo.find()
+      : [];
+    this.pruneExpiredPreviewSessions();
+    const previewSessionPayloads = [...homePreviewSessions.entries()].map(
+      ([token, session]) => ({
+        tokenHint: token.slice(0, 8),
+        payload: session.payload,
+      }),
+    );
+    return buildHomeImageRetentionDryRunReport({
+      sectionConfigs: sections.map((row) => ({
+        key: row.sectionKey,
+        config: parseJsonObject(row.configJson),
+      })),
+      instanceConfigs: instances.map((row) => ({
+        key: row.instanceKey,
+        config: parseJsonObject(row.configJson),
+      })),
+      previewSessionPayloads,
+    });
   }
 
   /** Test helper — clears in-memory preview sessions. */
@@ -695,6 +734,153 @@ export class StorefrontHomeService {
     };
   }
 
+  /**
+   * POST /storefront/home/image/admin/master — retain master + desktop/mobile WebP.
+   * Preserves the legacy single-file upload above.
+   */
+  async saveMasterUploadedImage(
+    file: Express.Multer.File | undefined,
+    body: {
+      profile?: string;
+      focusDesktopX?: string | number;
+      focusDesktopY?: string | number;
+      focusMobileX?: string | number;
+      focusMobileY?: string | number;
+    } = {},
+  ) {
+    if (!file?.filename || !file?.path) {
+      this.error.unprocessableEntity(['فایل تصویر الزامی است']);
+    }
+    const profile = isHomeMasterProfile(body.profile) ? body.profile : 'hero';
+    const focusDesktop = parseFocalPoint(body.focusDesktopX, body.focusDesktopY);
+    const focusMobile = parseFocalPoint(
+      body.focusMobileX ?? body.focusDesktopX,
+      body.focusMobileY ?? body.focusDesktopY,
+      focusDesktop,
+    );
+    let result: Awaited<ReturnType<typeof finalizeHomeMasterUpload>>;
+    try {
+      result = await finalizeHomeMasterUpload({
+        path: file.path,
+        destination: file.destination,
+        profile,
+        focusDesktop,
+        focusMobile,
+      });
+    } catch (error) {
+      this.throwMasterProcessError(error);
+    }
+    return this.mapMasterProcessResult(result);
+  }
+
+  /**
+   * POST /storefront/home/image/admin/recrop — regenerate crops from retained master.
+   */
+  async recropMasterImage(
+    body: {
+      masterPath?: string;
+      profile?: string;
+      focusDesktopX?: string | number;
+      focusDesktopY?: string | number;
+      focusMobileX?: string | number;
+      focusMobileY?: string | number;
+      focusMobileWideX?: string | number;
+      focusMobileWideY?: string | number;
+    } = {},
+  ) {
+    const masterPath = sanitizeHomeMasterPath(body.masterPath);
+    if (!masterPath) {
+      this.error.unprocessableEntity(['مسیر تصویر اصلی نامعتبر است']);
+    }
+    const profile = isHomeMasterProfile(body.profile) ? body.profile : 'hero';
+    const focusDesktop = parseFocalPoint(body.focusDesktopX, body.focusDesktopY);
+    const focusMobile = parseFocalPoint(
+      body.focusMobileX ?? body.focusDesktopX,
+      body.focusMobileY ?? body.focusDesktopY,
+      focusDesktop,
+    );
+    const focusMobileWide = parseFocalPoint(
+      body.focusMobileWideX ?? body.focusMobileX ?? body.focusDesktopX,
+      body.focusMobileWideY ?? body.focusMobileY ?? body.focusDesktopY,
+      focusMobile,
+    );
+    let result: Awaited<ReturnType<typeof recropFromRetainedMaster>>;
+    try {
+      result = await recropFromRetainedMaster({
+        masterPath,
+        profile,
+        focusDesktop,
+        focusMobile,
+        focusMobileWide,
+      });
+    } catch (error) {
+      this.throwMasterProcessError(error);
+    }
+    return this.mapMasterProcessResult(result);
+  }
+
+  private throwMasterProcessError(error: unknown): never {
+    const code = error instanceof Error ? error.message : '';
+    if (code === 'OVERSIZED_UPLOAD') {
+      this.error.unprocessableEntity(['حجم تصویر اصلی بیش از حد مجاز است']);
+    }
+    if (
+      code === 'UNSUPPORTED_TYPE' ||
+      code === 'CORRUPT_OR_UNSUPPORTED' ||
+      code === 'EMPTY_IMAGE'
+    ) {
+      this.error.unprocessableEntity([
+        'فقط تصویرهای JPEG، PNG یا WebP معتبر پذیرفته می‌شوند',
+      ]);
+    }
+    if (
+      code === 'IMAGE_TOO_SMALL' ||
+      code === 'IMAGE_DIMENSIONS_EXCEEDED' ||
+      code === 'IMAGE_PIXELS_EXCEEDED'
+    ) {
+      this.error.unprocessableEntity(['ابعاد تصویر برای پردازش مناسب نیست']);
+    }
+    if (code === 'INVALID_MASTER_PATH' || code === 'MASTER_NOT_FOUND') {
+      this.error.unprocessableEntity(['تصویر اصلی برای برش مجدد پیدا نشد']);
+    }
+    this.error.unprocessableEntity(['پردازش تصویر اصلی ناموفق بود']);
+  }
+
+  private mapMasterProcessResult(
+    result: Awaited<ReturnType<typeof finalizeHomeMasterUpload>>,
+  ) {
+    const desktopPath = sanitizeHomeUploadPath(result.desktopPath);
+    const mobilePath = sanitizeHomeUploadPath(result.mobilePath);
+    const masterPreviewPath = sanitizeHomeUploadPath(result.masterPreviewPath);
+    const mobileWidePath = result.mobileWidePath
+      ? sanitizeHomeUploadPath(result.mobileWidePath)
+      : undefined;
+    const masterPath = sanitizeHomeMasterPath(result.masterPath);
+    if (!desktopPath || !mobilePath || !masterPath || !masterPreviewPath) {
+      this.error.unprocessableEntity(['مسیر تصویر نامعتبر است']);
+    }
+    return {
+      profile: result.profile,
+      masterPath,
+      masterPreviewPath,
+      masterPreviewUrl: this.toStaticUrl(masterPreviewPath),
+      desktopPath,
+      mobilePath,
+      mobileWidePath,
+      desktopUrl: this.toStaticUrl(desktopPath),
+      mobileUrl: this.toStaticUrl(mobilePath),
+      mobileWideUrl: mobileWidePath ? this.toStaticUrl(mobileWidePath) : null,
+      desktopWidth: result.desktopWidth,
+      desktopHeight: result.desktopHeight,
+      mobileWidth: result.mobileWidth,
+      mobileHeight: result.mobileHeight,
+      mobileWideWidth: result.mobileWideWidth,
+      mobileWideHeight: result.mobileWideHeight,
+      path: desktopPath,
+      url: this.toStaticUrl(desktopPath),
+    };
+  }
+
   private normalizeConfigForKey(
     key: StorefrontHomeSectionKey,
     raw: Record<string, unknown>,
@@ -942,6 +1128,17 @@ export class StorefrontHomeService {
               mobileImageUrl: this.toStaticUrl(
                 chapter.mobileImagePath || chapter.imagePath,
               ),
+              mobileWideImageUrl: this.toStaticUrl(
+                chapter.mobileWideImagePath ||
+                  (chapter.imageProfile === 'pets'
+                    ? chapter.mobileImagePath || chapter.imagePath
+                    : undefined),
+              ),
+              objectPositionDesktop: chapter.objectPositionDesktop,
+              objectPositionMobile: chapter.objectPositionMobile,
+              /** Compat alias — older clients read a single position. */
+              objectPosition:
+                chapter.objectPositionDesktop || chapter.objectPositionMobile,
               preferredProductId,
               source,
               productIds,

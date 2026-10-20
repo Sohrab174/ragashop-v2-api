@@ -13,6 +13,7 @@ import {
   clientErrorMessages,
   structuredClientErrorData,
 } from '../exceptions/client-error-body';
+import { homeMasterMulterLimitMessage } from '../../modules/storefront-home/home-master-multer';
 
 /** Object-form 4xx HttpException, e.g. `new BadRequestException({ message, code, details })`. */
 function isObjectFormClientHttpException(
@@ -30,6 +31,37 @@ function isObjectFormClientHttpException(
   );
 }
 
+/**
+ * Nest often wraps MulterError as BadRequestException(message), dropping `code`.
+ * Recover LIMIT_* from the message / nested cause for a stable 422 contract.
+ */
+function multerLimitCodeFromError(error: any): string | undefined {
+  if (typeof error?.code === 'string' && error.code.startsWith('LIMIT_')) {
+    return error.code;
+  }
+  if (
+    typeof error?.cause?.code === 'string' &&
+    error.cause.code.startsWith('LIMIT_')
+  ) {
+    return error.cause.code;
+  }
+  const responseMessage = error?.response?.message;
+  const rawParts = [
+    typeof error?.message === 'string' ? error.message : '',
+    typeof responseMessage === 'string' ? responseMessage : '',
+    Array.isArray(responseMessage) ? responseMessage.join(' ') : '',
+  ];
+  const msg = rawParts.join(' ').toLowerCase();
+  if (msg.includes('too many fields')) return 'LIMIT_FIELD_COUNT';
+  if (msg.includes('too many parts')) return 'LIMIT_PART_COUNT';
+  if (msg.includes('field value too long')) return 'LIMIT_FIELD_VALUE';
+  if (msg.includes('field name too long')) return 'LIMIT_FIELD_KEY';
+  if (msg.includes('file too large')) return 'LIMIT_FILE_SIZE';
+  if (msg.includes('too many files')) return 'LIMIT_FILE_COUNT';
+  if (msg.includes('unexpected field')) return 'LIMIT_UNEXPECTED_FILE';
+  return undefined;
+}
+
 @Injectable()
 export class ErrorsInterceptor implements NestInterceptor {
   constructor() {
@@ -41,6 +73,20 @@ export class ErrorsInterceptor implements NestInterceptor {
       catchError((error) => {
         if (error?.response?.success === false) {
           throw error;
+        } else if (
+          error?.name === 'MulterError' ||
+          multerLimitCodeFromError(error)
+        ) {
+          const limitCode =
+            multerLimitCodeFromError(error) || error?.code;
+          throw new HttpException(
+            {
+              success: false,
+              messages: [homeMasterMulterLimitMessage(limitCode)],
+              data: {},
+            },
+            422,
+          );
         } else if (error?.response?.statusCode) {
           throw new HttpException(
             {
@@ -59,6 +105,21 @@ export class ErrorsInterceptor implements NestInterceptor {
             error?.response?.statusCode,
           );
         } else if (isObjectFormClientHttpException(error)) {
+          const response = error.getResponse();
+          throw new HttpException(
+            {
+              success: false,
+              messages: clientErrorMessages(response),
+              data: structuredClientErrorData(response),
+            },
+            error.getStatus(),
+          );
+        } else if (
+          error instanceof HttpException &&
+          error.getStatus() >= 400 &&
+          error.getStatus() < 500
+        ) {
+          // String-form 4xx (e.g. multer fileFilter HttpException) must not become 500.
           const response = error.getResponse();
           throw new HttpException(
             {
