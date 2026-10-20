@@ -372,9 +372,9 @@ ADD CONSTRAINT \`fk_incredible_offer_product_attribute_value1\`
       ADD COLUMN \`discount\` DECIMAL(10,2) NULL DEFAULT 0 AFTER \`amount\`,
       CHANGE COLUMN \`tax\` \`tax\` DECIMAL(20,2) NULL DEFAULT 0  `);
 
-    await queryRunner.query(`ALTER TABLE \`order_item\` 
+await queryRunner.query(`ALTER TABLE \`order_item\` 
     ADD INDEX \`fk_order_item_product_attribute_value1_idx\` (\`productAttributeValueId\` ASC),
-    ADD INDEX \`fk_order_item_product1_idx\` (\`productId\` ASC`);
+    ADD INDEX \`fk_order_item_product1_idx\` (\`productId\` ASC)`);
 
     await queryRunner.query(`ALTER TABLE \`order_item\` 
   ADD CONSTRAINT \`fk_order_item_product_attribute_value1\`
