@@ -30,7 +30,7 @@ export class MailConfigService implements MailerOptionsFactory {
           inlineCssEnabled: true,
           /** See https://www.npmjs.com/package/inline-css#api */
           inlineCssOptions: {
-            url: ' ',
+            // url: ' ',
             preserveMediaQueries: true,
           },
         }),
