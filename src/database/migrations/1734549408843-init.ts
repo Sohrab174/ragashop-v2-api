@@ -257,7 +257,7 @@ export class init1734549408843 implements MigrationInterface {
         INDEX \`fk_transaction_order1_idx\` (\`orderId\`),
         INDEX \`fk_transaction_customer1_idx\` (\`customerId\`),
         INDEX \`fk_transaction_gateway1_idx\` (\`gatewayId\`),
-        CONSTRAINT \`fk_transaction_order1`
+        CONSTRAINT \`fk_transaction_order1\`
           FOREIGN KEY (\`orderId\`) REFERENCES \`order\` (\`id\`)
           ON DELETE NO ACTION ON UPDATE NO ACTION,
         CONSTRAINT \`fk_transaction_customer1\`
