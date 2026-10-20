@@ -39,7 +39,7 @@ export function sanitizeClientErrorDetails(
       out[key] = raw;
     } else if (typeof raw === 'number') {
       if (!Number.isFinite(raw)) continue;
-      out[key] = raw;
+      out[key] = raw as any;
     } else if (typeof raw === 'string') {
       out[key] = raw.slice(0, MAX_STRING_LENGTH);
     } else {
