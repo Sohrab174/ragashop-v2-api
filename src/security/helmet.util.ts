@@ -1,4 +1,4 @@
-import helmet as helmetImport from 'helmet';
+import helmetImport from 'helmet';
 import { isProductionEnv } from './security-config.util';
 
 const helmet: typeof helmetImport =
