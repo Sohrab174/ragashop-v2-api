@@ -29,10 +29,7 @@ export class MailConfigService implements MailerOptionsFactory {
         adapter: new HandlebarsAdapter(undefined, {
           inlineCssEnabled: true,
           /** See https://www.npmjs.com/package/inline-css#api */
-          inlineCssOptions: {
-            // url: ' ',
-            preserveMediaQueries: true,
-          },
+          inlineCssOptions: {},
         }),
         options: {
           strict: true,
