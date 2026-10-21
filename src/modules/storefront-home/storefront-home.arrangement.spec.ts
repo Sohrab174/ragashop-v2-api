@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { StorefrontHomeSectionInstanceEntity } from './entities/storefront-home-section-instance.entity';
+import { createHomeImageAccessMock } from './home-image-access.mock';
 import { StorefrontHomeService } from './storefront-home.service';
 
 function arrangementService(sectionRows: Array<Record<string, unknown>> = []) {
@@ -73,6 +74,7 @@ function arrangementService(sectionRows: Array<Record<string, unknown>> = []) {
     { find: jest.fn().mockResolvedValue([]) } as any,
     error as any,
     { app: { apiBaseUrl: 'http://127.0.0.1:9010' }, auth: { secret: 'x' } } as any,
+    createHomeImageAccessMock() as any,
     instanceRepo,
   );
   return { service, sections, instances, sectionRepo };
@@ -434,6 +436,7 @@ function atomicPublishService(options?: {
     { find: jest.fn().mockResolvedValue([]) } as any,
     error as any,
     { app: { apiBaseUrl: 'http://127.0.0.1:9010' }, auth: { secret: 'x' } } as any,
+    createHomeImageAccessMock() as any,
     instanceRepo,
   );
   return {

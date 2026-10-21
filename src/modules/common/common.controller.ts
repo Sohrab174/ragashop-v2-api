@@ -10,6 +10,7 @@ import {
   Body,
   UploadedFile,
   Query,
+  Optional,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -29,6 +30,8 @@ import { multerOptions } from '../../utils/multer.options';
 import { UploadCkeditorDto } from './dto/upload-ckeditor.dto';
 import { CommonService } from './common.service';
 import { ConfigurationService } from '../../config/configuration.service';
+import { HomeImageAccessService } from '../storefront-home/home-image-access.service';
+import { HOME_DRAFT_ASSET_QUERY } from '../storefront-home/home-draft-asset-access';
 
 @ApiTags('Common')
 @Controller()
@@ -37,6 +40,7 @@ export class CommonController {
     private error: ErrorService,
     private config: ConfigurationService,
     private commonService: CommonService,
+    @Optional() private homeImageAccess?: HomeImageAccessService,
   ) {}
 
   /**
@@ -76,9 +80,10 @@ export class CommonController {
    * -------------------------------------------------------
    */
   @Get('static/:path/:filename')
-  seeUploadedFile(
+  async seeUploadedFile(
     @Param('path') path: string,
     @Param('filename') filename: string,
+    @Query(HOME_DRAFT_ASSET_QUERY) draftAccessToken: string | undefined,
     @Res() res,
   ) {
     if (path === 'file') {
@@ -112,6 +117,29 @@ export class CommonController {
       if (!mime) {
         return this.error.notFound(['فایل پیدا نشد']);
       }
+
+      // Unpublished draft crops require a path-bound expiring token (or must be
+      // live on the published homepage). Filenames alone are not authorization.
+      if (this.homeImageAccess) {
+        const decision = await this.homeImageAccess.authorizeHomeStaticFilename(
+          safeName,
+          draftAccessToken,
+        );
+        if (decision === 'deny') {
+          return this.error.notFound(['فایل پیدا نشد']);
+        }
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader(
+          'Cache-Control',
+          decision === 'public'
+            ? 'public, max-age=86400'
+            : 'private, no-store',
+        );
+        res.type(mime);
+        return res.sendFile(`${path}/${filename}`, { root: './uploads' });
+      }
+
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Content-Disposition', 'inline');
       res.setHeader('Cache-Control', 'public, max-age=86400');

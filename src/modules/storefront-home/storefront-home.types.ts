@@ -87,6 +87,20 @@ export type CampaignSlideConfig = {
   masterPreviewPath?: string;
   imageProfile?: 'hero' | 'category' | 'pets';
   previousImage?: PreviousHomeImageSnapshot;
+  compositionDesktop?: ImageCompositionConfig;
+  compositionMobile?: ImageCompositionConfig;
+};
+
+export type ImageFitMode = 'cover' | 'contain' | 'manual';
+export type ImageBackgroundMode = 'blur' | 'solid';
+
+export type ImageCompositionConfig = {
+  fit: ImageFitMode;
+  zoom: number;
+  panX: number;
+  panY: number;
+  backgroundMode: ImageBackgroundMode;
+  backgroundColor: string;
 };
 
 /** One-step Admin restore snapshot (mirrors validate.PreviousHomeImageSnapshot). */
@@ -100,6 +114,8 @@ export type PreviousHomeImageSnapshot = {
   imageProfile?: 'hero' | 'category' | 'pets';
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  compositionDesktop?: ImageCompositionConfig;
+  compositionMobile?: ImageCompositionConfig;
 };
 
 export type CampaignSectionConfig = {
@@ -118,6 +134,8 @@ export type CampaignSectionConfig = {
   imageProfile?: 'hero' | 'category' | 'pets';
   /** Immediate previous desktop/mobile + focal snapshot for Admin restore. */
   previousImage?: PreviousHomeImageSnapshot;
+  compositionDesktop?: ImageCompositionConfig;
+  compositionMobile?: ImageCompositionConfig;
   /**
    * Present only when Admin sent `slides` (including []).
    * Omitted means the legacy single campaign is still the hero.
@@ -179,6 +197,8 @@ export type CategoryChapterConfig = {
   /** Master processing profile used for this chapter (category | pets only). */
   imageProfile?: 'category' | 'pets';
   previousImage?: PreviousHomeImageSnapshot;
+  compositionDesktop?: ImageCompositionConfig;
+  compositionMobile?: ImageCompositionConfig;
   source?: HomeRailSource;
   productIds?: number[];
   limit?: number;
@@ -206,6 +226,9 @@ export type PublicHomeHeroDto = {
   mobileImageUrl: string | null;
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  /** Sharp mobile composition fit — storefront must not re-crop `contain`. */
+  imageFitMobile?: 'cover' | 'contain' | 'manual';
+  imageFitDesktop?: 'cover' | 'contain' | 'manual';
   /** Resolved preferred product when imagery comes from catalog — no Admin notes. */
   preferredProductId?: number;
   /**
@@ -228,6 +251,8 @@ export type PublicHomeHeroSlideDto = {
   mobileImageUrl: string | null;
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  imageFitMobile?: 'cover' | 'contain' | 'manual';
+  imageFitDesktop?: 'cover' | 'contain' | 'manual';
   preferredProductId?: number;
 };
 
@@ -327,6 +352,9 @@ export type PublicHomeSectionDto = {
       objectPosition?: string;
       objectPositionDesktop?: string;
       objectPositionMobile?: string;
+      /** Sharp composition fit — storefront must not re-crop Contain/Manual WebPs. */
+      imageFitDesktop?: 'cover' | 'contain' | 'manual';
+      imageFitMobile?: 'cover' | 'contain' | 'manual';
       preferredProductId?: number;
       source: HomeRailSource;
       productIds: number[];

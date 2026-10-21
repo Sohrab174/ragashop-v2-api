@@ -8,6 +8,23 @@ import {
   looksLikeActiveOrNonRaster,
   type HomeRasterFormat,
 } from './home-image-upload';
+import {
+  coverCropWindow as compositionCoverCropWindow,
+  defaultVariantComposition,
+  hexToRgb,
+  manualCompositionPlan,
+  parseVariantComposition,
+  type VariantComposition,
+} from './home-master-composition';
+
+export {
+  defaultVariantComposition,
+  manualCompositionPlan,
+  parseVariantComposition,
+  type ImageBackgroundMode,
+  type ImageFitMode,
+  type VariantComposition,
+} from './home-master-composition';
 
 /** Master upload only — does not change the legacy 1 MB home route. */
 export const HOME_MASTER_MAX_BYTES = 10 * 1024 * 1024;
@@ -110,26 +127,7 @@ export function coverCropWindow(
   outH: number,
   focus: FocalPointPercent,
 ): { left: number; top: number; width: number; height: number } {
-  const targetAspect = outW / Math.max(1, outH);
-  const srcAspect = srcW / Math.max(1, srcH);
-  let width: number;
-  let height: number;
-  if (srcAspect > targetAspect) {
-    height = srcH;
-    width = Math.max(1, Math.min(srcW, Math.floor(srcH * targetAspect)));
-  } else {
-    width = srcW;
-    height = Math.max(1, Math.min(srcH, Math.floor(srcW / targetAspect)));
-  }
-  const focusX = (clamp(focus.x, 0, 100) / 100) * srcW;
-  const focusY = (clamp(focus.y, 0, 100) / 100) * srcH;
-  let left = Math.floor(focusX - width / 2);
-  let top = Math.floor(focusY - height / 2);
-  left = clamp(left, 0, Math.max(0, srcW - width));
-  top = clamp(top, 0, Math.max(0, srcH - height));
-  width = Math.min(width, srcW - left);
-  height = Math.min(height, srcH - top);
-  return { left, top, width: Math.max(1, width), height: Math.max(1, height) };
+  return compositionCoverCropWindow(srcW, srcH, outW, outH, focus.x, focus.y);
 }
 
 export function outputSizeForCrop(
@@ -216,33 +214,168 @@ export async function inspectMasterSource(buffer: Buffer): Promise<{
   return { width, height, format, oriented };
 }
 
+async function sharpSource(buffer: Buffer) {
+  return sharp(buffer, {
+    failOn: 'error',
+    limitInputPixels: HOME_MASTER_MAX_PIXELS,
+  });
+}
+
+async function buildBackgroundCanvas(
+  buffer: Buffer,
+  outW: number,
+  outH: number,
+  composition: VariantComposition,
+): Promise<Buffer> {
+  if (composition.backgroundMode === 'solid') {
+    const rgb = hexToRgb(composition.backgroundColor);
+    return sharp({
+      create: {
+        width: outW,
+        height: outH,
+        channels: 3,
+        background: rgb,
+      },
+    })
+      .webp({ quality: HOME_MASTER_WEBP_QUALITY, effort: 4 })
+      .toBuffer();
+  }
+  // Blurred extension of the source — cover the frame then soft-blur.
+  return (await sharpSource(buffer))
+    .resize(outW, outH, { fit: 'cover', position: 'centre' })
+    .blur(28)
+    .modulate({ brightness: 0.85 })
+    .webp({ quality: 70, effort: 4 })
+    .toBuffer();
+}
+
+async function renderLetterboxed(options: {
+  buffer: Buffer;
+  srcW: number;
+  srcH: number;
+  outW: number;
+  outH: number;
+  placedWidth: number;
+  placedHeight: number;
+  offsetX: number;
+  offsetY: number;
+  composition: VariantComposition;
+  destDir: string;
+}): Promise<{ filename: string; width: number; height: number; absPath: string }> {
+  const foreground = await (await sharpSource(options.buffer))
+    .resize(options.placedWidth, options.placedHeight, {
+      fit: 'fill',
+      withoutEnlargement: false,
+    })
+    .webp({ quality: HOME_MASTER_WEBP_QUALITY, effort: 4 })
+    .toBuffer();
+  const background = await buildBackgroundCanvas(
+    options.buffer,
+    options.outW,
+    options.outH,
+    options.composition,
+  );
+  const filename = `${uuid()}.webp`;
+  const absPath = path.join(options.destDir, filename);
+  await sharp(background)
+    .composite([
+      {
+        input: foreground,
+        left: clamp(options.offsetX, 0, Math.max(0, options.outW - options.placedWidth)),
+        top: clamp(options.offsetY, 0, Math.max(0, options.outH - options.placedHeight)),
+      },
+    ])
+    .webp({ quality: HOME_MASTER_WEBP_QUALITY, effort: 4 })
+    .toFile(absPath);
+  return { filename, width: options.outW, height: options.outH, absPath };
+}
+
 async function renderVariant(options: {
   buffer: Buffer;
   srcW: number;
   srcH: number;
   spec: HomeMasterVariantSpec;
   focus: FocalPointPercent;
+  composition?: VariantComposition;
   destDir: string;
 }): Promise<{ filename: string; width: number; height: number; absPath: string }> {
+  const composition = options.composition
+    ? parseVariantComposition(options.composition)
+    : defaultVariantComposition({
+        fit: 'cover',
+        panX: options.focus.x,
+        panY: options.focus.y,
+      });
+  const outW = options.spec.width;
+  const outH = options.spec.height;
+
+  if (composition.fit === 'contain') {
+    const scale = Math.min(outW / options.srcW, outH / options.srcH);
+    const placedWidth = Math.max(1, Math.round(options.srcW * scale));
+    const placedHeight = Math.max(1, Math.round(options.srcH * scale));
+    const spareX = Math.max(0, outW - placedWidth);
+    const spareY = Math.max(0, outH - placedHeight);
+    return renderLetterboxed({
+      buffer: options.buffer,
+      srcW: options.srcW,
+      srcH: options.srcH,
+      outW,
+      outH,
+      placedWidth,
+      placedHeight,
+      offsetX: Math.floor((spareX * composition.panX) / 100),
+      offsetY: Math.floor((spareY * composition.panY) / 100),
+      composition,
+      destDir: options.destDir,
+    });
+  }
+
+  if (composition.fit === 'manual') {
+    const plan = manualCompositionPlan(
+      options.srcW,
+      options.srcH,
+      outW,
+      outH,
+      composition,
+    );
+    if (plan.letterbox) {
+      return renderLetterboxed({
+        buffer: options.buffer,
+        srcW: options.srcW,
+        srcH: options.srcH,
+        outW,
+        outH,
+        placedWidth: plan.placedWidth,
+        placedHeight: plan.placedHeight,
+        offsetX: plan.offsetX,
+        offsetY: plan.offsetY,
+        composition,
+        destDir: options.destDir,
+      });
+    }
+    const extract = plan.extract!;
+    const filename = `${uuid()}.webp`;
+    const absPath = path.join(options.destDir, filename);
+    await (await sharpSource(options.buffer))
+      .extract(extract)
+      .resize(outW, outH, { fit: 'fill', withoutEnlargement: true })
+      .webp({ quality: HOME_MASTER_WEBP_QUALITY, effort: 4 })
+      .toFile(absPath);
+    return { filename, width: outW, height: outH, absPath };
+  }
+
+  // COVER — legacy default
   const crop = coverCropWindow(
     options.srcW,
     options.srcH,
-    options.spec.width,
-    options.spec.height,
-    options.focus,
+    outW,
+    outH,
+    { x: composition.panX, y: composition.panY },
   );
-  const out = outputSizeForCrop(
-    crop.width,
-    crop.height,
-    options.spec.width,
-    options.spec.height,
-  );
+  const out = outputSizeForCrop(crop.width, crop.height, outW, outH);
   const filename = `${uuid()}.webp`;
   const absPath = path.join(options.destDir, filename);
-  await sharp(options.buffer, {
-    failOn: 'error',
-    limitInputPixels: HOME_MASTER_MAX_PIXELS,
-  })
+  await (await sharpSource(options.buffer))
     .extract({
       left: crop.left,
       top: crop.top,
@@ -322,6 +455,9 @@ export async function processHomeMasterImage(options: {
   focusDesktop?: FocalPointPercent;
   focusMobile?: FocalPointPercent;
   focusMobileWide?: FocalPointPercent;
+  compositionDesktop?: VariantComposition | Record<string, unknown>;
+  compositionMobile?: VariantComposition | Record<string, unknown>;
+  compositionMobileWide?: VariantComposition | Record<string, unknown>;
   /** When set, skip writing a new retained master (recrop path). */
   existingMasterPath?: string;
 }): Promise<HomeMasterProcessResult> {
@@ -332,6 +468,30 @@ export async function processHomeMasterImage(options: {
   const focusDesktop = options.focusDesktop || { x: 50, y: 50 };
   const focusMobile = options.focusMobile || focusDesktop;
   const focusMobileWide = options.focusMobileWide || focusMobile;
+  const compositionDesktop = parseVariantComposition(
+    options.compositionDesktop ?? {
+      fit: 'cover',
+      panX: focusDesktop.x,
+      panY: focusDesktop.y,
+    },
+  );
+  const compositionMobile = parseVariantComposition(
+    options.compositionMobile ?? {
+      fit: 'cover',
+      panX: focusMobile.x,
+      panY: focusMobile.y,
+    },
+  );
+  const compositionMobileWide = parseVariantComposition(
+    options.compositionMobileWide ?? {
+      fit: compositionMobile.fit,
+      zoom: compositionMobile.zoom,
+      panX: focusMobileWide.x,
+      panY: focusMobileWide.y,
+      backgroundMode: compositionMobile.backgroundMode,
+      backgroundColor: compositionMobile.backgroundColor,
+    },
+  );
 
   await fs.mkdir(options.outputDir, { recursive: true });
 
@@ -367,6 +527,7 @@ export async function processHomeMasterImage(options: {
       srcH: height,
       spec: profile.desktop,
       focus: focusDesktop,
+      composition: compositionDesktop,
       destDir: options.outputDir,
     });
     written.push(desktop.absPath);
@@ -377,6 +538,7 @@ export async function processHomeMasterImage(options: {
       srcH: height,
       spec: profile.mobile,
       focus: focusMobile,
+      composition: compositionMobile,
       destDir: options.outputDir,
     });
     written.push(mobile.absPath);
@@ -391,6 +553,7 @@ export async function processHomeMasterImage(options: {
         srcH: height,
         spec: profile.mobileWide,
         focus: focusMobileWide,
+        composition: compositionMobileWide,
         destDir: options.outputDir,
       });
       written.push(mobileWide.absPath);
@@ -437,6 +600,9 @@ export async function finalizeHomeMasterUpload(file: {
   focusDesktop?: FocalPointPercent;
   focusMobile?: FocalPointPercent;
   focusMobileWide?: FocalPointPercent;
+  compositionDesktop?: VariantComposition | Record<string, unknown>;
+  compositionMobile?: VariantComposition | Record<string, unknown>;
+  compositionMobileWide?: VariantComposition | Record<string, unknown>;
 }): Promise<HomeMasterProcessResult> {
   const absPath = path.resolve(file.path);
   const outputDir = path.resolve('./uploads', HOME_OUTPUT_DIR);
@@ -455,6 +621,9 @@ export async function finalizeHomeMasterUpload(file: {
     focusDesktop: file.focusDesktop,
     focusMobile: file.focusMobile,
     focusMobileWide: file.focusMobileWide,
+    compositionDesktop: file.compositionDesktop,
+    compositionMobile: file.compositionMobile,
+    compositionMobileWide: file.compositionMobileWide,
   });
 }
 
@@ -467,6 +636,9 @@ export async function recropFromRetainedMaster(options: {
   focusDesktop?: FocalPointPercent;
   focusMobile?: FocalPointPercent;
   focusMobileWide?: FocalPointPercent;
+  compositionDesktop?: VariantComposition | Record<string, unknown>;
+  compositionMobile?: VariantComposition | Record<string, unknown>;
+  compositionMobileWide?: VariantComposition | Record<string, unknown>;
 }): Promise<HomeMasterProcessResult> {
   const abs = resolveHomeMasterAbsolutePath(options.masterPath);
   if (!abs) throw new Error('INVALID_MASTER_PATH');
@@ -484,6 +656,9 @@ export async function recropFromRetainedMaster(options: {
     focusDesktop: options.focusDesktop,
     focusMobile: options.focusMobile,
     focusMobileWide: options.focusMobileWide,
+    compositionDesktop: options.compositionDesktop,
+    compositionMobile: options.compositionMobile,
+    compositionMobileWide: options.compositionMobileWide,
     existingMasterPath: options.masterPath,
   });
 }

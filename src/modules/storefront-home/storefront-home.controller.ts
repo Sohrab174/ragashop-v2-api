@@ -177,6 +177,23 @@ export class StorefrontHomeController {
   }
 
   /**
+   * POST /storefront/home/admin/sign-home-media
+   * Mint path-bound expiring URLs for unpublished `/home/...` crops (Admin UI).
+   * Does not expose home-masters. Does not publish.
+   */
+  @Post('admin/sign-home-media')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.storefront_home_read)
+  async signHomeMedia(@Body() body?: { paths?: string[] }) {
+    const urls = this.homeService.signHomeMediaPaths(
+      Array.isArray(body?.paths) ? body.paths : [],
+    );
+    return successfulResult([], { urls });
+  }
+
+  /**
    * PUT /storefront/home/admin/arrangement
    * Arrangement-only replace. The Admin publish button uses PUT /admin so
    * sections and instances commit together.
@@ -273,6 +290,9 @@ export class StorefrontHomeController {
       focusMobileY?: string | number;
       focusMobileWideX?: string | number;
       focusMobileWideY?: string | number;
+      compositionDesktop?: Record<string, unknown>;
+      compositionMobile?: Record<string, unknown>;
+      compositionMobileWide?: Record<string, unknown>;
     },
   ) {
     const data = await this.homeService.recropMasterImage(body || {});

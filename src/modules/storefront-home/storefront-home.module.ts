@@ -7,6 +7,7 @@ import { StorefrontHomeSectionEntity } from './entities/storefront-home-section.
 import { StorefrontHomeSectionInstanceEntity } from './entities/storefront-home-section-instance.entity';
 import { StorefrontHomeController } from './storefront-home.controller';
 import { StorefrontHomeService } from './storefront-home.service';
+import { HomeImageAccessService } from './home-image-access.service';
 import { CapabilityModule } from '../auth/capability/capability.module';
 
 @Module({
@@ -21,7 +22,7 @@ import { CapabilityModule } from '../auth/capability/capability.module';
     CapabilityModule,
   ],
   controllers: [StorefrontHomeController],
-  providers: [StorefrontHomeService],
-  exports: [StorefrontHomeService],
+  providers: [StorefrontHomeService, HomeImageAccessService],
+  exports: [StorefrontHomeService, HomeImageAccessService],
 })
 export class StorefrontHomeModule {}

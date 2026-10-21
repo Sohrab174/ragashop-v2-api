@@ -13,6 +13,7 @@ import {
   sanitizeHomeImageProfile,
   sanitizeHomeMasterConfigPath,
   sanitizeHomeUploadPath,
+  sanitizeImageComposition,
   sanitizePreviousImageSnapshot,
   sanitizeStorefrontHref,
 } from './storefront-home.validate';
@@ -39,6 +40,41 @@ describe('storefront-home.validate', () => {
     );
     expect(sanitizeHomeMasterConfigPath('/home/a.jpg')).toBeUndefined();
     expect(sanitizeHomeMasterConfigPath('/home-masters/../x')).toBeUndefined();
+  });
+
+  it('sanitizes Phase D composition and keeps previousImage composition', () => {
+    expect(
+      sanitizeImageComposition({
+        fit: 'manual',
+        zoom: 2.5,
+        panX: 12,
+        panY: 88,
+        backgroundMode: 'solid',
+        backgroundColor: '#ABCDEF',
+      }),
+    ).toEqual({
+      fit: 'manual',
+      zoom: 2.5,
+      panX: 12,
+      panY: 88,
+      backgroundMode: 'solid',
+      backgroundColor: '#abcdef',
+    });
+    expect(sanitizeImageComposition({ fit: 'nope', zoom: 99 })).toEqual({
+      fit: 'cover',
+      zoom: 4,
+      panX: 50,
+      panY: 50,
+      backgroundMode: 'blur',
+      backgroundColor: '#1a1a1a',
+    });
+    const snap = sanitizePreviousImageSnapshot({
+      desktopImagePath: '/home/a.webp',
+      compositionDesktop: { fit: 'contain', panX: 40, panY: 60 },
+      compositionMobile: { fit: 'manual', zoom: 1.2, panX: 10, panY: 20 },
+    });
+    expect(snap?.compositionDesktop?.fit).toBe('contain');
+    expect(snap?.compositionMobile?.zoom).toBe(1.2);
   });
 
   it('preserves complete previousImage metadata and rejects unsafe paths', () => {

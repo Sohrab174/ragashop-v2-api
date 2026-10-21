@@ -63,6 +63,8 @@ import {
   signHomePreviewCredential,
   verifyHomePreviewCredential,
 } from './home-preview-credential';
+import { HomeImageAccessService } from './home-image-access.service';
+import { collectHomeImagePathsFromValue } from './home-image-retention';
 
 type HomePreviewSession = {
   userId: number;
@@ -105,6 +107,7 @@ export class StorefrontHomeService {
     private readonly canonicalCategoryRepo: Repository<CanonicalCategoryEntity>,
     private readonly error: ErrorService,
     private readonly config: ConfigurationService,
+    private readonly homeImageAccess: HomeImageAccessService,
     @Optional()
     @InjectRepository(StorefrontHomeSectionInstanceEntity)
     private readonly instanceRepo?: Repository<StorefrontHomeSectionInstanceEntity>,
@@ -179,11 +182,12 @@ export class StorefrontHomeService {
     if (!secret) {
       this.error.unauthorized(['پیکربندی امنیتی پیش‌نمایش موجود نیست']);
     }
-    const payload = await this.mapAdminSectionsToPublic(
+    const mapped = await this.mapAdminSectionsToPublic(
       sections,
       new Date(),
       instances,
     );
+    const payload = this.signDraftUrlsInPublicHomeDto(mapped);
     this.pruneExpiredPreviewSessions();
     this.enforcePreviewSessionLimits(uid);
     const token = randomBytes(32).toString('hex');
@@ -237,11 +241,12 @@ export class StorefrontHomeService {
     if (!session || session.expiresAt <= Date.now() || session.userId !== uid) {
       this.error.notFound(['پیش‌نمایش پیدا نشد یا منقضی شده است']);
     }
-    session.payload = await this.mapAdminSectionsToPublic(
+    const mapped = await this.mapAdminSectionsToPublic(
       sections,
       new Date(),
       instances,
     );
+    session.payload = this.signDraftUrlsInPublicHomeDto(mapped);
     return { ok: true };
   }
 
@@ -585,6 +590,7 @@ export class StorefrontHomeService {
         await this.writeSections(manager, sections, now);
       }),
     );
+    this.homeImageAccess.invalidatePublishedAllowlist();
     return this.getAdminHome();
   }
 
@@ -730,7 +736,7 @@ export class StorefrontHomeService {
     }
     return {
       path: safe,
-      url: this.toStaticUrl(safe),
+      url: this.toStaticUrl(safe, 'draft'),
     };
   }
 
@@ -786,6 +792,9 @@ export class StorefrontHomeService {
       focusMobileY?: string | number;
       focusMobileWideX?: string | number;
       focusMobileWideY?: string | number;
+      compositionDesktop?: Record<string, unknown>;
+      compositionMobile?: Record<string, unknown>;
+      compositionMobileWide?: Record<string, unknown>;
     } = {},
   ) {
     const masterPath = sanitizeHomeMasterPath(body.masterPath);
@@ -812,6 +821,9 @@ export class StorefrontHomeService {
         focusDesktop,
         focusMobile,
         focusMobileWide,
+        compositionDesktop: body.compositionDesktop,
+        compositionMobile: body.compositionMobile,
+        compositionMobileWide: body.compositionMobileWide,
       });
     } catch (error) {
       this.throwMasterProcessError(error);
@@ -863,13 +875,15 @@ export class StorefrontHomeService {
       profile: result.profile,
       masterPath,
       masterPreviewPath,
-      masterPreviewUrl: this.toStaticUrl(masterPreviewPath),
+      masterPreviewUrl: this.toStaticUrl(masterPreviewPath, 'draft'),
       desktopPath,
       mobilePath,
       mobileWidePath,
-      desktopUrl: this.toStaticUrl(desktopPath),
-      mobileUrl: this.toStaticUrl(mobilePath),
-      mobileWideUrl: mobileWidePath ? this.toStaticUrl(mobileWidePath) : null,
+      desktopUrl: this.toStaticUrl(desktopPath, 'draft'),
+      mobileUrl: this.toStaticUrl(mobilePath, 'draft'),
+      mobileWideUrl: mobileWidePath
+        ? this.toStaticUrl(mobileWidePath, 'draft')
+        : null,
       desktopWidth: result.desktopWidth,
       desktopHeight: result.desktopHeight,
       mobileWidth: result.mobileWidth,
@@ -877,7 +891,7 @@ export class StorefrontHomeService {
       mobileWideWidth: result.mobileWideWidth,
       mobileWideHeight: result.mobileWideHeight,
       path: desktopPath,
-      url: this.toStaticUrl(desktopPath),
+      url: this.toStaticUrl(desktopPath, 'draft'),
     };
   }
 
@@ -964,6 +978,8 @@ export class StorefrontHomeService {
           mobileImageUrl: this.toStaticUrl(c.mobileImagePath),
           objectPositionDesktop: c.objectPositionDesktop,
           objectPositionMobile: c.objectPositionMobile,
+          imageFitDesktop: c.compositionDesktop?.fit,
+          imageFitMobile: c.compositionMobile?.fit,
           preferredProductId,
         };
         const managed = normalizeCampaignSlides(cfg);
@@ -1000,6 +1016,8 @@ export class StorefrontHomeService {
                 mobileImageUrl: this.toStaticUrl(slide.mobileImagePath),
                 objectPositionDesktop: slide.objectPositionDesktop,
                 objectPositionMobile: slide.objectPositionMobile,
+                imageFitDesktop: slide.compositionDesktop?.fit,
+                imageFitMobile: slide.compositionMobile?.fit,
                 preferredProductId: slideProductId,
               };
             });
@@ -1139,6 +1157,8 @@ export class StorefrontHomeService {
               /** Compat alias — older clients read a single position. */
               objectPosition:
                 chapter.objectPositionDesktop || chapter.objectPositionMobile,
+              imageFitDesktop: chapter.compositionDesktop?.fit,
+              imageFitMobile: chapter.compositionMobile?.fit,
               preferredProductId,
               source,
               productIds,
@@ -1308,6 +1328,7 @@ export class StorefrontHomeService {
         await this.writeArrangement(manager, arrangement, now);
       }),
     );
+    this.homeImageAccess.invalidatePublishedAllowlist();
     return this.readAdminArrangement();
   }
 
@@ -1479,16 +1500,79 @@ export class StorefrontHomeService {
     return new Set(rows.map((r) => r.id));
   }
 
-  private toStaticUrl(path: string | undefined | null): string | null {
-    const safe = sanitizeHomeUploadPath(path ?? undefined);
-    if (!safe) return null;
-    const base = (this.config.app.apiBaseUrl || '').replace(/\/$/, '');
-    // common static route: /static/:path/:filename → uploads/{path}/{filename}
-    const withoutSlash = safe.replace(/^\//, '');
-    const [folder, ...rest] = withoutSlash.split('/');
-    const filename = rest.join('/');
-    if (!folder || !filename) return null;
-    return `${base}/static/${folder}/${filename}`;
+  /**
+   * @param access `public` — untokenized URL for published homepage (default).
+   *              `draft` — path-bound expiring `hda` token for Admin / preview.
+   */
+  private toStaticUrl(
+    path: string | undefined | null,
+    access: 'public' | 'draft' = 'public',
+  ): string | null {
+    if (access === 'draft') {
+      return this.homeImageAccess.buildSignedStaticUrl(path);
+    }
+    return this.homeImageAccess.buildPublicStaticUrl(path);
+  }
+
+  /**
+   * Rewrite public-shaped image URLs in an unpublished preview payload so the
+   * storefront iframe can load draft crops without making them world-readable.
+   */
+  signDraftUrlsInPublicHomeDto(
+    dto: PublicStorefrontHomeDto,
+  ): PublicStorefrontHomeDto {
+    const rewrite = (value: unknown): unknown => {
+      if (value == null) return value;
+      if (typeof value === 'string') {
+        const match = value.match(/^(https?:\/\/[^?\s]+)(\/static\/home\/[a-zA-Z0-9._-]+)(\?.*)?$/i);
+        if (match) {
+          const logical = sanitizeHomeUploadPath(
+            `/home/${match[2].split('/').pop()}`,
+          );
+          const signed = logical
+            ? this.homeImageAccess.buildSignedStaticUrl(logical)
+            : null;
+          return signed || value;
+        }
+        if (value.startsWith('/static/home/') || value.startsWith('/home/')) {
+          const logical = sanitizeHomeUploadPath(
+            value.startsWith('/home/')
+              ? value
+              : `/home/${value.split('/').pop()}`,
+          );
+          return (
+            this.homeImageAccess.buildSignedStaticUrl(logical) || value
+          );
+        }
+        return value;
+      }
+      if (Array.isArray(value)) return value.map((item) => rewrite(item));
+      if (typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          out[k] = rewrite(v);
+        }
+        return out;
+      }
+      return value;
+    };
+    return rewrite(dto) as PublicStorefrontHomeDto;
+  }
+
+  /** Admin: mint short-lived signed static URLs for logical `/home/...` paths. */
+  signHomeMediaPaths(paths: string[]): Record<string, string> {
+    const out: Record<string, string> = {};
+    // Include previousImage snapshots so Restore UI can still render them.
+    const unique = new Set<string>();
+    for (const raw of paths || []) {
+      collectHomeImagePathsFromValue(raw, unique);
+    }
+    for (const logical of unique) {
+      if (!logical.startsWith('/home/')) continue;
+      const signed = this.homeImageAccess.buildSignedStaticUrl(logical);
+      if (signed) out[logical] = signed;
+    }
+    return out;
   }
 
   private parseOptionalDate(value?: string | null): Date | null {

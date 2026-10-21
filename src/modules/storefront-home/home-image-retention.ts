@@ -246,6 +246,7 @@ export function evaluateHomeImageRetention(options: {
       'Referenced files include published section configJson, layout instance configJson, nested previousImage snapshots, and active in-memory preview sessions when provided.',
       'Unsaved Admin uploads are protected by the grace period until saved or aged out.',
       'Do not enable deletion until inventory coverage is verified in production-like data.',
+      'See HOME-IMAGE-RETENTION-POLICY.md in the workspace root for the approved reference-aware cleanup policy (deletion remains off until independent approval).',
     ],
   };
 }

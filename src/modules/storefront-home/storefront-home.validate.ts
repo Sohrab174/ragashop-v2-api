@@ -33,6 +33,19 @@ const RAIL_SOURCES: readonly HomeRailSource[] = [
 ];
 
 /** One-step undo snapshot for Admin image restore (configJson only). */
+export type ImageFitMode = 'cover' | 'contain' | 'manual';
+export type ImageBackgroundMode = 'blur' | 'solid';
+
+/** Per-device Cover / Contain / Manual composition (Phase D). */
+export type ImageCompositionConfig = {
+  fit: ImageFitMode;
+  zoom: number;
+  panX: number;
+  panY: number;
+  backgroundMode: ImageBackgroundMode;
+  backgroundColor: string;
+};
+
 export type PreviousHomeImageSnapshot = {
   desktopImagePath?: string;
   mobileImagePath?: string;
@@ -43,6 +56,8 @@ export type PreviousHomeImageSnapshot = {
   imageProfile?: 'hero' | 'category' | 'pets';
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
+  compositionDesktop?: ImageCompositionConfig;
+  compositionMobile?: ImageCompositionConfig;
 };
 
 export type HomeImageProfile = 'hero' | 'category' | 'pets';
@@ -58,6 +73,35 @@ export function sanitizeHomeImageProfile(
     return options.allowHero === false ? 'category' : 'hero';
   }
   return undefined;
+}
+
+export function sanitizeImageComposition(
+  raw: unknown,
+): ImageCompositionConfig | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const row = raw as Record<string, unknown>;
+  const fit =
+    row.fit === 'contain' || row.fit === 'manual' || row.fit === 'cover'
+      ? row.fit
+      : 'cover';
+  const zoomRaw = Number(row.zoom);
+  const panXRaw = Number(row.panX);
+  const panYRaw = Number(row.panY);
+  const color =
+    typeof row.backgroundColor === 'string' &&
+    /^#[0-9a-fA-F]{6}$/.test(row.backgroundColor.trim())
+      ? row.backgroundColor.trim().toLowerCase()
+      : '#1a1a1a';
+  return {
+    fit,
+    zoom: Number.isFinite(zoomRaw)
+      ? Math.min(4, Math.max(1, zoomRaw))
+      : 1,
+    panX: Number.isFinite(panXRaw) ? Math.min(100, Math.max(0, panXRaw)) : 50,
+    panY: Number.isFinite(panYRaw) ? Math.min(100, Math.max(0, panYRaw)) : 50,
+    backgroundMode: row.backgroundMode === 'solid' ? 'solid' : 'blur',
+    backgroundColor: color,
+  };
 }
 
 export function sanitizePreviousImageSnapshot(
@@ -84,6 +128,8 @@ export function sanitizePreviousImageSnapshot(
       typeof row.objectPositionMobile === 'string'
         ? row.objectPositionMobile.slice(0, 32)
         : undefined,
+    compositionDesktop: sanitizeImageComposition(row.compositionDesktop),
+    compositionMobile: sanitizeImageComposition(row.compositionMobile),
   };
   return Object.values(snap).some((value) => value != null) ? snap : undefined;
 }
@@ -312,6 +358,8 @@ export function normalizeCampaignConfig(
     previousImage: sanitizePreviousImageSnapshot(raw.previousImage, {
       allowHeroProfile: true,
     }),
+    compositionDesktop: sanitizeImageComposition(raw.compositionDesktop),
+    compositionMobile: sanitizeImageComposition(raw.compositionMobile),
   };
 }
 
@@ -379,6 +427,10 @@ function normalizeCampaignSlide(
     allowHeroProfile: true,
   });
   if (previousImage) slide.previousImage = previousImage;
+  const compositionDesktop = sanitizeImageComposition(row.compositionDesktop);
+  if (compositionDesktop) slide.compositionDesktop = compositionDesktop;
+  const compositionMobile = sanitizeImageComposition(row.compositionMobile);
+  if (compositionMobile) slide.compositionMobile = compositionMobile;
   return slide;
 }
 
@@ -545,6 +597,8 @@ function normalizeCategoryChapter(
     previousImage: sanitizePreviousImageSnapshot(row.previousImage, {
       allowHeroProfile: false,
     }),
+    compositionDesktop: sanitizeImageComposition(row.compositionDesktop),
+    compositionMobile: sanitizeImageComposition(row.compositionMobile),
     source,
     productIds: parseProductIdList(row.productIds, 24),
     limit: limit != null ? Math.min(limit, 24) : undefined,
@@ -781,6 +835,8 @@ export const KNOWN_HOME_CONFIG_KEYS: Record<
     'masterPreviewPath',
     'imageProfile',
     'previousImage',
+    'compositionDesktop',
+    'compositionMobile',
     'slides',
   ],
   newest: [
@@ -891,6 +947,8 @@ const CHAPTER_KNOWN_KEYS = [
   'mobileWideImagePath',
   'imageProfile',
   'previousImage',
+  'compositionDesktop',
+  'compositionMobile',
   'source',
   'productIds',
   'limit',

@@ -1,5 +1,6 @@
 import { discoveryEligibilitySql } from '../product/discovery-eligibility';
 import { signHomePreviewCredential } from './home-preview-credential';
+import { createHomeImageAccessMock } from './home-image-access.mock';
 import { StorefrontHomeService } from './storefront-home.service';
 import { STOREFRONT_HOME_SECTION_KEYS } from './storefront-home.types';
 
@@ -65,6 +66,7 @@ describe('StorefrontHomeService public contract', () => {
       canonicalCategoryRepo as any,
       error as any,
       config as any,
+      createHomeImageAccessMock(config.app.apiBaseUrl) as any,
     );
   }
 
@@ -236,6 +238,7 @@ describe('StorefrontHomeService public contract', () => {
       { find: jest.fn() } as any,
       error as any,
       config as any,
+      createHomeImageAccessMock(config.app.apiBaseUrl) as any,
     );
 
     const result = await service.findPublicHomepageEligibleProductIds('5,5,9');
@@ -309,6 +312,7 @@ describe('StorefrontHomeService config persistence', () => {
       { find: jest.fn() } as any,
       error as any,
       config as any,
+      createHomeImageAccessMock(config.app.apiBaseUrl) as any,
     );
     return { service, store, sectionRepo };
   }
@@ -614,6 +618,7 @@ describe('StorefrontHomeService unpublished preview sessions', () => {
       canonicalCategoryRepo as any,
       error as any,
       config as any,
+      createHomeImageAccessMock(config.app.apiBaseUrl) as any,
     );
   }
 
@@ -894,6 +899,7 @@ describe('StorefrontHomeService atomic publish', () => {
       { find: jest.fn() } as any,
       error as any,
       config as any,
+      createHomeImageAccessMock(config.app.apiBaseUrl) as any,
     );
 
     await expect(
