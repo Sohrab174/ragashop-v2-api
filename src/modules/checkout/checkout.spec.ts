@@ -251,6 +251,44 @@ describe('resolveCheckoutLines', () => {
     }
   });
 
+  it('blocks uncurated external products even when assortment enforcement is off', () => {
+    const result = resolveCheckoutLines({
+      items: [
+        {
+          id: 1,
+          productId: 156276,
+          productAttributeValueId: null,
+          quantity: 1,
+        },
+      ],
+      productsById: new Map([
+        [
+          156276,
+          {
+            id: 156276,
+            name: 'Dog collar',
+            price: 100,
+            discountedPrice: 0,
+            quantity: -1,
+            isSellable: true,
+            isDeleted: false,
+            status: 'active',
+            categoryId: 145,
+            coverPath: null,
+            supplyType: 'external_source',
+            isCuratedExternalCatalog: false,
+            productAttributeValues: [],
+          },
+        ],
+      ]),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.issues[0].code).toBe('unavailable');
+      expect(result.issues[0].message).toContain('بررسی');
+    }
+  });
+
   it('blocks insufficient stock', () => {
     const result = resolveCheckoutLines({
       items: [

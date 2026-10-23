@@ -78,6 +78,10 @@ export type CampaignSlideConfig = {
   ctaDestinationValue?: string | number;
   desktopImagePath?: string;
   mobileImagePath?: string;
+  /** Automatic mobile WebP from master crop. */
+  generatedMobileImagePath?: string;
+  /** Optional dedicated mobile override (never replaced by master recrop). */
+  mobileImageOverridePath?: string;
   preferredProductId?: number;
   objectPositionDesktop?: string;
   objectPositionMobile?: string;
@@ -107,6 +111,8 @@ export type ImageCompositionConfig = {
 export type PreviousHomeImageSnapshot = {
   desktopImagePath?: string;
   mobileImagePath?: string;
+  generatedMobileImagePath?: string;
+  mobileImageOverridePath?: string;
   mobileWideImagePath?: string;
   imagePath?: string;
   masterImagePath?: string;
@@ -125,6 +131,8 @@ export type CampaignSectionConfig = {
   ctaDestinationValue?: string | number;
   desktopImagePath?: string;
   mobileImagePath?: string;
+  generatedMobileImagePath?: string;
+  mobileImageOverridePath?: string;
   preferredProductId?: number;
   galleryImageIndex?: number;
   objectPositionDesktop?: string;

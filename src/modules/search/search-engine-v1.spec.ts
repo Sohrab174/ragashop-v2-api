@@ -7,6 +7,7 @@ import {
   normalizeSearchText,
   SEARCH_MAX_QUERY_LENGTH,
 } from './search-normalize';
+import { buildSearchCandidateFilterSql } from './search-candidate';
 import { SEARCH_RANKING_WEIGHTS } from './search-ranking';
 import { parseStorefrontSearchQuery } from './storefront-search.query';
 import { evaluateDiscoveryEligibility } from '../product/discovery-eligibility';
@@ -112,6 +113,67 @@ describe('Search V1 query validation', () => {
 
   it('escapes LIKE wildcards from user input', () => {
     expect(escapeLikePattern('100%_off')).toBe('100\\%\\_off');
+  });
+});
+
+describe('Search V1 candidate filter', () => {
+  it('returns null when there is nothing to match', () => {
+    expect(
+      buildSearchCandidateFilterSql({
+        tokens: [],
+        normalizedQuery: '',
+        exactBrandIds: [],
+        typoBrandIds: [],
+        categorySourceIds: [],
+      }),
+    ).toBeNull();
+  });
+
+  it('AND-joins multi-token nonsense so one common fragment cannot flood results', () => {
+    const q = normalizeSearchQuery('zzzz-no-such-item');
+    const filter = buildSearchCandidateFilterSql({
+      tokens: q.tokens,
+      normalizedQuery: q.normalized,
+      exactBrandIds: [],
+      typoBrandIds: [],
+      categorySourceIds: [],
+    });
+    expect(filter).not.toBeNull();
+    expect(filter!.sql).toContain(' AND ');
+    expect(filter!.sql).not.toMatch(/searchTokPrefix/);
+    expect(q.tokens).toEqual(['zzzz', 'no', 'such', 'item']);
+    for (const token of q.tokens) {
+      expect(Object.values(filter!.params)).toContain(`%${token}%`);
+    }
+  });
+
+  it('keeps a single matching token as a bounded OR across name/brand/category', () => {
+    const q = normalizeSearchQuery('پیراهن');
+    const filter = buildSearchCandidateFilterSql({
+      tokens: q.tokens,
+      normalizedQuery: q.normalized,
+      exactBrandIds: [],
+      typoBrandIds: [],
+      categorySourceIds: [],
+    });
+    expect(filter).not.toBeNull();
+    expect(filter!.params.searchPhrase).toBe('%پیراهن%');
+    expect(filter!.params.searchTok0).toBe('%پیراهن%');
+    expect(filter!.sql).not.toContain(' AND ');
+  });
+
+  it('still allows brand / category id shortcuts without fuzzy prefixes', () => {
+    const filter = buildSearchCandidateFilterSql({
+      tokens: ['nike'],
+      normalizedQuery: 'nike',
+      exactBrandIds: [42],
+      typoBrandIds: [],
+      categorySourceIds: [7],
+    });
+    expect(filter).not.toBeNull();
+    expect(filter!.params.searchBrandIds).toEqual([42]);
+    expect(filter!.params.searchCatSourceIds).toEqual([7]);
+    expect(filter!.sql).not.toMatch(/searchTokPrefix/);
   });
 });
 

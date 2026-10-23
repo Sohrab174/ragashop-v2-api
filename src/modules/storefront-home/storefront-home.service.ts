@@ -65,6 +65,7 @@ import {
 } from './home-preview-credential';
 import { HomeImageAccessService } from './home-image-access.service';
 import { collectHomeImagePathsFromValue } from './home-image-retention';
+import { effectiveMobileImagePath } from './effective-home-mobile-image';
 
 type HomePreviewSession = {
   userId: number;
@@ -975,7 +976,7 @@ export class StorefrontHomeService {
           ctaLabel: c.ctaLabel?.trim() || 'مشاهده',
           ctaHref: resolveCampaignHref({ ...c, preferredProductId }),
           desktopImageUrl: this.toStaticUrl(c.desktopImagePath),
-          mobileImageUrl: this.toStaticUrl(c.mobileImagePath),
+          mobileImageUrl: this.toStaticUrl(effectiveMobileImagePath(c)),
           objectPositionDesktop: c.objectPositionDesktop,
           objectPositionMobile: c.objectPositionMobile,
           imageFitDesktop: c.compositionDesktop?.fit,
@@ -1013,7 +1014,7 @@ export class StorefrontHomeService {
                   preferredProductId: slideProductId,
                 }),
                 desktopImageUrl: this.toStaticUrl(slide.desktopImagePath),
-                mobileImageUrl: this.toStaticUrl(slide.mobileImagePath),
+                mobileImageUrl: this.toStaticUrl(effectiveMobileImagePath(slide)),
                 objectPositionDesktop: slide.objectPositionDesktop,
                 objectPositionMobile: slide.objectPositionMobile,
                 imageFitDesktop: slide.compositionDesktop?.fit,

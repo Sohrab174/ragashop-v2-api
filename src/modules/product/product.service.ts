@@ -27,6 +27,11 @@ import { CategoryStatus } from '../category/entities/category.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductEntity, ProductStatus } from './entities/product.entity';
+import { ProductSupplyType } from '../catalog-lifecycle/catalog-lifecycle.types';
+import {
+  promoteExternalToCurated,
+  retireExternalFromCurated,
+} from '../catalog-lifecycle/catalog-membership.util';
 import {
   applyDiscoveryEligibilityFilters,
   discoveryEligibilitySql,
@@ -383,6 +388,38 @@ export class ProductService {
     }
 
     return product;
+  }
+
+  /**
+   * Explicit per-product catalog approval. Does not change price, stock, or FX.
+   * Native products are left unchanged. Paste-link import never calls this.
+   */
+  async setExternalCatalogMembership(id: number, curated: boolean) {
+    const product = await this.getByIdForAdmin(id);
+    if (product.supplyType === ProductSupplyType.native_marketplace) {
+      this.error.unprocessableEntity([
+        'عضویت کاتالوگ برای کالای داخلی از این مسیر تغییر نمی‌کند.',
+      ]);
+    }
+    const current = {
+      supplyType: product.supplyType || ProductSupplyType.external_source,
+      isCuratedExternalCatalog: product.isCuratedExternalCatalog === true,
+    };
+    const next = curated
+      ? promoteExternalToCurated(current)
+      : retireExternalFromCurated(current);
+    await this.productRepository.update(
+      { id: product.id },
+      {
+        supplyType: next.supplyType as ProductSupplyType,
+        isCuratedExternalCatalog: next.isCuratedExternalCatalog,
+      },
+    );
+    return {
+      id: product.id,
+      supplyType: next.supplyType,
+      isCuratedExternalCatalog: next.isCuratedExternalCatalog,
+    };
   }
 
   /**

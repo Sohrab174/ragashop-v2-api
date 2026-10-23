@@ -882,6 +882,9 @@ export class PaymentSubmissionService {
             fxRateToIrt: settlement.fxRateToIrt,
             commercialAmount: settlement.commercialAmount,
             commercialCurrency: settlement.commercialCurrency,
+            // Manual rails have no gateway fee; NULL means "no fee recorded" (not 0).
+            paymentFeeAmount: null,
+            paymentFeeCurrency: null,
             walletAmount: 0,
             walletIRT: 0,
             walletTRY: 0,

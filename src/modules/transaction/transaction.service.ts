@@ -351,6 +351,9 @@ export class TransactionService {
             fxRateToIrt: settlement.fxRateToIrt,
             commercialAmount: settlement.commercialAmount,
             commercialCurrency: settlement.commercialCurrency,
+            // Fee not booked on initiate; NULL = no fee recorded (not 0).
+            paymentFeeAmount: null,
+            paymentFeeCurrency: null,
             walletAmount,
             walletIRT,
             walletTRY,

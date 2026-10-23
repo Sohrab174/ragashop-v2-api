@@ -1513,6 +1513,9 @@ export class OrderService {
           fxRateToIrt: settlement.fxRateToIrt,
           commercialAmount: settlement.commercialAmount,
           commercialCurrency: settlement.commercialCurrency,
+          // Admin manual settlement has no gateway fee; NULL = no fee recorded.
+          paymentFeeAmount: null,
+          paymentFeeCurrency: null,
           walletAmount: 0,
           walletIRT: 0,
           walletTRY: 0,

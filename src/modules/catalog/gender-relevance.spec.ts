@@ -4,6 +4,23 @@ import { SourceCategoryMappingGenderSlice } from './entities/source-category-map
 import { classifyGenderRelevance } from './gender-relevance';
 
 describe('classifyGenderRelevance', () => {
+  it('treats supermarket pet-shop trees as not gender-applicable', () => {
+    const decision = classifyGenderRelevance({
+      hierarchy: 'Supermarket/Pet Shop Products/Dog Products/Dog Collars',
+    });
+    expect(decision.relevance).toBe('gender_not_applicable');
+    expect(decision.reason).toBe('supermarket');
+    expect(decision.reviewable).toBe(false);
+  });
+
+  it('still requires a gender for adult clothing', () => {
+    const decision = classifyGenderRelevance({
+      hierarchy: 'Giyim/Üst Giyim/Bluz',
+      businessDomain: 'fashion_apparel',
+    });
+    expect(decision.relevance).toBe('gender_required');
+  });
+
   it('excludes household goods without treating them as unisex', () => {
     const decision = classifyGenderRelevance({
       hierarchy: 'Ev & Mobilya/Mobilya/Halı / Kilim/Halı',

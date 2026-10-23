@@ -1,18 +1,32 @@
 import { ValueTransformer } from 'typeorm';
 
+/**
+ * Money-scale decimal ↔ string for TypeORM.
+ *
+ * TypeORM applies transformers before the undefined→DEFAULT branch on insert.
+ * Returning "NaN" for missing optional decimals previously broke nullable columns
+ * (e.g. transaction.paymentFeeAmount on manual receipt approval).
+ *
+ * Missing / non-finite values persist as SQL NULL. Zero stays "0.00".
+ */
 export class DecimalTransformer implements ValueTransformer {
-  // To db from typeorm
-  to(value: number): string {
-    if (value === null) {
+  to(value: number | string | null | undefined): string | null {
+    if (value === null || value === undefined || value === '') {
       return null;
     }
-    return Number.parseFloat(Number(value).toString()).toFixed(2);
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) {
+      return null;
+    }
+    return Number.parseFloat(n.toString()).toFixed(2);
   }
-  // From db to typeorm
-  from(value: string): number {
-    if (value === null) {
+
+  from(value: string | number | null | undefined): number | null {
+    if (value === null || value === undefined || value === '') {
       return null;
     }
-    return Number.parseFloat(value);
+    const n =
+      typeof value === 'number' ? value : Number.parseFloat(String(value));
+    return Number.isFinite(n) ? n : null;
   }
 }

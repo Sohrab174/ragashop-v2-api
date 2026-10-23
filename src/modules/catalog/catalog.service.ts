@@ -6,6 +6,7 @@ import {
   applyAssortmentDecisionToAvailability,
   isAssortmentCommerceEnforcementEnabled,
 } from './assortment-policy/assortment-enforcement';
+import { isUncuratedExternalPurchase } from '../product/external-purchase-eligibility';
 import {
   CanonicalCategoryEntity,
   CanonicalCategoryStatus,
@@ -781,6 +782,20 @@ export class CatalogService {
     // SCOPE-5/6 — direct URL must not bypass assortment review/out state.
     // PDP stays reachable (history/order links); purchase is blocked server-side
     // in Cart/Checkout independently of this flag on the response.
+    if (isUncuratedExternalPurchase(product)) {
+      mapped.availability = applyAssortmentDecisionToAvailability(
+        mapped.availability,
+        {
+          purchasable: false,
+          discoverable: false,
+          code: 'ASSORTMENT_REVIEW_REQUIRED',
+          status: 'REVIEW_REQUIRED',
+          customerMessage:
+            'امکان خرید و ارسال این کالا نیاز به بررسی دارد.',
+        },
+      );
+    }
+
     if (this.assortmentCommerce && isAssortmentCommerceEnforcementEnabled()) {
       const decision = await this.assortmentCommerce.evaluateForCategory(
         product.categoryId,

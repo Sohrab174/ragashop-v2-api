@@ -51,6 +51,7 @@ import {
   lightTypoMatch,
   normalizeSearchText,
 } from './search-normalize';
+import { buildSearchCandidateFilterSql } from './search-candidate';
 import { buildSearchRelevanceSql, persianNormalizeSql } from './search-ranking';
 import {
   isCommercialSearchSort,
@@ -151,6 +152,35 @@ export class SearchService {
       }
     }
 
+    const candidateFilter = buildSearchCandidateFilterSql({
+      tokens: query.tokens,
+      normalizedQuery: query.normalizedQ,
+      exactBrandIds,
+      typoBrandIds,
+      categorySourceIds: categoryMatch.sourceCategoryIds,
+    });
+    if (!candidateFilter) {
+      return this.emptyResponse(query);
+    }
+
+    // Cheap preflight when there is no brand/category shortcut: if the
+    // longest distinctive needle has zero name hits, skip the heavy
+    // eligible+relevance getManyAndCount (was ~40s on unmatched noise).
+    const hasBrandOrCategoryShortcut =
+      exactBrandIds.length > 0 ||
+      typoBrandIds.length > 0 ||
+      categoryMatch.sourceCategoryIds.length > 0;
+    if (
+      !hasBrandOrCategoryShortcut &&
+      !(await this.hasCheapNameCandidate(query.tokens, query.normalizedQ))
+    ) {
+      const elapsedMs = Date.now() - started;
+      this.logger.log(
+        `catalog_search q_len=${query.q.length} tokens=${query.tokens.length} total=0 page=${query.page} ms=${elapsedMs} preflight=miss`,
+      );
+      return this.emptyResponse(query);
+    }
+
     const safety = await loadStorefrontGenderSafetySnapshot(
       this.productRepository.manager,
     );
@@ -160,13 +190,7 @@ export class SearchService {
       .addSelect(STOREFRONT_EFFECTIVE_PRICE_SQL, 'mainPrice')
       .addSelect(STOREFRONT_VISIBLE_DISCOUNT_SQL, 'visibleDiscount');
 
-    this.applySearchCandidateFilter(listingBuilder, {
-      tokens: query.tokens,
-      normalizedQuery: query.normalizedQ,
-      exactBrandIds,
-      typoBrandIds,
-      categorySourceIds: categoryMatch.sourceCategoryIds,
-    });
+    listingBuilder.andWhere(candidateFilter.sql, candidateFilter.params);
 
     applyStorefrontPlpFilters(listingBuilder, query.filters, tryToToman);
 
@@ -513,59 +537,43 @@ export class SearchService {
     return applyDiscoveryEligibilityFilters(qb, 'product');
   }
 
-  private applySearchCandidateFilter(
-    qb: SelectQueryBuilder<ProductEntity>,
-    input: {
-      tokens: string[];
-      normalizedQuery: string;
-      exactBrandIds: number[];
-      typoBrandIds: number[];
-      categorySourceIds: number[];
-    },
-  ): void {
-    const clauses: string[] = [];
-    const params: Record<string, unknown> = {};
+  /**
+   * Bounded existence check on product.name only — no cover/brand joins,
+   * no relevance score, LIMIT 1. Used to fail-closed unmatched noise quickly.
+   */
+  private async hasCheapNameCandidate(
+    tokens: string[],
+    normalizedQuery: string,
+  ): Promise<boolean> {
     const nameNorm = persianNormalizeSql('product.name');
-    const brandNameNorm = persianNormalizeSql('brand.name');
-    const brandSourceNorm = persianNormalizeSql('brand.sourceName');
-    const categoryNameNorm = persianNormalizeSql('category.name');
+    const qb = this.productRepository
+      .createQueryBuilder('product')
+      .select('product.id', 'id')
+      .where('product.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('product.status = :status', { status: ProductStatus.active })
+      .andWhere('product.price > 0');
 
-    const brandIds = uniqueNums([
-      ...input.exactBrandIds,
-      ...input.typoBrandIds,
-    ]);
-    if (brandIds.length) {
-      clauses.push('product.brandId IN (:...searchBrandIds)');
-      params.searchBrandIds = brandIds;
+    const significant = tokens.map((n) => n.trim()).filter((n) => n.length > 0);
+    if (significant.length > 1) {
+      // Mirror multi-token candidate AND — all tokens must appear in the name
+      // for this cheap path (brand/category shortcuts already skipped preflight).
+      significant.forEach((token, index) => {
+        qb.andWhere(`${nameNorm} LIKE :cheapTok${index} ESCAPE '\\\\'`, {
+          [`cheapTok${index}`]: `%${escapeLikePattern(token)}%`,
+        });
+      });
+    } else {
+      const needle =
+        significant[0] ||
+        (normalizedQuery || '').trim();
+      if (!needle || needle.length < 2) return false;
+      qb.andWhere(`${nameNorm} LIKE :cheapNeedle ESCAPE '\\\\'`, {
+        cheapNeedle: `%${escapeLikePattern(needle)}%`,
+      });
     }
-    if (input.categorySourceIds.length) {
-      clauses.push('product.categoryId IN (:...searchCatSourceIds)');
-      params.searchCatSourceIds = input.categorySourceIds;
-    }
 
-    const phrase = escapeLikePattern(input.normalizedQuery);
-    clauses.push(`${nameNorm} LIKE :searchPhrase ESCAPE '\\\\'`);
-    params.searchPhrase = `%${phrase}%`;
-
-    input.tokens.forEach((token, index) => {
-      const likeKey = `searchTok${index}`;
-      const prefixKey = `searchTokPrefix${index}`;
-      const escaped = escapeLikePattern(token);
-      clauses.push(
-        `(${nameNorm} LIKE :${likeKey} ESCAPE '\\\\' OR ${brandNameNorm} LIKE :${likeKey} ESCAPE '\\\\' OR ${brandSourceNorm} LIKE :${likeKey} ESCAPE '\\\\' OR ${categoryNameNorm} LIKE :${likeKey} ESCAPE '\\\\')`,
-      );
-      params[likeKey] = `%${escaped}%`;
-
-      if (token.length >= 3) {
-        clauses.push(`${nameNorm} LIKE :${prefixKey} ESCAPE '\\\\'`);
-        params[prefixKey] = `${escaped.slice(
-          0,
-          Math.max(3, escaped.length - 1),
-        )}%`;
-      }
-    });
-
-    qb.andWhere(`(${clauses.join(' OR ')})`, params);
+    const row = await qb.limit(1).getRawOne();
+    return row != null;
   }
 
   private async resolveExactBrandIds(

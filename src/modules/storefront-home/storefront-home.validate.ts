@@ -49,6 +49,8 @@ export type ImageCompositionConfig = {
 export type PreviousHomeImageSnapshot = {
   desktopImagePath?: string;
   mobileImagePath?: string;
+  generatedMobileImagePath?: string;
+  mobileImageOverridePath?: string;
   mobileWideImagePath?: string;
   imagePath?: string;
   masterImagePath?: string;
@@ -113,6 +115,8 @@ export function sanitizePreviousImageSnapshot(
   const snap: PreviousHomeImageSnapshot = {
     desktopImagePath: sanitizeHomeUploadPath(row.desktopImagePath),
     mobileImagePath: sanitizeHomeUploadPath(row.mobileImagePath),
+    generatedMobileImagePath: sanitizeHomeUploadPath(row.generatedMobileImagePath),
+    mobileImageOverridePath: sanitizeHomeUploadPath(row.mobileImageOverridePath),
     mobileWideImagePath: sanitizeHomeUploadPath(row.mobileWideImagePath),
     imagePath: sanitizeHomeUploadPath(row.imagePath),
     masterImagePath: sanitizeHomeMasterConfigPath(row.masterImagePath),
@@ -339,6 +343,8 @@ export function normalizeCampaignConfig(
         : undefined,
     desktopImagePath: sanitizeHomeUploadPath(raw.desktopImagePath),
     mobileImagePath: sanitizeHomeUploadPath(raw.mobileImagePath),
+    generatedMobileImagePath: sanitizeHomeUploadPath(raw.generatedMobileImagePath),
+    mobileImageOverridePath: sanitizeHomeUploadPath(raw.mobileImageOverridePath),
     preferredProductId: parsePositiveInt(raw.preferredProductId),
     galleryImageIndex:
       raw.galleryImageIndex == null
@@ -405,8 +411,12 @@ function normalizeCampaignSlide(
   }
   const desktop = sanitizeHomeUploadPath(row.desktopImagePath);
   const mobile = sanitizeHomeUploadPath(row.mobileImagePath);
+  const generatedMobile = sanitizeHomeUploadPath(row.generatedMobileImagePath);
+  const mobileOverride = sanitizeHomeUploadPath(row.mobileImageOverridePath);
   if (desktop) slide.desktopImagePath = desktop;
   if (mobile) slide.mobileImagePath = mobile;
+  if (generatedMobile) slide.generatedMobileImagePath = generatedMobile;
+  if (mobileOverride) slide.mobileImageOverridePath = mobileOverride;
   const preferred = parsePositiveInt(row.preferredProductId);
   if (preferred != null) slide.preferredProductId = preferred;
   if (typeof row.objectPositionDesktop === 'string') {
@@ -827,6 +837,8 @@ export const KNOWN_HOME_CONFIG_KEYS: Record<
     'ctaDestinationValue',
     'desktopImagePath',
     'mobileImagePath',
+    'generatedMobileImagePath',
+    'mobileImageOverridePath',
     'preferredProductId',
     'galleryImageIndex',
     'objectPositionDesktop',

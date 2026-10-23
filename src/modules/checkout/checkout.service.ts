@@ -961,6 +961,8 @@ export class CheckoutService {
         status: product.status,
         categoryId: product.categoryId,
         coverPath: product.cover?.pathFile || null,
+        supplyType: product.supplyType,
+        isCuratedExternalCatalog: product.isCuratedExternalCatalog,
         purchaseCost: product.purchaseCost,
         landedUnitCost: product.landedUnitCost,
         costCurrency: product.costCurrency,

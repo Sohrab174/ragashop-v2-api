@@ -692,6 +692,40 @@ export class ProductController {
   }
 
   /**
+   * PUT /products/catalog-membership/admin
+   * One product at a time. Does not publish a batch.
+   */
+  @Put('catalog-membership/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  async setCatalogMembership(
+    @Body() body: { id?: number; curated?: boolean },
+    @User() user: UserEntity,
+  ) {
+    await this.capabilityService.assertUserHasCapability(
+      user,
+      UserCapabilityName.product_write,
+    );
+    const id = Number(body?.id);
+    if (!Number.isInteger(id) || id <= 0 || typeof body?.curated !== 'boolean') {
+      this.error.unprocessableEntity(['درخواست تأیید کاتالوگ معتبر نیست.']);
+    }
+    const data = await this.productService.setExternalCatalogMembership(
+      id,
+      body.curated,
+    );
+    return successfulResult(
+      [
+        body.curated
+          ? 'محصول برای نمایش در کاتالوگ فروشگاه تأیید شد.'
+          : 'محصول از کاتالوگ عمومی خارج شد.',
+      ],
+      data,
+    );
+  }
+
+  /**
    * -------------------------------------------------------
    * PUT /products/admin
    */

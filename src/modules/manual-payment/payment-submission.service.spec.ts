@@ -41,6 +41,8 @@ import {
 } from './manual-payment.types';
 import { OrderPaymentFinalizationEntity } from '../order/entities/order-payment-finalization.entity';
 import { computeSettlementFromOrderSnapshot } from '../finance/settlement-money';
+import { TransactionEntity } from '../transaction/entities/transaction.entity';
+import { DecimalTransformer } from '../../utils/transformers/DecimalTransformer';
 
 describe('PaymentSubmissionService (C2A fix pass)', () => {
   let service: PaymentSubmissionService;
@@ -460,6 +462,113 @@ describe('PaymentSubmissionService (C2A fix pass)', () => {
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalledTimes(1);
       expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
       jest.restoreAllMocks();
+    });
+  });
+
+  describe('approveAtomic manual receipt finalization', () => {
+    const decimal = new DecimalTransformer();
+
+    function mockApproveableSubmission(overrides: Record<string, unknown> = {}) {
+      const expectedAmount = computeSettlementFromOrderSnapshot(
+        eligibleOrder as any,
+      ).settlementAmount;
+      const submission = {
+        id: 1,
+        status: PaymentSubmissionStatus.SUBMITTED,
+        orderId: eligibleOrder.id,
+        customerId: eligibleOrder.customerId,
+        expectedAmount,
+        activeEvidenceId: null,
+        rail: ManualPaymentRail.CARD_TO_CARD,
+        ...overrides,
+      };
+      submissionRepository.findOne.mockResolvedValue({ ...submission });
+      jest
+        .spyOn(service, 'expireSubmissionIfNeededDurable')
+        .mockResolvedValue(false);
+      jest
+        .spyOn(service as any, 'appendReviewEvent')
+        .mockResolvedValue(undefined);
+      mockQueryRunner.manager.findOne = jest.fn(async (entity) => {
+        if (entity === PaymentSubmissionEntity) return { ...submission };
+        if (entity === OrderEntity) return { ...eligibleOrder };
+        return null;
+      }) as any;
+      mockQueryRunner.manager.save = jest.fn(async (e) => e);
+      return submission;
+    }
+
+    it('inserts a transaction with null payment fee (not NaN) and commits', async () => {
+      mockApproveableSubmission();
+      orderService.finalizeOrderPaymentAtomic = jest
+        .fn()
+        .mockResolvedValue('finalized');
+      orderService.sendPostPaymentNotifications = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
+      const res = await service.approveAtomic(1, { id: 2, role: 'admin' });
+
+      expect(res.result).toBe('approved');
+      expect(mockQb.into).toHaveBeenCalledWith(TransactionEntity);
+      const inserted = mockQb.values.mock.calls[0][0];
+      expect(inserted.paymentFeeAmount).toBeNull();
+      expect(inserted.paymentFeeCurrency).toBeNull();
+      expect(inserted.amount).toBe(350000);
+      expect(decimal.to(inserted.paymentFeeAmount)).toBeNull();
+      expect(decimal.to(inserted.amount)).toBe('350000.00');
+      expect(decimal.to(0)).toBe('0.00');
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
+    });
+
+    it('returns idempotent when submission is already APPROVED', async () => {
+      const submission = mockApproveableSubmission({
+        status: PaymentSubmissionStatus.APPROVED,
+      });
+      orderService.finalizeOrderPaymentAtomic = jest.fn();
+
+      const res = await service.approveAtomic(1, { id: 2, role: 'admin' });
+
+      expect(res.result).toBe('idempotent');
+      expect(res.submission.status).toBe(PaymentSubmissionStatus.APPROVED);
+      expect(mockQb.insert).not.toHaveBeenCalled();
+      expect(orderService.finalizeOrderPaymentAtomic).not.toHaveBeenCalled();
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(mockQueryRunner.rollbackTransaction).not.toHaveBeenCalled();
+      expect(submission.status).toBe(PaymentSubmissionStatus.APPROVED);
+    });
+
+    it('rolls back when transaction insert fails', async () => {
+      mockApproveableSubmission();
+      mockQb.execute.mockRejectedValueOnce(
+        new Error(
+          "Incorrect decimal value: 'NaN' for column `transaction`.`paymentFeeAmount`",
+        ),
+      );
+      orderService.finalizeOrderPaymentAtomic = jest.fn();
+
+      await expect(
+        service.approveAtomic(1, { id: 2, role: 'admin' }),
+      ).rejects.toThrow(/paymentFeeAmount|NaN|Incorrect decimal/i);
+
+      expect(orderService.finalizeOrderPaymentAtomic).not.toHaveBeenCalled();
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(mockQueryRunner.commitTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rolls back when finalizeOrderPaymentAtomic throws', async () => {
+      mockApproveableSubmission();
+      orderService.finalizeOrderPaymentAtomic = jest
+        .fn()
+        .mockRejectedValue(new Error('finalize boom'));
+
+      await expect(
+        service.approveAtomic(1, { id: 2, role: 'admin' }),
+      ).rejects.toThrow('finalize boom');
+
+      expect(mockQueryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+      expect(mockQueryRunner.commitTransaction).not.toHaveBeenCalled();
     });
   });
 });

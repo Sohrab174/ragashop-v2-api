@@ -12,6 +12,7 @@ import { AddCartItemDto, UpdateCartItemDto } from './dto/cart.dto';
 import { resolveCartLineConfig } from './cart-line.resolve';
 import {
   mapStorefrontCartResponse,
+  resolveCartProductImagePath,
   type CartReadProductRow,
   type StorefrontCartResponse,
 } from './cart-read.mapper';
@@ -35,6 +36,10 @@ import {
   evaluateAssortmentCommerceGate,
   isAssortmentCommerceEnforcementEnabled,
 } from '../catalog/assortment-policy/assortment-enforcement';
+import {
+  isUncuratedExternalPurchase,
+  UNCURATED_EXTERNAL_PURCHASE_MESSAGE,
+} from '../product/external-purchase-eligibility';
 
 export const CART_SESSION_HEADER = 'x-cart-session';
 
@@ -110,6 +115,7 @@ export class CartService {
 
     const tryToToman = await this.settingService.getTryToToman();
     const product = await this.loadProductSnapshot(productId);
+    this.assertCuratedForPurchase(product);
     await this.assertAssortmentPurchasable(product?.categoryId);
     const resolved = resolveCartLineConfig({
       product,
@@ -307,6 +313,7 @@ export class CartService {
 
     const tryToToman = await this.settingService.getTryToToman();
     const product = await this.loadProductSnapshot(item.productId);
+    this.assertCuratedForPurchase(product);
     await this.assertAssortmentPurchasable(product?.categoryId);
     const selections =
       item.productAttributeValueId != null
@@ -444,12 +451,20 @@ export class CartService {
     }
   }
 
+  private assertCuratedForPurchase(
+    product: CartReadProductRow | null,
+  ): void {
+    if (!isUncuratedExternalPurchase(product)) return;
+    this.error.unprocessableEntity([UNCURATED_EXTERNAL_PURCHASE_MESSAGE]);
+  }
+
   private async loadProductSnapshot(
     productId: number,
   ): Promise<CartReadProductRow | null> {
     const product = await this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.cover', 'cover')
+      .leftJoinAndSelect('product.productGalleries', 'gallery')
       .leftJoinAndSelect(
         'product.productAttributeValues',
         'pav',
@@ -472,7 +487,9 @@ export class CartService {
       isDeleted: product.isDeleted,
       status: product.status,
       categoryId: product.categoryId,
-      coverPath: product.cover?.pathFile || null,
+      coverPath: resolveCartProductImagePath(product),
+      supplyType: product.supplyType,
+      isCuratedExternalCatalog: product.isCuratedExternalCatalog,
       productAttributeValues: (product.productAttributeValues || []).map(
         (pav) => ({
           id: pav.id,
@@ -514,6 +531,7 @@ export class CartService {
       const products = await this.productRepository
         .createQueryBuilder('product')
         .leftJoinAndSelect('product.cover', 'cover')
+        .leftJoinAndSelect('product.productGalleries', 'gallery')
         .leftJoinAndSelect(
           'product.productAttributeValues',
           'pav',
@@ -535,7 +553,7 @@ export class CartService {
           isDeleted: product.isDeleted,
           status: product.status,
           categoryId: product.categoryId,
-          coverPath: product.cover?.pathFile || null,
+          coverPath: resolveCartProductImagePath(product),
           productAttributeValues: (product.productAttributeValues || []).map(
             (pav) => ({
               id: pav.id,

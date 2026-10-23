@@ -6,7 +6,11 @@ import {
   resolveCartStockCeiling,
 } from './cart-stock';
 import { resolveCartLineConfig } from './cart-line.resolve';
-import { mapStorefrontCartResponse } from './cart-read.mapper';
+import {
+  mapStorefrontCartResponse,
+  resolveCartProductImagePath,
+} from './cart-read.mapper';
+import { ProductGalleryType } from '../product/entities/product-gallery.entity';
 import { ProductStatus } from '../product/entities/product.entity';
 
 function expectFailCode(
@@ -334,6 +338,40 @@ describe('resolveCartLineConfig', () => {
       }),
       'product_not_found',
     );
+  });
+});
+
+describe('resolveCartProductImagePath', () => {
+  it('uses the product cover when present', () => {
+    expect(
+      resolveCartProductImagePath({
+        cover: { pathFile: '/products/cover.jpg' },
+        productGalleries: [
+          { pathFile: '/products/other.jpg', type: ProductGalleryType.photo },
+        ],
+      }),
+    ).toBe('/products/cover.jpg');
+  });
+
+  it('falls back to the first photo gallery when cover is missing', () => {
+    expect(
+      resolveCartProductImagePath({
+        cover: { pathFile: '   ' },
+        productGalleries: [
+          { pathFile: '/products/v.mp4', type: ProductGalleryType.video },
+          { pathFile: '/products/g1.jpg', type: ProductGalleryType.photo },
+        ],
+      }),
+    ).toBe('/products/g1.jpg');
+  });
+
+  it('returns null when no usable image exists', () => {
+    expect(
+      resolveCartProductImagePath({
+        cover: null,
+        productGalleries: [{ pathFile: '', type: ProductGalleryType.photo }],
+      }),
+    ).toBeNull();
   });
 });
 

@@ -20,6 +20,10 @@ import {
   AssortmentCommerceCode,
   evaluateAssortmentCommerceGate,
 } from '../catalog/assortment-policy/assortment-enforcement';
+import {
+  isUncuratedExternalPurchase,
+  UNCURATED_EXTERNAL_PURCHASE_MESSAGE,
+} from '../product/external-purchase-eligibility';
 
 export type CheckoutLineIssueCode =
   | 'unavailable'
@@ -71,6 +75,8 @@ export type CheckoutProductRow = {
   status?: string;
   categoryId?: number;
   coverPath?: string | null;
+  supplyType?: string | null;
+  isCuratedExternalCatalog?: boolean | number | null;
   purchaseCost?: number | null;
   landedUnitCost?: number | null;
   costCurrency?: string | null;
@@ -117,6 +123,15 @@ export function resolveCheckoutLines(input: {
         });
         continue;
       }
+    }
+    if (isUncuratedExternalPurchase(product)) {
+      issues.push({
+        cartItemId: item.id,
+        productId: item.productId,
+        code: 'unavailable',
+        message: UNCURATED_EXTERNAL_PURCHASE_MESSAGE,
+      });
+      continue;
     }
     const resolved = resolveOne(item, product);
     if (resolved.ok === false) {

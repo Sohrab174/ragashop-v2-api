@@ -13,6 +13,8 @@ import {
   isRealSale,
   visibleDiscountPercent,
 } from '../catalog/storefront-plp.pricing';
+import { isUsableGalleryPath } from '../catalog/storefront-pdp.gallery';
+import { ProductGalleryType } from '../product/entities/product-gallery.entity';
 import { isCustomerVisibleProduct } from '../product/product-visibility.util';
 import { toToman } from './cart-line.resolve';
 import { CART_MAX_LINE_QUANTITY, resolveCartStockCeiling } from './cart-stock';
@@ -58,6 +60,8 @@ export type CartReadProductRow = {
   status?: string;
   categoryId?: number;
   coverPath?: string | null;
+  supplyType?: string | null;
+  isCuratedExternalCatalog?: boolean | number | null;
   productAttributeValues?: RawPdpPav[] | null;
 };
 
@@ -71,6 +75,37 @@ export type CartReadItemRow = {
 function uiMaxQuantity(stockMax: number | null): number {
   if (stockMax == null) return CART_MAX_LINE_QUANTITY;
   return Math.min(Math.max(0, stockMax), CART_MAX_LINE_QUANTITY);
+}
+
+type CartProductImageSource = {
+  cover?: { pathFile?: string | null } | null;
+  productGalleries?: Array<{
+    pathFile?: string | null;
+    type?: string | null;
+  }> | null;
+};
+
+/**
+ * Prefer product cover; if missing/unusable, fall back to the first photo gallery.
+ * Variant (size) rows do not carry their own image — cover is the cart thumb.
+ */
+export function resolveCartProductImagePath(
+  product: CartProductImageSource | null | undefined,
+): string | null {
+  if (!product) return null;
+  const cover = product.cover?.pathFile;
+  if (isUsableGalleryPath(cover)) return String(cover).trim();
+
+  const galleries = Array.isArray(product.productGalleries)
+    ? product.productGalleries
+    : [];
+  for (const row of galleries) {
+    if (row?.type && row.type !== ProductGalleryType.photo) continue;
+    if (isUsableGalleryPath(row?.pathFile)) {
+      return String(row.pathFile).trim();
+    }
+  }
+  return null;
 }
 
 export function mapStorefrontCartResponse(input: {
