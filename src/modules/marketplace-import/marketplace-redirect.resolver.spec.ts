@@ -1,6 +1,7 @@
 import { Readable } from 'stream';
 import {
   destroyResponseStream,
+  extractTrendyolUrlFromAdjustLocation,
   MarketplaceRedirectError,
   MarketplaceRedirectResolver,
 } from './marketplace-redirect.resolver';
@@ -44,6 +45,83 @@ describe('MarketplaceRedirectResolver', () => {
       'www.trendyol.com',
       expect.anything(),
     );
+  });
+
+  it('falls back to exactly one GET when HEAD returns 403', async () => {
+    const httpHead = jest.fn().mockResolvedValue({ status: 403, headers: {} });
+    const { stream, destroySpy } = createMockStream();
+    const httpGet = jest.fn().mockResolvedValue({
+      status: 302,
+      headers: { location: productUrl },
+      data: stream,
+    });
+
+    const resolver = new MarketplaceRedirectResolver({
+      resolveDns: publicDns,
+      httpHead,
+      httpGet,
+    });
+
+    const identity = await resolver.resolveTyGlToIdentity('https://ty.gl/abc');
+    expect(identity.sourceProductId).toBe('1234567');
+    expect(httpHead).toHaveBeenCalledTimes(1);
+    expect(httpGet).toHaveBeenCalledTimes(1);
+    expect(destroySpy).toHaveBeenCalled();
+  });
+
+  it('extracts Trendyol destination from Adjust Location without following Adjust', async () => {
+    const adjustLocation =
+      'https://p8zh.adj.st/track?adjust_redirect=' +
+      encodeURIComponent(
+        'https://www.trendyol.com/brand/some-product-p-1234567?utm=1',
+      );
+    const httpHead = jest.fn().mockResolvedValue({ status: 403, headers: {} });
+    const { stream, destroySpy } = createMockStream();
+    const httpGet = jest.fn().mockResolvedValue({
+      status: 302,
+      headers: { location: adjustLocation },
+      data: stream,
+    });
+
+    const resolver = new MarketplaceRedirectResolver({
+      resolveDns: publicDns,
+      httpHead,
+      httpGet,
+    });
+
+    const identity = await resolver.resolveTyGlToIdentity(
+      'https://ty.gl/yheewx6ti6jp9',
+    );
+    expect(identity.sourceProductId).toBe('1234567');
+    expect(identity.canonicalUrl).toBe(
+      'https://www.trendyol.com/p/product-p-1234567',
+    );
+    expect(httpGet).toHaveBeenCalledTimes(1);
+    expect(destroySpy).toHaveBeenCalled();
+    expect(publicDns).toHaveBeenCalledWith('ty.gl', expect.anything());
+    expect(publicDns).toHaveBeenCalledWith(
+      'www.trendyol.com',
+      expect.anything(),
+    );
+    expect(publicDns.mock.calls.map((call) => call[0])).not.toContain(
+      'p8zh.adj.st',
+    );
+  });
+
+  it('extractTrendyolUrlFromAdjustLocation reads adjust_redirect only', () => {
+    const embedded = extractTrendyolUrlFromAdjustLocation(
+      'https://x.adj.st/a?adjust_redirect=' +
+        encodeURIComponent(
+          'https://www.trendyol.com/penti/item-p-1198751570?x=1',
+        ),
+    );
+    expect(embedded).toContain('trendyol.com');
+    expect(embedded).toContain('1198751570');
+    expect(
+      extractTrendyolUrlFromAdjustLocation(
+        'https://evil.example/x?adjust_redirect=https://www.trendyol.com/p-1',
+      ),
+    ).toBeNull();
   });
 
   it('falls back to exactly one GET when HEAD returns 405', async () => {

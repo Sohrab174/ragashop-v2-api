@@ -43,7 +43,8 @@ export interface RedirectResolverOptions {
 
 const DEFAULT_MAX_RESPONSE_BYTES = 8192;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const HEAD_NOT_SUPPORTED_STATUSES = new Set([405, 501]);
+/** HEAD often returns these for ty.gl; Location is only available via GET. */
+const HEAD_GET_FALLBACK_STATUSES = new Set([403, 405, 501]);
 
 interface HopResponse {
   status: number;
@@ -173,28 +174,13 @@ export class MarketplaceRedirectResolver {
           );
         }
 
-        const nextUrl = new URL(location, currentUrl).toString();
-        if (!nextUrl.startsWith('https://')) {
-          throw new MarketplaceRedirectError(
-            'UNSUPPORTED_MARKETPLACE',
-            'لینک کوتاه به مقصد امن منتهی نشد.',
-          );
-        }
-
-        try {
-          parseUrlStrict(nextUrl);
-        } catch (error) {
-          if (error instanceof MarketplaceUrlValidationError) {
-            throw new MarketplaceRedirectError(
-              'UNSUPPORTED_MARKETPLACE',
-              error.message,
-            );
-          }
-          throw error;
-        }
+        const resolvedLocation = this.resolveRedirectLocation(
+          location,
+          currentUrl,
+        );
 
         const finalized = await this.finalizeCanonicalDestinationIfValid(
-          nextUrl,
+          resolvedLocation,
           resolveDns,
           deadline,
           now,
@@ -203,15 +189,15 @@ export class MarketplaceRedirectResolver {
           return finalized;
         }
 
-        if (visited.has(nextUrl)) {
+        if (visited.has(resolvedLocation)) {
           throw new MarketplaceRedirectError(
             'REDIRECT_CHAIN_TOO_LONG',
             'لینک کوتاه بیش از حد طولانی است.',
           );
         }
 
-        visited.add(nextUrl);
-        currentUrl = nextUrl;
+        visited.add(resolvedLocation);
+        currentUrl = resolvedLocation;
         continue;
       }
 
@@ -327,7 +313,17 @@ export class MarketplaceRedirectResolver {
       throw this.mapTransportError(headError);
     }
 
-    if (HEAD_NOT_SUPPORTED_STATUSES.has(headResponse.status)) {
+    if (
+      REDIRECT_STATUSES.has(headResponse.status) ||
+      (headResponse.status >= 200 && headResponse.status < 300)
+    ) {
+      return {
+        status: headResponse.status,
+        headers: headResponse.headers as Record<string, unknown>,
+      };
+    }
+
+    if (HEAD_GET_FALLBACK_STATUSES.has(headResponse.status)) {
       const getTimeout = this.resolveHopTimeoutMs(hopTimeoutMs, deadline, now);
       return this.performGetFallback(
         url,
@@ -346,6 +342,39 @@ export class MarketplaceRedirectResolver {
       status: headResponse.status,
       headers: headResponse.headers as Record<string, unknown>,
     };
+  }
+
+  /**
+   * Resolve a hop Location to the next HTTPS URL.
+   * Trendyol ty.gl often redirects through Adjust (`*.adj.st`) with the real
+   * product URL in `adjust_redirect`. Prefer that Trendyol URL without
+   * following Adjust (keeps the hop allow-list tight).
+   */
+  private resolveRedirectLocation(location: string, currentUrl: string): string {
+    const nextUrl = new URL(location, currentUrl).toString();
+    if (!nextUrl.startsWith('https://')) {
+      throw new MarketplaceRedirectError(
+        'UNSUPPORTED_MARKETPLACE',
+        'لینک کوتاه به مقصد امن منتهی نشد.',
+      );
+    }
+
+    const embedded = extractTrendyolUrlFromAdjustLocation(nextUrl);
+    const candidate = embedded || nextUrl;
+
+    try {
+      parseUrlStrict(candidate);
+    } catch (error) {
+      if (error instanceof MarketplaceUrlValidationError) {
+        throw new MarketplaceRedirectError(
+          'UNSUPPORTED_MARKETPLACE',
+          error.message,
+        );
+      }
+      throw error;
+    }
+
+    return candidate;
   }
 
   private async performGetFallback(
@@ -490,6 +519,48 @@ export class MarketplaceRedirectResolver {
         );
       }
     }
+  }
+}
+
+export function isAdjustRedirectHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, '');
+  if (!host) return false;
+  return (
+    host === 'adj.st' ||
+    host.endsWith('.adj.st') ||
+    host === 'adjust.com' ||
+    host.endsWith('.adjust.com')
+  );
+}
+
+/**
+ * Pull a Trendyol HTTPS product URL out of an Adjust deep-link Location.
+ * Returns null when the host is not Adjust or adjust_redirect is absent/invalid.
+ */
+export function extractTrendyolUrlFromAdjustLocation(
+  location: string,
+): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(location);
+  } catch {
+    return null;
+  }
+
+  if (!isAdjustRedirectHost(parsed.hostname)) {
+    return null;
+  }
+
+  const redirect = parsed.searchParams.get('adjust_redirect');
+  if (!redirect || !redirect.startsWith('https://')) {
+    return null;
+  }
+
+  try {
+    validateResolvedTrendyolUrl(redirect);
+    return redirect.split('#')[0];
+  } catch {
+    return null;
   }
 }
 
