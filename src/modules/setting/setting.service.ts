@@ -196,19 +196,33 @@ export class SettingService {
   }
 
   /**
+   * Fail-closed when no positive TRY→toman rate exists.
+   * Used by listing, cart, and quotes. Does NOT invent a rate of 1.
+   * A positive but stale last-known-good rate is still accepted here;
+   * purchase uses requireFreshAuthoritativeTryToToman.
+   */
+  async requirePositiveAuthoritativeTryToToman(
+    now: Date = new Date(),
+  ): Promise<AuthoritativeTryToToman> {
+    const rate = await this.getAuthoritativeTryToToman(now);
+    if (!rate.tryToToman || rate.tryToToman <= 0) {
+      this.error.unprocessableEntity(
+        ['نرخ ارز معتبر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.'],
+        { code: 'fx_rate_unavailable' },
+      );
+    }
+    return rate;
+  }
+
+  /**
    * Fail-closed for NEW order creation when rate missing/stale.
    */
   async requireFreshAuthoritativeTryToToman(
     now: Date = new Date(),
   ): Promise<AuthoritativeTryToToman> {
-    const rate = await this.getAuthoritativeTryToToman(now);
+    const rate = await this.requirePositiveAuthoritativeTryToToman(now);
 
-    if (
-      !rate.tryToToman ||
-      rate.tryToToman <= 0 ||
-      !rate.fetchedAt ||
-      rate.ageMs == null
-    ) {
+    if (!rate.fetchedAt || rate.ageMs == null) {
       this.error.unprocessableEntity(
         ['نرخ ارز معتبر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.'],
         { code: 'fx_rate_unavailable' },
@@ -226,11 +240,12 @@ export class SettingService {
   }
 
   /**
-   * Legacy display helper — prefer getAuthoritativeTryToToman for F1 paths.
+   * Positive TRY→toman for catalog/cart display.
+   * Never falls back to 1 when the rate is missing, zero, or invalid.
    */
-  async getTryToToman() {
-    const rate = await this.getAuthoritativeTryToToman();
-    return rate.tryToToman > 0 ? rate.tryToToman : 1;
+  async getTryToToman(): Promise<number> {
+    const rate = await this.requirePositiveAuthoritativeTryToToman();
+    return rate.tryToToman;
   }
 
   /**

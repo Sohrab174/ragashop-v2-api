@@ -277,6 +277,19 @@ describe('storefront-plp.mapper', () => {
     });
   });
 
+  it('refuses missing/zero FX so 979 TRY cannot display as 979 toman', () => {
+    const shoe = {
+      id: 97125,
+      name: 'کفش مردانه کلاسیک',
+      price: 979,
+      discountedPrice: 979,
+      discountPercent: null,
+    };
+    expect(() => mapStorefrontPlpProduct(shoe, 0)).toThrow('fx_rate_unavailable');
+    expect(() => mapStorefrontPlpProduct(shoe, NaN)).toThrow('fx_rate_unavailable');
+    expect(mapStorefrontPlpProduct(shoe, 6599).price).toBe(6_460_421);
+  });
+
   it('maps available from normalized sourceAvailability', () => {
     expect(
       mapStorefrontPlpProduct(

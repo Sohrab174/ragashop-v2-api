@@ -161,6 +161,27 @@ describe('resolveCartLineConfig', () => {
     expect(result.config.compareAtPriceTry).toBe(100);
   });
 
+  it('refuses missing or zero FX instead of inventing rate 1', () => {
+    const missing = resolveCartLineConfig({
+      product: baseProduct({ quantity: -1 }),
+      quantity: 1,
+      selections: [],
+    });
+    expect(missing.ok).toBe(false);
+    if (missing.ok !== false) return;
+    expect(missing.failure.code).toBe('fx_rate_unavailable');
+
+    const zero = resolveCartLineConfig({
+      product: baseProduct({ quantity: -1 }),
+      quantity: 1,
+      selections: [],
+      tryToToman: 0,
+    });
+    expect(zero.ok).toBe(false);
+    if (zero.ok !== false) return;
+    expect(zero.failure.code).toBe('fx_rate_unavailable');
+  });
+
   it('same product + same config shares configKey', () => {
     const product = baseProduct({ productAttributeValues: sizePavs() });
     const a = resolveCartLineConfig({

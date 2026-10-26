@@ -84,6 +84,10 @@ export function mapStorefrontPlpProduct(
   item: RawPlpProduct,
   tryToToman: number,
 ): StorefrontPlpProductItem {
+  const rate = Number(tryToToman);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error('fx_rate_unavailable');
+  }
   const listPrice = Number(item.price) || 0;
   const hasSale = isRealSale(item.price, item.discountedPrice);
   const currentTry = effectiveSellPrice(item.price, item.discountedPrice);
@@ -97,9 +101,9 @@ export function mapStorefrontPlpProduct(
     name: item.name,
     image: item.cover?.pathFile || null,
     brand: brandName,
-    price: roundMoney(currentTry * tryToToman),
+    price: roundMoney(currentTry * rate),
     compareAtPrice:
-      compareTry != null ? roundMoney(compareTry * tryToToman) : null,
+      compareTry != null ? roundMoney(compareTry * rate) : null,
     discount,
     available:
       listingCardAvailableFromSourceAvailability(item.sourceAvailability) &&

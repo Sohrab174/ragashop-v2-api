@@ -65,7 +65,8 @@ export type CartLineResolveFailure =
   | { code: 'invalid_option'; message: string }
   | { code: 'invalid_quantity'; message: string }
   | { code: 'exceeds_stock'; message: string }
-  | { code: 'invalid_price'; message: string };
+  | { code: 'invalid_price'; message: string }
+  | { code: 'fx_rate_unavailable'; message: string };
 
 function asPositiveInt(value: unknown): number | null {
   if (typeof value === 'number') {
@@ -162,10 +163,17 @@ export function resolveCartLineConfig(input: {
     };
   }
 
-  const tryToToman =
-    Number.isFinite(input.tryToToman) && (input.tryToToman as number) > 0
-      ? (input.tryToToman as number)
-      : 1;
+  const tryToTomanRaw = Number(input.tryToToman);
+  if (!Number.isFinite(tryToTomanRaw) || tryToTomanRaw <= 0) {
+    return {
+      ok: false,
+      failure: {
+        code: 'fx_rate_unavailable',
+        message: 'نرخ ارز معتبر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.',
+      },
+    };
+  }
+  const tryToToman = tryToTomanRaw;
 
   const { options } = mapStorefrontPdpAttributesAndOptions(
     product.productAttributeValues,
@@ -391,6 +399,9 @@ export function resolveCartLineConfig(input: {
 }
 
 export function toToman(amountTry: number, tryToToman: number): number {
-  const rate = Number.isFinite(tryToToman) && tryToToman > 0 ? tryToToman : 1;
+  const rate = Number(tryToToman);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error('fx_rate_unavailable');
+  }
   return Math.round(Number(amountTry) * rate);
 }

@@ -107,4 +107,49 @@ describe('F1 SettingService FX', () => {
     expect(await service.fetchAndPersistTgjuTryToRial(async () => -1)).toBeNull();
     expect(repo.createQueryBuilder).not.toHaveBeenCalled();
   });
+
+  it('getTryToToman refuses missing rate and never falls back to 1', async () => {
+    const { service } = buildService({
+      ...baseSetting,
+      tryToRial: 0,
+      tryToRialFetchedAt: new Date(),
+    });
+    await expect(service.getTryToToman()).rejects.toMatchObject({
+      data: { code: 'fx_rate_unavailable' },
+    });
+  });
+
+  it('getTryToToman refuses null/absent setting without inventing rate 1', async () => {
+    const { service } = buildService(null);
+    await expect(service.getTryToToman()).rejects.toMatchObject({
+      data: { code: 'fx_rate_unavailable' },
+    });
+  });
+
+  it('getTryToToman accepts a positive stale last-known-good for browse', async () => {
+    process.env.FX_RATE_MAX_AGE_MS = '1000';
+    const now = new Date();
+    const { service } = buildService({
+      ...baseSetting,
+      tryToRial: 35000,
+      tryToRialFetchedAt: new Date(now.getTime() - 60_000),
+    });
+    await expect(service.getTryToToman()).resolves.toBe(3500);
+    await expect(service.requireFreshAuthoritativeTryToToman(now)).rejects.toMatchObject({
+      data: { code: 'fx_rate_stale' },
+    });
+  });
+
+  it('valid rate still converts TRY to toman without inventing a hardcoded FX', async () => {
+    process.env.FX_RATE_MAX_AGE_MS = String(DEFAULT_FX_RATE_MAX_AGE_MS);
+    const { service } = buildService({
+      ...baseSetting,
+      tryToRial: 50000,
+      changePercentTryToRial: 0,
+      tryToRialFetchedAt: new Date(),
+    });
+    await expect(service.getTryToToman()).resolves.toBe(5000);
+    // 979 TRY must not display as 979 toman when rate is valid.
+    expect(Math.round(979 * 5000)).toBe(4_895_000);
+  });
 });
