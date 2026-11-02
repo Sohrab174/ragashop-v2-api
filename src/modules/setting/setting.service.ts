@@ -500,6 +500,7 @@ export class SettingService {
   ): Promise<number | null> {
     const fetched = await fetchFn();
 
+    console.log('FETCHED', fetched);
     if (fetched == null || !Number.isFinite(fetched) || fetched <= 0) {
       this.logger.warn('TGJU TRY rate fetch failed or invalid; keeping last-known-good');
       return null;
