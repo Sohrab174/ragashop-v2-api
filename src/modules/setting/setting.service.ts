@@ -11,6 +11,12 @@ import {
   DEFAULT_FX_RATE_MAX_AGE_MS,
   FX_RATE_SOURCE_TGJU,
 } from '../finance/finance.types';
+import {
+  APPROVED_SETTINGS_BOOTSTRAP_SINGLETON,
+  isSettingsBootstrapEnabled,
+  SETTINGS_BOOTSTRAP_LOCK_NAME,
+  SettingsBootstrapResult,
+} from './settings-bootstrap.constants';
 
 export type AuthoritativeTryToToman = {
   /** Effective Toman per 1 TRY after markup (pricing / Order snapshot). */
@@ -46,6 +52,231 @@ export class SettingService {
       return DEFAULT_FX_RATE_MAX_AGE_MS;
     }
     return Math.floor(n);
+  }
+
+  /**
+   * Explicit one-time settings bootstrap (NOT on startup).
+   * Requires SETTINGS_BOOTSTRAP_ENABLED=true. Never overwrites existing rows.
+   * Storefront is ready only after a genuine fresh TGJU persist.
+   */
+  async bootstrapApprovedSingleton(): Promise<SettingsBootstrapResult> {
+    if (!isSettingsBootstrapEnabled()) {
+      this.logger.warn(
+        'Settings bootstrap skipped: SETTINGS_BOOTSTRAP_ENABLED is not true',
+      );
+      return {
+        outcome: 'skipped_disabled',
+        storefrontReady: false,
+        settingId: null,
+        tryToRial: null,
+        message:
+          'Settings bootstrap disabled. Set SETTINGS_BOOTSTRAP_ENABLED=true to allow a one-time run.',
+        settingsCommitted: false,
+        fxRecoveryRequired: false,
+      };
+    }
+
+    try {
+      return await withMysqlNamedLock(
+        getConnection(),
+        SETTINGS_BOOTSTRAP_LOCK_NAME,
+        () => this.bootstrapApprovedSingletonLocked(),
+        15,
+      );
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Settings bootstrap failed before/during INSERT: ${detail}`);
+      return {
+        outcome: 'failed',
+        storefrontReady: false,
+        settingId: null,
+        tryToRial: null,
+        message:
+          'Settings bootstrap failed before commit; no settings row was written by this attempt.',
+        settingsCommitted: false,
+        fxRecoveryRequired: false,
+      };
+    }
+  }
+
+  /**
+   * Testable core: advisory lock held by caller (or test harness).
+   * Post-commit FX failures never undo the committed settings row.
+   */
+  async bootstrapApprovedSingletonLocked(
+    refreshFx: () => Promise<number | null> = () => this.getTryToRial(),
+    readAuthoritative: () => Promise<AuthoritativeTryToToman> = () =>
+      this.getAuthoritativeTryToToman(),
+  ): Promise<SettingsBootstrapResult> {
+    const connection = getConnection();
+    const queryRunner = connection.createQueryRunner();
+    let transactionStarted = false;
+    let created = false;
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      transactionStarted = true;
+
+      const existing = await queryRunner.manager.count(SettingEntity);
+      if (existing > 0) {
+        await queryRunner.rollbackTransaction();
+        transactionStarted = false;
+        this.logger.log(
+          'Settings bootstrap skipped: setting table already has row(s); left unchanged',
+        );
+        return {
+          outcome: 'skipped_existing',
+          storefrontReady: false,
+          settingId: null,
+          tryToRial: null,
+          message:
+            'Settings bootstrap skipped because setting already has rows.',
+          settingsCommitted: false,
+          fxRecoveryRequired: true,
+        };
+      }
+
+      const entity = queryRunner.manager.create(
+        SettingEntity,
+        APPROVED_SETTINGS_BOOTSTRAP_SINGLETON as Partial<SettingEntity>,
+      );
+      await queryRunner.manager.save(entity);
+      await queryRunner.commitTransaction();
+      transactionStarted = false;
+      created = true;
+      this.logger.log(
+        'Settings bootstrap created setting id=1; FX still invalid until TGJU refresh',
+      );
+    } catch (e) {
+      if (transactionStarted) {
+        try {
+          await queryRunner.rollbackTransaction();
+        } catch {
+          // transaction may already be inactive
+        }
+        transactionStarted = false;
+      }
+      throw e;
+    } finally {
+      try {
+        if (!queryRunner.isReleased) {
+          await queryRunner.release();
+        }
+      } catch {
+        // never leave a leaked runner unattempted; ignore double-release races
+      }
+    }
+
+    if (!created) {
+      return {
+        outcome: 'failed',
+        storefrontReady: false,
+        settingId: null,
+        tryToRial: null,
+        message: 'Settings bootstrap did not create a row.',
+        settingsCommitted: false,
+        fxRecoveryRequired: false,
+      };
+    }
+
+    return this.completeBootstrapAfterSettingsCommit(refreshFx, readAuthoritative);
+  }
+
+  /**
+   * Settings INSERT already committed. FX failures must not look like INSERT rollback.
+   */
+  private async completeBootstrapAfterSettingsCommit(
+    refreshFx: () => Promise<number | null>,
+    readAuthoritative: () => Promise<AuthoritativeTryToToman>,
+  ): Promise<SettingsBootstrapResult> {
+    const fxPendingMessage =
+      'Setting id=1 was committed successfully. FX refresh/read failed — storefront NOT ready. ' +
+      'Retrying bootstrap will skip the existing row; recover FX via PUT /settings/try-to-rial (or cron).';
+
+    let tryToRial: number | null = null;
+    try {
+      tryToRial = await refreshFx();
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      this.logger.warn(
+        `Settings bootstrap: post-commit TGJU refresh threw (${detail}); settings row kept`,
+      );
+      return {
+        outcome: 'created',
+        storefrontReady: false,
+        settingId: 1,
+        tryToRial: null,
+        message: fxPendingMessage,
+        settingsCommitted: true,
+        fxRecoveryRequired: true,
+      };
+    }
+
+    if (tryToRial == null || !(tryToRial > 0)) {
+      this.logger.warn(
+        'Settings bootstrap: TGJU refresh failed or invalid after commit; storefront NOT ready',
+      );
+      return {
+        outcome: 'created',
+        storefrontReady: false,
+        settingId: 1,
+        tryToRial: null,
+        message: fxPendingMessage,
+        settingsCommitted: true,
+        fxRecoveryRequired: true,
+      };
+    }
+
+    try {
+      const authoritative = await readAuthoritative();
+      const storefrontReady =
+        authoritative.isFresh &&
+        authoritative.tryToToman > 0 &&
+        authoritative.tryToRialRaw > 0;
+
+      if (!storefrontReady) {
+        this.logger.warn(
+          'Settings bootstrap: post-commit FX present but not fresh/valid; storefront NOT ready',
+        );
+        return {
+          outcome: 'created',
+          storefrontReady: false,
+          settingId: 1,
+          tryToRial,
+          message: fxPendingMessage,
+          settingsCommitted: true,
+          fxRecoveryRequired: true,
+        };
+      }
+
+      this.logger.log(
+        'Settings bootstrap complete: setting id=1 and fresh TGJU FX; storefrontReady=true',
+      );
+      return {
+        outcome: 'created',
+        storefrontReady: true,
+        settingId: 1,
+        tryToRial,
+        message: 'Setting id=1 created and fresh TGJU FX persisted.',
+        settingsCommitted: true,
+        fxRecoveryRequired: false,
+      };
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      this.logger.warn(
+        `Settings bootstrap: post-commit FX rate-read threw (${detail}); settings row kept`,
+      );
+      return {
+        outcome: 'created',
+        storefrontReady: false,
+        settingId: 1,
+        tryToRial,
+        message: fxPendingMessage,
+        settingsCommitted: true,
+        fxRecoveryRequired: true,
+      };
+    }
   }
 
   /**
@@ -275,7 +506,7 @@ export class SettingService {
     }
 
     const now = new Date();
-    await this.settingRepository
+    const updateResult = await this.settingRepository
       .createQueryBuilder()
       .update()
       .set({
@@ -285,6 +516,14 @@ export class SettingService {
       })
       .where({ id: 1 })
       .execute();
+
+    const affected = Number(updateResult?.affected ?? 0);
+    if (affected !== 1) {
+      this.logger.error(
+        `TGJU TRY/IRR persist failed: affected=${affected} (expected 1); setting id=1 missing or not updated; fetched=${fetched}`,
+      );
+      return null;
+    }
 
     this.logger.log(`TGJU TRY/IRR updated=${fetched} at=${now.toISOString()}`);
     return fetched;

@@ -101,6 +101,40 @@ describe('F1 SettingService FX', () => {
     expect(qb.set.mock.calls[0][0].tryToRialFetchedAt).toBeInstanceOf(Date);
   });
 
+  it('zero-row TGJU UPDATE returns null and does not treat refresh as successful', async () => {
+    const { service, repo } = buildService(baseSetting);
+    const qb: any = {
+      update: jest.fn(() => qb),
+      set: jest.fn(() => qb),
+      where: jest.fn(() => qb),
+      execute: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+    repo.createQueryBuilder.mockReturnValue(qb);
+
+    const logSpy = jest.spyOn((service as any).logger, 'log').mockImplementation();
+    const errorSpy = jest
+      .spyOn((service as any).logger, 'error')
+      .mockImplementation();
+
+    const result = await service.fetchAndPersistTgjuTryToRial(async () => 40000);
+
+    expect(result).toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('affected=0'),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('setting id=1'),
+    );
+    expect(
+      logSpy.mock.calls.some(([msg]) =>
+        String(msg).includes('TGJU TRY/IRR updated='),
+      ),
+    ).toBe(false);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('zero/negative fetch is rejected', async () => {
     const { service, repo } = buildService(baseSetting);
     expect(await service.fetchAndPersistTgjuTryToRial(async () => 0)).toBeNull();

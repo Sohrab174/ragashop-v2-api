@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt/jwt.guard';
 import { UpdateSettingDto } from './dto/update-setting.dto';
@@ -68,5 +68,21 @@ export class SettingController {
   async getTryToRial() {
     const data = await this.settingService.getTryToRial();
     return successfulResult([], data);
+  }
+
+  /**
+   * -------------------------------------------------------
+   * Post /settings/bootstrap
+   * Explicit one-time empty-table singleton create (opt-in env).
+   * Does not run on startup. Never overwrites existing rows.
+   */
+  @Post('bootstrap')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+  @Roles(UserRoles.admin, UserRoles.employee)
+  @RequireCapabilities(UserCapabilityName.settings_write)
+  async bootstrapApprovedSingleton() {
+    const data = await this.settingService.bootstrapApprovedSingleton();
+    return successfulResult([data.message], data);
   }
 }
