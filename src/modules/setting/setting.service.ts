@@ -507,45 +507,28 @@ export class SettingService {
     }
 
     const now = new Date();
-    // const updateResult = await this.settingRepository
-    //   .createQueryBuilder()
-    //   .update()
-    //   .set({
-    //     tryToRial: fetched,
-    //     tryToRialFetchedAt: now,
-    //     tryToRialSource: FX_RATE_SOURCE_TGJU,
-    //   })
-    //   .where({ id: 1 })
-    //   .execute();
-    const updateResult =await this.settingRepository.upsert(
-  {
-    id: 1,
-    tryToRial: fetched,
-    tryToRialFetchedAt: now,
-    tryToRialSource: FX_RATE_SOURCE_TGJU,
-  },
-  ['id'],
-);
+    const updateResult = await this.settingRepository
+      .createQueryBuilder()
+      .update()
+      .set({
+        tryToRial: fetched,
+        tryToRialFetchedAt: now,
+        tryToRialSource: FX_RATE_SOURCE_TGJU,
+      })
+      .where({ id: 1 })
+      .execute();
+   
 
-    // const affected = Number(updateResult?.affected ?? 0);
-    // if (affected !== 1) {
-    //   this.logger.error(
-    //     `TGJU TRY/IRR persist failed: affected=${affected} (expected 1); setting id=1 missing or not updated; fetched=${fetched}`,
-    //   );
-    //   return null;
-    // }
+    const affected = Number(updateResult?.affected ?? 0);
+    if (affected !== 1) {
+      this.logger.error(
+        `TGJU TRY/IRR persist failed: affected=${affected} (expected 1); setting id=1 missing or not updated; fetched=${fetched}`,
+      );
+      return null;
+    }
 
-    // this.logger.log(`TGJU TRY/IRR updated=${fetched} at=${now.toISOString()}`);
-    if (!updateResult) {
-  this.logger.error(
-    `TGJU TRY/IRR persist failed; setting id=1; fetched=${fetched}`,
-  );
-  return null;
-}
+    this.logger.log(`TGJU TRY/IRR updated=${fetched} at=${now.toISOString()}`);
 
-this.logger.log(
-  `TGJU TRY/IRR persisted=${fetched} at=${now.toISOString()}`,
-);
     return fetched;
   }
 
