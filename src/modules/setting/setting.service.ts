@@ -527,15 +527,25 @@ export class SettingService {
   ['id'],
 );
 
-    const affected = Number(updateResult?.affected ?? 0);
-    if (affected !== 1) {
-      this.logger.error(
-        `TGJU TRY/IRR persist failed: affected=${affected} (expected 1); setting id=1 missing or not updated; fetched=${fetched}`,
-      );
-      return null;
-    }
+    // const affected = Number(updateResult?.affected ?? 0);
+    // if (affected !== 1) {
+    //   this.logger.error(
+    //     `TGJU TRY/IRR persist failed: affected=${affected} (expected 1); setting id=1 missing or not updated; fetched=${fetched}`,
+    //   );
+    //   return null;
+    // }
 
-    this.logger.log(`TGJU TRY/IRR updated=${fetched} at=${now.toISOString()}`);
+    // this.logger.log(`TGJU TRY/IRR updated=${fetched} at=${now.toISOString()}`);
+    if (!updateResult) {
+  this.logger.error(
+    `TGJU TRY/IRR persist failed; setting id=1; fetched=${fetched}`,
+  );
+  return null;
+}
+
+this.logger.log(
+  `TGJU TRY/IRR persisted=${fetched} at=${now.toISOString()}`,
+);
     return fetched;
   }
 
