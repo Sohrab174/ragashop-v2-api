@@ -507,16 +507,25 @@ export class SettingService {
     }
 
     const now = new Date();
-    const updateResult = await this.settingRepository
-      .createQueryBuilder()
-      .update()
-      .set({
-        tryToRial: fetched,
-        tryToRialFetchedAt: now,
-        tryToRialSource: FX_RATE_SOURCE_TGJU,
-      })
-      .where({ id: 1 })
-      .execute();
+    // const updateResult = await this.settingRepository
+    //   .createQueryBuilder()
+    //   .update()
+    //   .set({
+    //     tryToRial: fetched,
+    //     tryToRialFetchedAt: now,
+    //     tryToRialSource: FX_RATE_SOURCE_TGJU,
+    //   })
+    //   .where({ id: 1 })
+    //   .execute();
+    const updateResult =await this.settingRepository.upsert(
+  {
+    id: 1,
+    tryToRial: fetched,
+    tryToRialFetchedAt: now,
+    tryToRialSource: FX_RATE_SOURCE_TGJU,
+  },
+  ['id'],
+);
 
     const affected = Number(updateResult?.affected ?? 0);
     if (affected !== 1) {
