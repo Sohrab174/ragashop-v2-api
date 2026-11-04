@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "executionId": "handoff-EXACT_PROD_DB-20261104-120000",
+  "approvedDatabaseName": "EXACT_PROD_DB_NAME",
+  "serverFingerprint": "hostname|port|datadir|version",
+  "backupPath": "C:/secure/backups/ragashop_prod_handoff_YYYYMMDD.sql",
+  "backupSha256": "REPLACE_WITH_SHA256_OF_BACKUP_FILE",
+  "scratchDatabaseName": "ragashop_restore_scratch_YYYYMMDD",
+  "verifiedAt": "2026-11-04T12:30:00.000Z",
+  "verifiedBy": "authorized-server-operator@example.com",
+  "tableRowCounts": {
+    "source_category_mapping": 0,
+    "product": 0,
+    "category": 0
+  },
+  "evidencePayloadSha256": "REPLACE_WITH_SHA256_OF_CANONICAL_PAYLOAD_SEE_README"
+}

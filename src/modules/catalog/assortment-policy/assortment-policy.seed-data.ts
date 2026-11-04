@@ -221,6 +221,18 @@ export const SCOPE2_INITIAL_PATH_RULE_DRAFTS: AssortmentRuleDraft[] = [
   {
     provider: 'trendyol',
     matchType: 'path_prefix',
+    // English Trendyol hierarchy used in Local/Prod pet nodes (not Turkish Süpermarket).
+    // Longer than generic süpermarket so pet leaves become IN_SCOPE without opening other supermarket.
+    pathPrefix: 'Supermarket/Pet Shop Products',
+    categoryId: null,
+    status: 'IN_SCOPE',
+    reasonCode: 'TARGET_EXISTING_CANONICAL_ROOT',
+    businessDomain: 'pet_shop',
+    note: 'Pet Shop — existing canonical root 103',
+  },
+  {
+    provider: 'trendyol',
+    matchType: 'path_prefix',
     pathPrefix: 'Süpermarket/Sağlık/Cinsel Sağlık',
     categoryId: null,
     status: 'REVIEW_REQUIRED',
