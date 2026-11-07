@@ -448,6 +448,7 @@ describe('storefront-pdp.options', () => {
       ],
       10000,
     );
+
     expect(options).toHaveLength(1);
     expect(options[0].name).toBe('سایز');
     expect(options[0].required).toBe(true);
@@ -457,6 +458,14 @@ describe('storefront-pdp.options', () => {
     expect(attributes).toEqual([
       { attributeId: 8, name: 'جنس', value: 'پنبه' },
     ]);
+  });
+
+  it('does not restore stale discounts on selected PAV prices', () => {
+    const first = { ...pav(11, 7, 'سایز', 'S', 2, 100), discountedPrice: 70 };
+    const second = { ...pav(12, 7, 'سایز', 'M', 2, 100), discountedPrice: 70 };
+    const { options } = mapStorefrontPdpAttributesAndOptions([first, second], 10, false);
+    expect(options[0].values.map((value) => value.price)).toEqual([1000, 1000]);
+    expect(options[0].values.every((value) => value.compareAtPrice == null && value.discount == null)).toBe(true);
   });
 
   it('does not promote descriptive multi-value groups to purchase options', () => {
@@ -614,6 +623,21 @@ describe('storefront-pdp.mapper pricing', () => {
     expect(mapped.price).toBe(800);
     expect(mapped.compareAtPrice).toBe(1000);
     expect(mapped.discount).toBe(20);
+  });
+
+  it('suppresses stale external product and PAV discounts and blocks purchase', () => {
+    const mapped = mapStorefrontPdpProduct({
+      ...base, supplyType: 'external_source', sourceUrl: '/item/p-123',
+      sourceAvailability: 'unknown', sourceSyncStatus: 'never_verified',
+      availabilityLastConfirmedAt: null, price: 100, discountedPrice: 70,
+      productAttributeValues: [],
+    }, 10, []);
+    expect(mapped.price).toBe(1000);
+    expect(mapped.compareAtPrice).toBeNull();
+    expect(mapped.discount).toBeNull();
+    expect(mapped.availability.sourceVerificationRequired).toBe(true);
+    expect(mapped.availability.purchasable).toBe(false);
+    expect(mapped.sourceUrl).toBe('/item/p-123');
   });
 
   it('ignores equal discountedPrice (non-sale)', () => {

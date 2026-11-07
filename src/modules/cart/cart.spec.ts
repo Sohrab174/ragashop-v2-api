@@ -397,6 +397,52 @@ describe('resolveCartProductImagePath', () => {
 });
 
 describe('mapStorefrontCartResponse', () => {
+  it('keeps a recently verified external item on the normal cart path', () => {
+    const cart = mapStorefrontCartResponse({
+      sessionKey: null,
+      items: [{ id: 1, productId: 10, productAttributeValueId: null, quantity: 1 }],
+      productsById: new Map([
+        [10, baseProduct({
+          supplyType: 'external_source',
+          source: 'trendyol',
+          sourceId: '123',
+          sourceUrl: '/p/test-p-123',
+          sourceAvailability: 'available',
+          sourceSyncStatus: 'fresh',
+          availabilityLastConfirmedAt: new Date(),
+          isCuratedExternalCatalog: true,
+        })],
+      ]) as any,
+      tryToToman: 1000,
+    });
+    expect(cart.items[0].sourceVerificationRequired).toBe(false);
+    expect(cart.items[0].sourceIdentity).toBe('trendyol:123');
+    expect(cart.items[0].discount).toBe(20);
+  });
+
+  it('exposes stale external source identity and suppresses its discount until verified', () => {
+    const cart = mapStorefrontCartResponse({
+      sessionKey: null,
+      items: [{ id: 1, productId: 10, productAttributeValueId: null, quantity: 1 }],
+      productsById: new Map([
+        [10, baseProduct({
+          supplyType: 'external_source',
+          sourceUrl: '/p/test-p-123',
+          sourceAvailability: 'unknown',
+          sourceSyncStatus: 'never_verified',
+          availabilityLastConfirmedAt: null,
+          isCuratedExternalCatalog: true,
+        })],
+      ]) as any,
+      tryToToman: 1000,
+    });
+    expect(cart.items[0].isExternal).toBe(true);
+    expect(cart.items[0].sourceUrl).toBe('/p/test-p-123');
+    expect(cart.items[0].sourceVerificationRequired).toBe(true);
+    expect(cart.items[0].discount).toBeNull();
+    expect(cart.items[0].compareAtPrice).toBeNull();
+  });
+
   it('reads cart with live price and subtotal', () => {
     const productsById = new Map([
       [

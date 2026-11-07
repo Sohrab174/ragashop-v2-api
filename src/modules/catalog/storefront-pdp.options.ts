@@ -77,6 +77,7 @@ function toTomanPrice(
 function mapOptionValue(
   pav: RawPdpPav,
   tryToToman: number,
+  allowDiscount: boolean,
 ): StorefrontPdpOptionValue {
   const label = String(pav.attributeValue?.name || '').trim() || '—';
   const swatch = pav.attributeValue?.extraValue
@@ -84,8 +85,9 @@ function mapOptionValue(
     : null;
 
   const listTry = pav.price != null ? Number(pav.price) : null;
-  const saleTry =
-    pav.discountedPrice != null ? Number(pav.discountedPrice) : null;
+  const saleTry = allowDiscount && pav.discountedPrice != null
+    ? Number(pav.discountedPrice)
+    : null;
   const hasOwnPrice = listTry != null && listTry > 0;
   const hasSale = hasOwnPrice && isRealSale(listTry, saleTry);
   const currentTry = hasOwnPrice ? effectiveSellPrice(listTry, saleTry) : null;
@@ -171,6 +173,7 @@ function dedupeAttributeRows(
 export function mapStorefrontPdpAttributesAndOptions(
   pavs: RawPdpPav[] | null | undefined,
   tryToToman: number,
+  allowDiscount = true,
 ): {
   options: StorefrontPdpOptionGroup[];
   attributes: StorefrontPdpAttributeRow[];
@@ -188,7 +191,7 @@ export function mapStorefrontPdpAttributesAndOptions(
     if (!name || isExcludedFilterAttributeName(name)) continue;
 
     const existing = groups.get(attributeId);
-    const value = mapOptionValue(pav, tryToToman);
+    const value = mapOptionValue(pav, tryToToman, allowDiscount);
     if (existing) {
       existing.values.push(value);
       existing.raw.push(pav);

@@ -251,6 +251,32 @@ describe('storefront-plp real-sale predicate', () => {
 });
 
 describe('storefront-plp.mapper', () => {
+  it('suppresses an external discount after source verification is missing or stale', () => {
+    const stale = mapStorefrontPlpProduct({
+      id: 41, name: 'External', price: 100, discountedPrice: 70,
+      discountPercent: 30, supplyType: 'external_source',
+      sourceAvailability: 'unknown', sourceSyncStatus: 'never_verified',
+      availabilityLastConfirmedAt: null,
+    }, 1);
+    expect(stale.price).toBe(100);
+    expect(stale.compareAtPrice).toBeNull();
+    expect(stale.discount).toBeNull();
+    expect(stale.priceIsIndicative).toBe(true);
+  });
+
+  it('keeps a freshly verified external discount', () => {
+    const fresh = mapStorefrontPlpProduct({
+      id: 42, name: 'External', price: 100, discountedPrice: 70,
+      discountPercent: 30, supplyType: 'external_source',
+      sourceAvailability: 'available', sourceSyncStatus: 'fresh',
+      availabilityLastConfirmedAt: new Date(),
+    }, 1);
+    expect(fresh.price).toBe(70);
+    expect(fresh.compareAtPrice).toBe(100);
+    expect(fresh.discount).toBe(30);
+    expect(fresh.priceIsIndicative).toBe(false);
+  });
+
   it('maps pricing with real compare-at only when discounted', () => {
     const item = mapStorefrontPlpProduct(
       {

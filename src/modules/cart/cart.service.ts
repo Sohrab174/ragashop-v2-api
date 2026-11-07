@@ -125,7 +125,9 @@ export class CartService {
     });
 
     if (resolved.ok === false) {
-      this.error.unprocessableEntity([resolved.failure.message]);
+      this.error.unprocessableEntity([resolved.failure.message], {
+        code: resolved.failure.code,
+      });
     }
     const config = resolved.config;
 
@@ -489,6 +491,12 @@ export class CartService {
       categoryId: product.categoryId,
       coverPath: resolveCartProductImagePath(product),
       supplyType: product.supplyType,
+      source: product.source,
+      sourceId: product.sourceId,
+      sourceUrl: product.sourceUrl,
+      sourceAvailability: product.sourceAvailability,
+      sourceSyncStatus: product.sourceSyncStatus,
+      availabilityLastConfirmedAt: product.availabilityLastConfirmedAt,
       isCuratedExternalCatalog: product.isCuratedExternalCatalog,
       productAttributeValues: (product.productAttributeValues || []).map(
         (pav) => ({
@@ -554,6 +562,14 @@ export class CartService {
           status: product.status,
           categoryId: product.categoryId,
           coverPath: resolveCartProductImagePath(product),
+          supplyType: product.supplyType,
+          source: product.source,
+          sourceId: product.sourceId,
+          sourceUrl: product.sourceUrl,
+          sourceAvailability: product.sourceAvailability,
+          sourceSyncStatus: product.sourceSyncStatus,
+          availabilityLastConfirmedAt: product.availabilityLastConfirmedAt,
+          isCuratedExternalCatalog: product.isCuratedExternalCatalog,
           productAttributeValues: (product.productAttributeValues || []).map(
             (pav) => ({
               id: pav.id,

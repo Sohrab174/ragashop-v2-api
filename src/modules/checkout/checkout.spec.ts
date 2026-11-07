@@ -195,6 +195,33 @@ describe('checkout-phone', () => {
 });
 
 describe('resolveCheckoutLines', () => {
+  it('blocks external products without a successful verification in the five-minute window', () => {
+    const result = resolveCheckoutLines({
+      items: [{ id: 1, productId: 5, productAttributeValueId: null, quantity: 1 }],
+      productsById: new Map([[5, {
+        id: 5, name: 'external', price: 100, discountedPrice: 80, quantity: 4,
+        isSellable: true, isDeleted: false, status: 'active', categoryId: 2, supplyType: 'external_source',
+        isCuratedExternalCatalog: true, sourceAvailability: 'available', sourceSyncStatus: 'fresh',
+        availabilityLastConfirmedAt: new Date(Date.now() - 6 * 60_000), productAttributeValues: [],
+      }]]),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok === false) expect(result.issues[0].code).toBe('unavailable');
+  });
+
+  it('allows a freshly verified available external product through checkout resolution', () => {
+    const result = resolveCheckoutLines({
+      items: [{ id: 2, productId: 6, productAttributeValueId: null, quantity: 1 }],
+      productsById: new Map([[6, {
+        id: 6, name: 'external', price: 100, discountedPrice: 80, quantity: 4,
+        isSellable: true, isDeleted: false, status: 'active', categoryId: 2, supplyType: 'external_source',
+        isCuratedExternalCatalog: true, sourceAvailability: 'available', sourceSyncStatus: 'fresh',
+        availabilityLastConfirmedAt: new Date(), productAttributeValues: [],
+      }]]),
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('blocks unavailable product for entire checkout', () => {
     const result = resolveCheckoutLines({
       items: [

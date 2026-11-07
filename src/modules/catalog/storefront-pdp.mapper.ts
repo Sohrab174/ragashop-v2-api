@@ -12,6 +12,10 @@ import { buildStorefrontPdpDescription } from './storefront-pdp.description';
 import { mapStorefrontPdpAttributesAndOptions } from './storefront-pdp.options';
 import { resolveStorefrontPdpAvailability } from './storefront-pdp.availability';
 import { canonicalBrandName } from './canonical-brand-name';
+import {
+  isFreshExternalCommercialData,
+  isFreshShowcaseDiscount,
+} from '../source-availability/customer-freshness';
 import type {
   StorefrontPdpBreadcrumbItem,
   StorefrontPdpProduct,
@@ -24,6 +28,11 @@ export type RawPdpProduct = {
   price: number | null;
   discountedPrice: number | null;
   quantity: number;
+  supplyType?: string | null;
+  sourceUrl?: string | null;
+  sourceAvailability?: string | null;
+  sourceSyncStatus?: string | null;
+  availabilityLastConfirmedAt?: Date | string | null;
   isSellable?: boolean | null;
   description?: string | null;
   sourceDescription?: string | null;
@@ -99,12 +108,14 @@ export function mapStorefrontPdpProduct(
   siblings: RawPdpSibling[] = [],
 ): StorefrontPdpProduct {
   const listPrice = Number(product.price) || 0;
-  const hasSale = isRealSale(product.price, product.discountedPrice);
-  const currentTry = effectiveSellPrice(product.price, product.discountedPrice);
+  const freshDiscount = isFreshShowcaseDiscount(product);
+  const salePrice = freshDiscount ? product.discountedPrice : null;
+  const hasSale = isRealSale(product.price, salePrice);
+  const currentTry = effectiveSellPrice(product.price, salePrice);
   const compareTry = hasSale ? listPrice : null;
   const discount = visibleDiscountPercent(
     product.price,
-    product.discountedPrice,
+    salePrice,
   );
 
   const brandName = canonicalBrandName(product.brand);
@@ -112,6 +123,7 @@ export function mapStorefrontPdpProduct(
   const { options, attributes } = mapStorefrontPdpAttributesAndOptions(
     product.productAttributeValues,
     tryToToman,
+    freshDiscount,
   );
 
   const allOptionsUnavailable =
@@ -124,9 +136,14 @@ export function mapStorefrontPdpProduct(
     hasRequiredOptions: options.length > 0,
     allOptionsUnavailable,
   });
+  const sourceVerificationRequired =
+    product.supplyType === 'external_source' &&
+    !isFreshExternalCommercialData(product);
+  if (sourceVerificationRequired) availability.purchasable = false;
 
   return {
     id: product.id,
+    sourceUrl: product.supplyType === 'external_source' ? product.sourceUrl ?? null : null,
     name: product.name,
     brand: brandName,
     breadcrumb,
@@ -138,7 +155,7 @@ export function mapStorefrontPdpProduct(
     compareAtPrice:
       compareTry != null ? roundMoney(compareTry * tryToToman) : null,
     discount,
-    availability,
+    availability: { ...availability, sourceVerificationRequired },
     options,
     attributes,
     description: buildStorefrontPdpDescription(

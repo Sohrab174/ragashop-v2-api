@@ -53,6 +53,7 @@ export type StorefrontPdpAvailability = {
   status: 'in_stock' | 'low_stock' | 'out_of_stock';
   /** True when the product can be purchased after valid option selection. */
   purchasable: boolean;
+  sourceVerificationRequired?: boolean;
   /** Remaining quantity when finite and known; null when unlimited / unknown. */
   quantity: number | null;
   /**
@@ -65,6 +66,7 @@ export type StorefrontPdpAvailability = {
 
 export type StorefrontPdpProduct = {
   id: number;
+  sourceUrl?: string | null;
   name: string;
   brand: string | null;
   breadcrumb: StorefrontPdpBreadcrumbItem[];
