@@ -1,0 +1,10 @@
+{
+  "executionId": "handoff-EXACT_PROD_DB-20261104-120000",
+  "approvedDatabaseName": "EXACT_PROD_DB_NAME",
+  "serverFingerprint": "hostname|port|datadir|version",
+  "backupPath": "C:/secure/backups/ragashop_prod_handoff_YYYYMMDD.sql",
+  "backupSha256": "REPLACE_WITH_SHA256_OF_BACKUP_FILE",
+  "backupCreatedAt": "2026-11-04T12:00:00.000Z",
+  "restoreEvidencePath": "./restore-evidence.example.json",
+  "restoreEvidenceSha256": "REPLACE_WITH_SHA256_OF_RESTORE_EVIDENCE_FILE"
+}

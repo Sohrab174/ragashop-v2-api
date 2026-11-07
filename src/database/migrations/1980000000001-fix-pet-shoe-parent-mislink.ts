@@ -9,6 +9,16 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * Do NOT run against production or the live local DB without explicit approval.
  * Verified first on an isolated database copy.
+ *
+ * MANDATORY before interpreting success on any environment:
+ *   run-handoff.ts --mode=shoe-preflight --approved-database-name=<EXACT_DB>
+ * That preflight distinguishes:
+ *   - needs_fix      → exactly 4 shoes under Dog Collars; migration should update 4
+ *   - already_correct → exactly 4 shoes under Ayakkabı; TypeORM up() no-op is NOT
+ *                       proof that a fix was newly applied — report ALREADY_CORRECT
+ *   - FAIL            → missing/ambiguous roots, wrong cardinality, or mixed parents
+ * Silent empty-DB early return in up() must never be treated as a successful fix.
+ * Do not weaken the guards below.
  */
 export class fixPetShoeParentMislink1980000000001
   implements MigrationInterface
