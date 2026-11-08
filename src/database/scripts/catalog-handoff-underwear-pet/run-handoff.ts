@@ -103,6 +103,31 @@ type PostApplyExpectation = {
   protected: PostApplyProduct[];
 };
 
+export type ApprovedProductRow = {
+  id: number;
+  sourceId: string;
+  categoryId: number;
+  isCuratedExternalCatalog: number;
+  hierarchy: string | null;
+};
+
+type ShowcasePreflightSummary = {
+  approvedCount: number;
+  eligibleCount: number;
+  missingCount: number;
+  skippedCount: number;
+  eligibleSourceIds: string[];
+  missingSourceIds: string[];
+  skippedSourceIds: string[];
+  blockingConditions: string[];
+};
+
+type HandoffPreflightResult = {
+  mappingId: number;
+  womenCanonicalId: number;
+  showcase: ShowcasePreflightSummary;
+};
+
 /**
  * Independently verifiable restore evidence produced by the authorized server
  * operator after a real restore test on a scratch DB. A self-declared YES is
@@ -451,10 +476,71 @@ async function requireSchema(q: Q): Promise<void> {
   await requireInnoDbForMutatedTables(q);
 }
 
+/** Summarize the showcase set without treating absent products as handoff failures. */
+export function summarizeApprovedShowcaseRows(
+  rows: ApprovedProductRow[],
+): ShowcasePreflightSummary {
+  const grouped = new Map<string, ApprovedProductRow[]>();
+  for (const row of rows) {
+    const sourceId = String(row.sourceId);
+    const group = grouped.get(sourceId) || [];
+    group.push(row);
+    grouped.set(sourceId, group);
+  }
+
+  const eligibleSourceIds: string[] = [];
+  const missingSourceIds: string[] = [];
+  const blockingConditions: string[] = [];
+  for (const sourceId of APPROVED_PET_SOURCE_IDS) {
+    const products = grouped.get(sourceId) || [];
+    if (products.length === 0) {
+      missingSourceIds.push(sourceId);
+      continue;
+    }
+    if (products.length !== 1) {
+      blockingConditions.push(
+        `approved sourceId=${sourceId}: duplicate active product rows=${products.length}`,
+      );
+      continue;
+    }
+    const hierarchy = products[0].hierarchy;
+    if (!String(hierarchy || '').startsWith('Supermarket/Pet Shop Products')) {
+      blockingConditions.push(
+        `approved sourceId=${sourceId}: not under Pet Shop hierarchy (${hierarchy})`,
+      );
+      continue;
+    }
+    eligibleSourceIds.push(sourceId);
+  }
+
+  const eligible = new Set(eligibleSourceIds);
+  const skippedSourceIds = APPROVED_PET_SOURCE_IDS.filter(
+    (sourceId) => !eligible.has(sourceId),
+  );
+  return {
+    approvedCount: APPROVED_PET_SOURCE_IDS.length,
+    eligibleCount: eligibleSourceIds.length,
+    missingCount: missingSourceIds.length,
+    skippedCount: skippedSourceIds.length,
+    eligibleSourceIds,
+    missingSourceIds,
+    skippedSourceIds,
+    blockingConditions,
+  };
+}
+
+function requireNoShowcaseBlockers(result: HandoffPreflightResult): void {
+  if (result.showcase.blockingConditions.length) {
+    throw new FailClosedError(
+      `showcase preflight blocked: ${result.showcase.blockingConditions.join('; ')}`,
+    );
+  }
+}
+
 async function runPreflight(
   q: Q,
   effectiveEnv: Record<string, string>,
-): Promise<{ mappingId: number; womenCanonicalId: number }> {
+): Promise<HandoffPreflightResult> {
   assertNoApprovedProtectedOverlap();
   requireEnforcementOffVerified(effectiveEnv);
 
@@ -515,25 +601,15 @@ async function runPreflight(
     );
   }
 
-  for (const sourceId of APPROVED_PET_SOURCE_IDS) {
-    const rows = await q(
-      `SELECT p.id, p.isCuratedExternalCatalog, c.hierarchy
-       FROM product p
-       JOIN category c ON c.id = p.categoryId
-       WHERE p.source = ? AND p.sourceId = ? AND p.isDeleted = 0`,
-      [PROVIDER, sourceId],
-    );
-    if (rows.length !== 1) {
-      throw new FailClosedError(
-        `approved sourceId=${sourceId}: expected 1 product row, got ${rows.length}`,
-      );
-    }
-    if (!String(rows[0].hierarchy || '').startsWith('Supermarket/Pet Shop Products')) {
-      throw new FailClosedError(
-        `approved sourceId=${sourceId}: not under Pet Shop hierarchy (${rows[0].hierarchy})`,
-      );
-    }
-  }
+  const approvedRows = (await q(
+    `SELECT p.id, p.sourceId, p.categoryId, p.isCuratedExternalCatalog, c.hierarchy
+     FROM product p
+     LEFT JOIN category c ON c.id = p.categoryId
+     WHERE p.source = ? AND p.isDeleted = 0
+       AND p.sourceId IN (${placeholders(APPROVED_PET_SOURCE_IDS.length)})`,
+    [PROVIDER, ...APPROVED_PET_SOURCE_IDS],
+  )) as ApprovedProductRow[];
+  const showcase = summarizeApprovedShowcaseRows(approvedRows);
 
   for (const sourceId of PROTECTED_PET_SOURCE_IDS) {
     const rows = await q(
@@ -586,7 +662,11 @@ async function runPreflight(
     );
   }
 
-  return { mappingId: Number(maps[0].id), womenCanonicalId };
+  return {
+    mappingId: Number(maps[0].id),
+    womenCanonicalId,
+    showcase,
+  };
 }
 
 async function loadProductSnaps(
@@ -624,7 +704,10 @@ async function loadProductSnaps(
   return out;
 }
 
-async function capturePreState(q: Q): Promise<{
+async function capturePreState(
+  q: Q,
+  approvedSourceIds: readonly string[],
+): Promise<{
   mappingPre: MappingSnap;
   approvedProductsPre: ProductSnap[];
   protectedProductsPre: ProductSnap[];
@@ -659,7 +742,7 @@ async function capturePreState(q: Q): Promise<{
       catSourceId: String(m.catSourceId),
       canonicalName: String(m.canonicalName),
     },
-    approvedProductsPre: await loadProductSnaps(q, APPROVED_PET_SOURCE_IDS, 'approved'),
+    approvedProductsPre: await loadProductSnaps(q, approvedSourceIds, 'approved'),
     protectedProductsPre: await loadProductSnaps(
       q,
       PROTECTED_PET_SOURCE_IDS,
@@ -723,7 +806,10 @@ function buildPreApplyExpectation(snap: Snapshot): PostApplyExpectation {
   };
 }
 
-async function applyDesiredState(q: Q): Promise<void> {
+async function applyDesiredState(
+  q: Q,
+  approvedSourceIds: readonly string[],
+): Promise<void> {
   // DML only — never DDL inside the transaction (implicit commit risk).
   await q(
     `UPDATE source_category_mapping m
@@ -742,15 +828,17 @@ async function applyDesiredState(q: Q): Promise<void> {
     [PROVIDER, KOMBINEZON_SOURCE_ID],
   );
 
-  await q(
-    `UPDATE product p
-     JOIN category c ON c.id = p.categoryId
-     SET p.isCuratedExternalCatalog = 1
-     WHERE p.source = ? AND p.isDeleted = 0
-       AND c.hierarchy LIKE ?
-       AND p.sourceId IN (${placeholders(APPROVED_PET_SOURCE_IDS.length)})`,
-    [PROVIDER, PET_HIERARCHY_PREFIX, ...APPROVED_PET_SOURCE_IDS],
-  );
+  if (approvedSourceIds.length) {
+    await q(
+      `UPDATE product p
+       JOIN category c ON c.id = p.categoryId
+       SET p.isCuratedExternalCatalog = 1
+       WHERE p.source = ? AND p.isDeleted = 0
+         AND c.hierarchy LIKE ?
+         AND p.sourceId IN (${placeholders(approvedSourceIds.length)})`,
+      [PROVIDER, PET_HIERARCHY_PREFIX, ...approvedSourceIds],
+    );
+  }
 
   await q(
     `UPDATE product p
@@ -772,7 +860,10 @@ async function readMappingNote(q: Q, mappingId: number): Promise<string | null> 
   return rows[0].note == null ? null : String(rows[0].note);
 }
 
-async function assertPostconditions(q: Q): Promise<void> {
+async function assertPostconditions(
+  q: Q,
+  approvedSourceIds: readonly string[],
+): Promise<void> {
   const map = await q(
     `SELECT m.status
      FROM source_category_mapping m
@@ -787,17 +878,22 @@ async function assertPostconditions(q: Q): Promise<void> {
     throw new FailClosedError('postcondition: mapping not inactive');
   }
 
-  const approved = await q(
-    `SELECT COUNT(*) AS n, SUM(p.isCuratedExternalCatalog = 1) AS curated
-     FROM product p
-     JOIN category c ON c.id = p.categoryId
-     WHERE p.source = ? AND p.isDeleted = 0 AND c.hierarchy LIKE ?
-       AND p.sourceId IN (${placeholders(APPROVED_PET_SOURCE_IDS.length)})`,
-    [PROVIDER, PET_HIERARCHY_PREFIX, ...APPROVED_PET_SOURCE_IDS],
-  );
-  if (Number(approved[0].n) !== 30 || Number(approved[0].curated) !== 30) {
+  const approved = approvedSourceIds.length
+    ? await q(
+        `SELECT COUNT(*) AS n, SUM(p.isCuratedExternalCatalog = 1) AS curated
+         FROM product p
+         JOIN category c ON c.id = p.categoryId
+         WHERE p.source = ? AND p.isDeleted = 0 AND c.hierarchy LIKE ?
+           AND p.sourceId IN (${placeholders(approvedSourceIds.length)})`,
+        [PROVIDER, PET_HIERARCHY_PREFIX, ...approvedSourceIds],
+      )
+    : [{ n: 0, curated: 0 }];
+  if (
+    Number(approved[0].n) !== approvedSourceIds.length ||
+    Number(approved[0].curated) !== approvedSourceIds.length
+  ) {
     throw new FailClosedError(
-      `postcondition: approved curated expected 30/30 got n=${approved[0].n} curated=${approved[0].curated}`,
+      `postcondition: approved curated expected ${approvedSourceIds.length}/${approvedSourceIds.length} got n=${approved[0].n} curated=${approved[0].curated}`,
     );
   }
 
@@ -1756,18 +1852,21 @@ async function main() {
       console.log(
         JSON.stringify(
           {
-            ok: true,
+            ok: ids.showcase.blockingConditions.length === 0,
             mode,
             database,
             server,
             mappingId: ids.mappingId,
             womenCanonicalId: ids.womenCanonicalId,
+            showcase: ids.showcase,
+            blockingConditions: ids.showcase.blockingConditions,
             enforcement: 'OFF_VERIFIED',
           },
           null,
           2,
         ),
       );
+      if (ids.showcase.blockingConditions.length) process.exitCode = 1;
       return;
     }
 
@@ -1777,12 +1876,14 @@ async function main() {
           'validate-local only permitted when approved DB is ragashop_local',
         );
       }
-      await runPreflight(q, effectiveEnv);
+      const preflight = await runPreflight(q, effectiveEnv);
+      requireNoShowcaseBlockers(preflight);
       await conn.beginTransaction();
       try {
-        const pre = await capturePreState(q);
-        await applyDesiredState(q);
-        await assertPostconditions(q);
+        const approvedSourceIds = preflight.showcase.eligibleSourceIds;
+        const pre = await capturePreState(q, approvedSourceIds);
+        await applyDesiredState(q, approvedSourceIds);
+        await assertPostconditions(q, approvedSourceIds);
         const mappingNoteAfter = await readMappingNote(q, pre.mappingPre.id);
         const postApply = buildPostApplyExpectation(
           pre.mappingPre,
@@ -1850,14 +1951,16 @@ async function main() {
         backupPath,
         backupSha256,
       });
-      await runPreflight(q, effectiveEnv);
+      const preflight = await runPreflight(q, effectiveEnv);
+      requireNoShowcaseBlockers(preflight);
 
       await conn.beginTransaction();
       let snapFile = '';
       try {
-        const pre = await capturePreState(q);
-        await applyDesiredState(q);
-        await assertPostconditions(q);
+        const approvedSourceIds = preflight.showcase.eligibleSourceIds;
+        const pre = await capturePreState(q, approvedSourceIds);
+        await applyDesiredState(q, approvedSourceIds);
+        await assertPostconditions(q, approvedSourceIds);
         const mappingNoteAfter = await readMappingNote(q, pre.mappingPre.id);
         const postApply = buildPostApplyExpectation(
           pre.mappingPre,
@@ -2180,8 +2283,10 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  const msg = e instanceof Error ? e.message : String(e);
-  console.error(JSON.stringify({ ok: false, error: msg }, null, 2));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(JSON.stringify({ ok: false, error: msg }, null, 2));
+    process.exit(1);
+  });
+}
