@@ -24,6 +24,7 @@ import {
 } from '../product/discovery-eligibility';
 import { SourceCommercialAvailability } from '../source-availability';
 import { canonicalBrandName } from './canonical-brand-name';
+import { isFreshShowcaseDiscount } from '../source-availability/customer-freshness';
 
 export type StorefrontPlpProductItem = {
   id: number;
@@ -39,6 +40,7 @@ export type StorefrontPlpProductItem = {
   compareAtPrice: number | null;
   /** Discount percent derived from real sale prices. */
   discount: number | null;
+  priceIsIndicative?: boolean;
   available: boolean;
 };
 
@@ -65,6 +67,9 @@ type RawPlpProduct = DiscoveryStockInput & {
   discountedPrice: number | null;
   discountPercent: number | null;
   sourceAvailability?: SourceCommercialAvailability | string | null;
+  supplyType?: string | null;
+  sourceSyncStatus?: string | null;
+  availabilityLastConfirmedAt?: Date | string | null;
   cover?: { pathFile?: string | null } | null;
   brand?: { name?: string | null; sourceName?: string | null } | null;
 };
@@ -89,10 +94,12 @@ export function mapStorefrontPlpProduct(
     throw new Error('fx_rate_unavailable');
   }
   const listPrice = Number(item.price) || 0;
-  const hasSale = isRealSale(item.price, item.discountedPrice);
-  const currentTry = effectiveSellPrice(item.price, item.discountedPrice);
+  const saleAllowed = isFreshShowcaseDiscount(item);
+  const salePrice = saleAllowed ? item.discountedPrice : null;
+  const hasSale = isRealSale(item.price, salePrice);
+  const currentTry = effectiveSellPrice(item.price, salePrice);
   const compareTry = hasSale ? listPrice : null;
-  const discount = visibleDiscountPercent(item.price, item.discountedPrice);
+  const discount = visibleDiscountPercent(item.price, salePrice);
 
   const brandName = canonicalBrandName(item.brand);
 
@@ -105,6 +112,8 @@ export function mapStorefrontPlpProduct(
     compareAtPrice:
       compareTry != null ? roundMoney(compareTry * rate) : null,
     discount,
+    priceIsIndicative:
+      item.supplyType === 'external_source' && !saleAllowed,
     available:
       listingCardAvailableFromSourceAvailability(item.sourceAvailability) &&
       discoveryStockExclusion(item) === null,

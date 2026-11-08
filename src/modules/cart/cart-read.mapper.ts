@@ -16,6 +16,7 @@ import {
 import { isUsableGalleryPath } from '../catalog/storefront-pdp.gallery';
 import { ProductGalleryType } from '../product/entities/product-gallery.entity';
 import { isCustomerVisibleProduct } from '../product/product-visibility.util';
+import { isFreshExternalCommercialData } from '../source-availability/customer-freshness';
 import { toToman } from './cart-line.resolve';
 import { CART_MAX_LINE_QUANTITY, resolveCartStockCeiling } from './cart-stock';
 
@@ -40,6 +41,10 @@ export type StorefrontCartLine = {
   available: boolean;
   maxQuantity: number | null;
   availabilityNote: string | null;
+  isExternal: boolean;
+  sourceIdentity: string | null;
+  sourceUrl: string | null;
+  sourceVerificationRequired: boolean;
 };
 
 export type StorefrontCartResponse = {
@@ -61,6 +66,12 @@ export type CartReadProductRow = {
   categoryId?: number;
   coverPath?: string | null;
   supplyType?: string | null;
+  source?: string | null;
+  sourceId?: string | null;
+  sourceUrl?: string | null;
+  sourceAvailability?: string | null;
+  sourceSyncStatus?: string | null;
+  availabilityLastConfirmedAt?: Date | string | null;
   isCuratedExternalCatalog?: boolean | number | null;
   productAttributeValues?: RawPdpPav[] | null;
 };
@@ -154,6 +165,13 @@ function mapOneCartLine(
       available: false,
       maxQuantity: 0,
       availabilityNote: 'این محصول دیگر در دسترس نیست',
+      isExternal: product?.supplyType === 'external_source',
+      sourceIdentity:
+        product?.source && product?.sourceId
+          ? `${product.source}:${product.sourceId}`
+          : null,
+      sourceUrl: product?.sourceUrl ?? null,
+      sourceVerificationRequired: false,
     };
   }
 
@@ -172,6 +190,9 @@ function mapOneCartLine(
     hasRequiredOptions: options.length > 0,
     allOptionsUnavailable,
   });
+  const isExternal = product.supplyType === 'external_source';
+  const sourceVerificationRequired =
+    isExternal && !isFreshExternalCommercialData(product);
 
   let selectedOptions: StorefrontCartSelectedOption[] = [];
   let unitTry = 0;
@@ -269,7 +290,9 @@ function mapOneCartLine(
 
   const unitPrice = available ? toToman(unitTry, tryToToman) : 0;
   const compareAtPrice =
-    available && compareTry != null ? toToman(compareTry, tryToToman) : null;
+    available && !sourceVerificationRequired && compareTry != null
+      ? toToman(compareTry, tryToToman)
+      : null;
 
   return {
     id: item.id,
@@ -280,10 +303,17 @@ function mapOneCartLine(
     quantity: item.quantity,
     unitPrice,
     compareAtPrice,
-    discount: available ? discount : null,
+    discount: available && !sourceVerificationRequired ? discount : null,
     lineTotal: available ? Math.round(unitPrice * item.quantity) : 0,
     available,
     maxQuantity: available ? maxQuantity : 0,
     availabilityNote,
+    isExternal,
+    sourceIdentity:
+      isExternal && product.source && product.sourceId
+        ? `${product.source}:${product.sourceId}`
+        : null,
+    sourceUrl: product.sourceUrl ?? null,
+    sourceVerificationRequired,
   };
 }

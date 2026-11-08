@@ -103,3 +103,65 @@ npx ts-node -r tsconfig-paths/register src/database/scripts/catalog-handoff-unde
 ```
 
 Do **not** run apply/rollback against live Local for review. Keep `ASSORTMENT_DISCOVERY_ENFORCEMENT` unset.
+
+## Missing Kombinezon mapping prerequisite
+
+`run-handoff.ts` intentionally requires one pre-existing mapping for Trendyol
+`sourceId=1099` (`Kombinezon`) to the unique active canonical path
+`زنانه → پوشاک → لباس زیر`, `genderSlice=any`. The handoff package does not
+create this mapping. The focused prerequisite seed below derives both numeric
+category IDs from the approved database and inserts only the exact missing
+mapping. Its final `status=inactive` matches the handoff target and prevents
+this category from becoming a customer-facing source for the underwear PLP.
+
+The safe order is:
+
+1. Review `dry-run` output and then run the prerequisite seed under separate
+   database-change approval.
+2. Run the read-only handoff preflight.
+3. Run the authorized handoff `apply` only after its backup, restore evidence,
+   and operational approvals are complete.
+4. If needed, run the official handoff rollback and verify its `rolled_back`
+   snapshot/lifecycle evidence.
+5. Run the prerequisite seed rollback only after the handoff no longer depends
+   on the row. If apply was never run, the operator must explicitly attest that
+   fact after checking the handoff execution records.
+
+Dry-run performs SELECTs only:
+
+```bash
+npm run catalog:handoff:underwear-pet:prerequisite -- --mode=dry-run --approved-database-name=<EXACT_DB>
+```
+
+Seed is a single guarded INSERT in a transaction. It requires exactly one
+matching source category, exactly one fully active canonical path, the final
+InnoDB schema/index, and zero mappings for the source category:
+
+```bash
+npm run catalog:handoff:underwear-pet:prerequisite -- --mode=seed --approved-database-name=<EXACT_DB> --i-approve-write=YES
+```
+
+Then run preflight and, only when separately approved, the handoff apply:
+
+```bash
+npx ts-node -r tsconfig-paths/register src/database/scripts/catalog-handoff-underwear-pet/run-handoff.ts --mode=preflight --approved-database-name=<EXACT_DB>
+npx ts-node -r tsconfig-paths/register src/database/scripts/catalog-handoff-underwear-pet/run-handoff.ts --mode=apply --approved-database-name=<EXACT_DB> --execution-id=<ID> --backup-path=<DUMP> --backup-attestation=<ATTESTATION_JSON> --i-approve-write=YES
+```
+
+After an official handoff rollback, remove only the exact seed row with the
+matching rollback snapshot and execution ID:
+
+```bash
+npm run catalog:handoff:underwear-pet:prerequisite -- --mode=rollback --approved-database-name=<EXACT_DB> --snapshot=<ROLLED_BACK_SNAPSHOT_JSON> --execution-id=<ID> --i-approve-write=YES
+```
+
+If the handoff was verified never to have been applied, rollback instead
+requires the explicit operator attestation:
+
+```bash
+npm run catalog:handoff:underwear-pet:prerequisite -- --mode=rollback --approved-database-name=<EXACT_DB> --confirm-handoff-never-applied=YES --i-approve-write=YES
+```
+
+Rollback refuses a changed/conflicting seed row. Snapshot-backed rollback also
+requires the runner's SHA256 and lifecycle sidecars to prove the same handoff
+execution completed rollback. The script never prints environment values.

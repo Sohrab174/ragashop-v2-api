@@ -14,6 +14,7 @@ import {
   visibleDiscountPercent,
 } from '../catalog/storefront-plp.pricing';
 import { isCustomerVisibleProduct } from '../product/product-visibility.util';
+import { isFreshExternalCommercialData } from '../source-availability/customer-freshness';
 import { buildCartConfigKey } from './cart-config-key';
 import {
   CART_MAX_LINE_QUANTITY,
@@ -38,6 +39,10 @@ export type CartProductSnapshot = {
   categoryId?: number;
   coverPath?: string | null;
   productAttributeValues?: RawPdpPav[] | null;
+  supplyType?: string | null;
+  sourceAvailability?: string | null;
+  sourceSyncStatus?: string | null;
+  availabilityLastConfirmedAt?: Date | string | null;
 };
 
 export type ResolvedCartLineConfig = {
@@ -66,6 +71,7 @@ export type CartLineResolveFailure =
   | { code: 'invalid_quantity'; message: string }
   | { code: 'exceeds_stock'; message: string }
   | { code: 'invalid_price'; message: string }
+  | { code: 'source_verification_required'; message: string }
   | { code: 'fx_rate_unavailable'; message: string };
 
 function asPositiveInt(value: unknown): number | null {
@@ -148,6 +154,16 @@ export function resolveCartLineConfig(input: {
       failure: {
         code: 'product_not_found',
         message: 'محصول ناموجود است',
+      },
+    };
+  }
+
+  if (!isFreshExternalCommercialData(product)) {
+    return {
+      ok: false,
+      failure: {
+        code: 'source_verification_required',
+        message: 'قیمت و موجودی این کالا باید از فروشنده بررسی شود. لطفاً تازه‌سازی را انجام دهید.',
       },
     };
   }

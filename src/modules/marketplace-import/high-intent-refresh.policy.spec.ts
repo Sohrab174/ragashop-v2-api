@@ -12,7 +12,7 @@ import {
 describe('shouldHighIntentRefresh', () => {
   const now = new Date('2026-09-21T12:00:00.000Z');
   const policy = { freshnessTtlMs: HIGH_INTENT_FRESHNESS_TTL_MS_DEFAULT };
-  const recent = new Date('2026-09-21T06:00:00.000Z');
+  const recent = new Date('2026-09-21T11:59:00.000Z');
   const old = new Date('2026-09-01T12:00:00.000Z');
 
   const healthy: HighIntentRefreshProductInput = {
@@ -159,18 +159,18 @@ describe('shouldHighIntentRefresh', () => {
   });
 
   it('uses policy TTL rather than a hardcoded threshold', () => {
-    const shortTtl = { freshnessTtlMs: 60 * 60 * 1000 };
-    const hourAgo = new Date('2026-09-21T10:30:00.000Z');
+    const shortTtl = { freshnessTtlMs: 60 * 1000 };
+    const twoMinutesAgo = new Date('2026-09-21T11:58:00.000Z');
     expect(
       shouldHighIntentRefresh(
-        { ...healthy, availabilityLastConfirmedAt: hourAgo },
+        { ...healthy, availabilityLastConfirmedAt: twoMinutesAgo },
         now,
         shortTtl,
       ),
     ).toEqual({ refresh: true, reason: 'refresh_required_ttl' });
     expect(
       shouldHighIntentRefresh(
-        { ...healthy, availabilityLastConfirmedAt: hourAgo },
+        { ...healthy, availabilityLastConfirmedAt: twoMinutesAgo },
         now,
         policy,
       ),
