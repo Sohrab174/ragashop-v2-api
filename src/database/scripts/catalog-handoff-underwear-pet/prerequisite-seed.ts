@@ -88,6 +88,7 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
     'updatedAt',
   ],
 };
+const REQUIRED_TABLES = Object.keys(REQUIRED_COLUMNS);
 
 async function rows(
   connection: SeedDbConnection,
@@ -126,50 +127,57 @@ async function assertDatabase(
 }
 
 async function assertSchema(connection: SeedDbConnection): Promise<void> {
-  const tableRows = await rows(
-    connection,
-    `SELECT table_name AS tableName, engine
-     FROM information_schema.tables
-     WHERE table_schema = DATABASE()
-       AND table_name IN ('category','canonical_category','source_category_mapping')`,
-  );
-  const engines = new Map(
-    tableRows.map((row) => [
-      String(row.tableName),
-      String(row.engine).toUpperCase(),
-    ]),
-  );
-  for (const table of Object.keys(REQUIRED_COLUMNS)) {
-    if (engines.get(table) !== 'INNODB') {
-      throw new PrerequisiteSeedError(
-        `required table ${table} is missing or is not InnoDB`,
-      );
+  // Match the handoff runner's per-table/per-column checks. Avoid a
+  // case-sensitive JS map of INFORMATION_SCHEMA table-name results.
+  for (const table of REQUIRED_TABLES) {
+    const tableResult = exactlyOne(
+      await rows(
+        connection,
+        `SELECT COUNT(*) AS n FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name = ?`,
+        [table],
+      ),
+      `table metadata for ${table}`,
+    );
+    if (Number(tableResult.n) !== 1) {
+      throw new PrerequisiteSeedError(`required table missing: ${table}`);
     }
   }
 
-  const columnRows = await rows(
-    connection,
-    `SELECT table_name AS tableName, column_name AS columnName
-     FROM information_schema.columns
-     WHERE table_schema = DATABASE()
-       AND ((table_name = 'category' AND column_name IN ('id','source','sourceId','sourceName','hierarchy','status'))
-         OR (table_name = 'canonical_category' AND column_name IN ('id','parentId','name','status'))
-         OR (table_name = 'source_category_mapping' AND column_name IN ('id','source','sourceCategoryId','canonicalCategoryId','genderSlice','status','reviewStatus','note','createdAt','updatedAt')))`,
-  );
-  const present = new Map<string, Set<string>>();
-  for (const row of columnRows) {
-    const table = String(row.tableName);
-    if (!present.has(table)) present.set(table, new Set());
-    present.get(table)!.add(String(row.columnName));
-  }
   for (const [table, columns] of Object.entries(REQUIRED_COLUMNS)) {
     for (const column of columns) {
-      if (!present.get(table)?.has(column)) {
+      const columnResult = exactlyOne(
+        await rows(
+          connection,
+          `SELECT COUNT(*) AS n FROM information_schema.columns
+           WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+          [table, column],
+        ),
+        `column metadata for ${table}.${column}`,
+      );
+      if (Number(columnResult.n) !== 1) {
         throw new PrerequisiteSeedError(
           `required schema column missing: ${table}.${column}`,
         );
       }
     }
+  }
+
+  // Only source_category_mapping is mutated by this seed; read-only tables
+  // need the expected schema but do not need a transactional storage engine.
+  const mappingEngine = exactlyOne(
+    await rows(
+      connection,
+      `SELECT ENGINE AS engine FROM information_schema.tables
+       WHERE table_schema = DATABASE() AND table_name = ?`,
+      ['source_category_mapping'],
+    ),
+    'engine metadata for source_category_mapping',
+  );
+  if (String(mappingEngine.engine || '').toUpperCase() !== 'INNODB') {
+    throw new PrerequisiteSeedError(
+      'source_category_mapping must use InnoDB for transactional seed and rollback',
+    );
   }
 
   const uniqueIndex = await rows(
