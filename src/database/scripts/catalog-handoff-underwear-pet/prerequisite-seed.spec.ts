@@ -21,6 +21,7 @@ type FixtureOptions = {
   canonicalRows?: any[];
   mappings?: any[];
   failAfterInsert?: boolean;
+  tableEngines?: Record<string, string>;
 };
 
 function fixture(options: FixtureOptions = {}) {
@@ -50,6 +51,13 @@ function fixture(options: FixtureOptions = {}) {
       return [[{ db: DB_NAME }], []];
     }
     if (sql.includes('FROM information_schema.tables')) {
+      if (sql.includes('COUNT(*) AS n')) {
+        return [[{ n: 1 }], []];
+      }
+      if (sql.includes('ENGINE AS engine')) {
+        const table = String(values[0]);
+        return [[{ engine: options.tableEngines?.[table] || 'InnoDB' }], []];
+      }
       return [
         [
           { tableName: 'category', engine: 'InnoDB' },
@@ -60,6 +68,9 @@ function fixture(options: FixtureOptions = {}) {
       ];
     }
     if (sql.includes('FROM information_schema.columns')) {
+      if (sql.includes('COUNT(*) AS n')) {
+        return [[{ n: 1 }], []];
+      }
       return [
         [
           ...[
@@ -242,6 +253,28 @@ describe('catalog handoff Kombinezon prerequisite seed', () => {
       expect.anything(),
     );
     expect(connection.beginTransaction).not.toHaveBeenCalled();
+  });
+
+  it('requires InnoDB only for the mapping table it mutates', async () => {
+    const { connection, query } = fixture({
+      tableEngines: {
+        category: 'MyISAM',
+        canonical_category: 'MyISAM',
+        source_category_mapping: 'InnoDB',
+      },
+    });
+
+    await expect(dryRunPrerequisiteSeed(connection, DB_NAME)).resolves.toEqual({
+      outcome: 'ready_to_seed',
+      sourceCategoryId: 831,
+      canonicalCategoryId: 972,
+    });
+
+    const engineChecks = query.mock.calls.filter(([sql]) =>
+      String(sql).includes('ENGINE AS engine'),
+    );
+    expect(engineChecks).toHaveLength(1);
+    expect(engineChecks[0][1]).toEqual(['source_category_mapping']);
   });
 
   it('inserts one inactive any-slice mapping using database-derived IDs', async () => {
