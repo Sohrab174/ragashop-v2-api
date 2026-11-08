@@ -25,6 +25,7 @@
     "seed": "npm run seeds -- seed",
     "seed:run": "npm-run-all --sequential pretypeorm seed",
     "seed:c1-canonical": "ts-node -r tsconfig-paths/register src/database/seeds/phase-c1-local-canonical-taxonomy.seed.ts",
+    "catalog:handoff:underwear-pet:prerequisite": "ts-node -r tsconfig-paths/register src/database/scripts/catalog-handoff-underwear-pet/prerequisite-seed.ts",
     "local:fx:restamp": "ts-node -r tsconfig-paths/register src/database/scripts/local-fx-review-restamp.ts",
     "catalog:auto-map:analyze": "ts-node -r tsconfig-paths/register src/modules/catalog/scripts/auto-map-0-analyze.ts",
     "catalog:taxonomy-scope:analyze": "ts-node -r tsconfig-paths/register src/modules/catalog/scripts/taxonomy-scope-1-analyze.ts",
