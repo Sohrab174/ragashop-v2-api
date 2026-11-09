@@ -23,6 +23,7 @@ describe('storefront-plp.query', () => {
     if (!parsed.ok) return;
     expect(parsed.value).toEqual({
       categoryId: 12,
+      facetMode: 'full',
       page: 1,
       limit: 24,
       sort: 'default',
@@ -299,6 +300,7 @@ describe('storefront-plp.mapper', () => {
       price: 800,
       compareAtPrice: 1000,
       discount: 20,
+      priceIsIndicative: false,
       available: true, // unknown/missing sourceAvailability → not sold-out
     });
   });
