@@ -120,6 +120,45 @@ describe('shouldHighIntentRefresh', () => {
     ).toEqual({ refresh: false, reason: 'existing_fast_path' });
   });
 
+  it.each([
+    ['missing availability', undefined],
+    ['malformed availability', 'unexpected'],
+  ])('fails closed for %s', (_label, sourceAvailability) => {
+    expect(
+      shouldHighIntentRefresh(
+        { ...healthy, sourceAvailability },
+        now,
+        policy,
+      ),
+    ).toEqual({ refresh: true, reason: 'refresh_required_invalid_state' });
+  });
+
+  it.each([
+    ['missing sync status', undefined],
+    ['malformed sync status', 'unexpected'],
+  ])('fails closed for %s', (_label, sourceSyncStatus) => {
+    expect(
+      shouldHighIntentRefresh(
+        { ...healthy, sourceSyncStatus },
+        now,
+        policy,
+      ),
+    ).toEqual({ refresh: true, reason: 'refresh_required_invalid_state' });
+  });
+
+  it('fails closed when the commercial confirmation is in the future', () => {
+    expect(
+      shouldHighIntentRefresh(
+        {
+          ...healthy,
+          availabilityLastConfirmedAt: new Date('2026-09-21T12:00:01.000Z'),
+        },
+        now,
+        policy,
+      ),
+    ).toEqual({ refresh: true, reason: 'refresh_required_invalid_state' });
+  });
+
   it('does not make native marketplace inventory crawler-dependent', () => {
     expect(
       shouldHighIntentRefresh(

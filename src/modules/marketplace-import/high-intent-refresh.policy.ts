@@ -17,6 +17,7 @@ export type HighIntentRefreshReason =
   | 'refresh_required_source_error'
   | 'refresh_required_never_verified'
   | 'refresh_required_unavailable'
+  | 'refresh_required_invalid_state'
   | 'refresh_required_ttl'
   | 'removed_no_refresh'
   | 'native_no_refresh'
@@ -85,7 +86,20 @@ export function shouldHighIntentRefresh(
     return { refresh: true, reason: 'refresh_required_stale' };
   }
 
+  // The fast path is valid only for a fully recognized, verified state.
+  // Missing or malformed persisted values must fail closed just like the
+  // customer purchase freshness check.
+  if (
+    product.sourceAvailability !== SourceCommercialAvailability.available ||
+    product.sourceSyncStatus !== SourceSyncStatus.fresh
+  ) {
+    return { refresh: true, reason: 'refresh_required_invalid_state' };
+  }
+
   const confirmedAt = toDateOrNull(product.availabilityLastConfirmedAt);
+  if (confirmedAt && confirmedAt.getTime() > now.getTime()) {
+    return { refresh: true, reason: 'refresh_required_invalid_state' };
+  }
   const staleByTtl = isCommercialConfirmationStaleByPolicy(
     {
       sourceAvailability:

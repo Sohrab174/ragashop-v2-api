@@ -111,6 +111,12 @@ export function assertNoApprovedProtectedOverlap(): void {
       `manifest overlap between approved and protected sourceIds: ${overlap.join(',')}`,
     );
   }
+  if (APPROVED_PET_SOURCE_IDS.includes(REJECTED_PET_SOURCE_ID)) {
+    throw new Error('rejected sourceId must not be in the approved set');
+  }
+  if (!PROTECTED_PET_SOURCE_IDS.includes(REJECTED_PET_SOURCE_ID)) {
+    throw new Error('rejected sourceId must remain in the protected set');
+  }
   if (APPROVED_PET_SOURCE_IDS.length !== 30) {
     throw new Error(
       `approved set must be 30, got ${APPROVED_PET_SOURCE_IDS.length}`,

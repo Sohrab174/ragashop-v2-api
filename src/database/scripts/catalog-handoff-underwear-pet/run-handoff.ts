@@ -122,10 +122,24 @@ type ShowcasePreflightSummary = {
   blockingConditions: string[];
 };
 
+type ProtectedPreflightSummary = {
+  protectedCount: number;
+  presentCount: number;
+  missingCount: number;
+  skippedCount: number;
+  presentSourceIds: string[];
+  missingSourceIds: string[];
+  skippedSourceIds: string[];
+  blockingConditions: string[];
+};
+
 type HandoffPreflightResult = {
-  mappingId: number;
-  womenCanonicalId: number;
+  mappingId: number | null;
+  womenCanonicalId: number | null;
   showcase: ShowcasePreflightSummary;
+  protectedProducts: ProtectedPreflightSummary;
+  rejected: { sourceId: string; status: 'present' | 'missing' };
+  blockingConditions: string[];
 };
 
 /**
@@ -529,10 +543,68 @@ export function summarizeApprovedShowcaseRows(
   };
 }
 
-function requireNoShowcaseBlockers(result: HandoffPreflightResult): void {
-  if (result.showcase.blockingConditions.length) {
+export function summarizeProtectedRows(
+  rows: ApprovedProductRow[],
+): ProtectedPreflightSummary {
+  const grouped = new Map<string, ApprovedProductRow[]>();
+  for (const row of rows) {
+    const sourceId = String(row.sourceId);
+    const group = grouped.get(sourceId) || [];
+    group.push(row);
+    grouped.set(sourceId, group);
+  }
+
+  const presentSourceIds: string[] = [];
+  const missingSourceIds: string[] = [];
+  const blockingConditions: string[] = [];
+  for (const sourceId of PROTECTED_PET_SOURCE_IDS) {
+    const products = grouped.get(sourceId) || [];
+    if (products.length === 0) {
+      missingSourceIds.push(sourceId);
+      continue;
+    }
+    if (products.length !== 1) {
+      blockingConditions.push(
+        `protected sourceId=${sourceId}: duplicate active product rows=${products.length}`,
+      );
+      continue;
+    }
+    const product = products[0];
+    if (!String(product.hierarchy || '').startsWith('Supermarket/Pet Shop Products')) {
+      blockingConditions.push(
+        `protected sourceId=${sourceId}: not under Pet Shop hierarchy (${product.hierarchy})`,
+      );
+      continue;
+    }
+    if (Number(product.isCuratedExternalCatalog) !== 0) {
+      blockingConditions.push(
+        `protected sourceId=${sourceId}: must be uncurated before apply (got curated=${product.isCuratedExternalCatalog})`,
+      );
+      continue;
+    }
+    presentSourceIds.push(sourceId);
+  }
+
+  const present = new Set(presentSourceIds);
+  const skippedSourceIds = PROTECTED_PET_SOURCE_IDS.filter(
+    (sourceId) => !present.has(sourceId),
+  );
+  return {
+    protectedCount: PROTECTED_PET_SOURCE_IDS.length,
+    presentCount: presentSourceIds.length,
+    missingCount: missingSourceIds.length,
+    skippedCount: skippedSourceIds.length,
+    presentSourceIds,
+    missingSourceIds,
+    skippedSourceIds,
+    blockingConditions,
+  };
+}
+
+function requireNoPreflightBlockers(result: HandoffPreflightResult): void {
+  if (result.blockingConditions.length) {
     throw new FailClosedError(
-      `showcase preflight blocked: ${result.showcase.blockingConditions.join('; ')}`,
+      `catalog preflight blocked: ${result.blockingConditions.join('; ')}`,
     );
   }
 }
@@ -544,106 +616,103 @@ async function runPreflight(
   assertNoApprovedProtectedOverlap();
   requireEnforcementOffVerified(effectiveEnv);
 
-  const cats = await q(
-    `SELECT id, sourceName, hierarchy, status
-     FROM category WHERE source = ? AND sourceId = ?`,
-    [PROVIDER, KOMBINEZON_SOURCE_ID],
-  );
-  if (cats.length !== 1) {
-    throw new FailClosedError(
-      `expected exactly 1 trendyol category sourceId=${KOMBINEZON_SOURCE_ID}, got ${cats.length}`,
+  let mappingId: number | null = null;
+  let womenCanonicalId: number | null = null;
+  const mappingBlockers: string[] = [];
+  try {
+    const cats = await q(
+      `SELECT id, sourceName, hierarchy, status
+       FROM category WHERE source = ? AND sourceId = ?`,
+      [PROVIDER, KOMBINEZON_SOURCE_ID],
     );
-  }
-  if (
-    cats[0].sourceName !== KOMBINEZON_SOURCE_NAME ||
-    cats[0].hierarchy !== KOMBINEZON_HIERARCHY
-  ) {
-    throw new FailClosedError(
-      `kombinezon identity mismatch: name=${cats[0].sourceName} hierarchy=${cats[0].hierarchy}`,
+    if (cats.length !== 1) {
+      throw new FailClosedError(
+        `expected exactly 1 trendyol category sourceId=${KOMBINEZON_SOURCE_ID}, got ${cats.length}`,
+      );
+    }
+    if (
+      cats[0].sourceName !== KOMBINEZON_SOURCE_NAME ||
+      cats[0].hierarchy !== KOMBINEZON_HIERARCHY
+    ) {
+      throw new FailClosedError(
+        `kombinezon identity mismatch: name=${cats[0].sourceName} hierarchy=${cats[0].hierarchy}`,
+      );
+    }
+
+    const womenCc = await q(
+      `SELECT cc.id
+       FROM canonical_category cc
+       JOIN canonical_category apparel ON apparel.id = cc.parentId AND apparel.name = 'پوشاک'
+       JOIN canonical_category women ON women.id = apparel.parentId AND women.name = 'زنانه' AND women.parentId IS NULL
+       WHERE cc.name = 'لباس زیر' AND cc.status = 'active'`,
     );
+    if (womenCc.length !== 1) {
+      throw new FailClosedError(
+        `expected exactly 1 women underwear canonical, got ${womenCc.length}`,
+      );
+    }
+    womenCanonicalId = Number(womenCc[0].id);
+
+    const maps = await q(
+      `SELECT m.id, m.status, m.genderSlice, m.canonicalCategoryId, m.sourceCategoryId
+       FROM source_category_mapping m
+       WHERE m.sourceCategoryId = ? AND m.canonicalCategoryId = ? AND m.genderSlice = 'any'`,
+      [cats[0].id, womenCanonicalId],
+    );
+    if (maps.length !== 1) {
+      throw new FailClosedError(
+        `expected exactly 1 mapping (kombinezon→women underwear any), got ${maps.length}`,
+      );
+    }
+    mappingId = Number(maps[0].id);
+
+    const other = await q(
+      `SELECT m.id, m.canonicalCategoryId, m.status
+       FROM source_category_mapping m
+       WHERE m.sourceCategoryId = ? AND NOT (m.canonicalCategoryId = ? AND m.genderSlice = 'any')`,
+      [cats[0].id, womenCanonicalId],
+    );
+    if (other.length) {
+      throw new FailClosedError(
+        `unexpected extra mappings from kombinezon category: ${JSON.stringify(other)}`,
+      );
+    }
+  } catch (error) {
+    if (!(error instanceof FailClosedError)) throw error;
+    mappingBlockers.push(error.message);
   }
 
-  const womenCc = await q(
-    `SELECT cc.id
-     FROM canonical_category cc
-     JOIN canonical_category apparel ON apparel.id = cc.parentId AND apparel.name = 'پوشاک'
-     JOIN canonical_category women ON women.id = apparel.parentId AND women.name = 'زنانه' AND women.parentId IS NULL
-     WHERE cc.name = 'لباس زیر' AND cc.status = 'active'`,
-  );
-  if (womenCc.length !== 1) {
-    throw new FailClosedError(
-      `expected exactly 1 women underwear canonical, got ${womenCc.length}`,
-    );
-  }
-  const womenCanonicalId = Number(womenCc[0].id);
-
-  const maps = await q(
-    `SELECT m.id, m.status, m.genderSlice, m.canonicalCategoryId, m.sourceCategoryId
-     FROM source_category_mapping m
-     WHERE m.sourceCategoryId = ? AND m.canonicalCategoryId = ? AND m.genderSlice = 'any'`,
-    [cats[0].id, womenCanonicalId],
-  );
-  if (maps.length !== 1) {
-    throw new FailClosedError(
-      `expected exactly 1 mapping (kombinezon→women underwear any), got ${maps.length}`,
-    );
-  }
-
-  const other = await q(
-    `SELECT m.id, m.canonicalCategoryId, m.status
-     FROM source_category_mapping m
-     WHERE m.sourceCategoryId = ? AND NOT (m.canonicalCategoryId = ? AND m.genderSlice = 'any')`,
-    [cats[0].id, womenCanonicalId],
-  );
-  if (other.length) {
-    throw new FailClosedError(
-      `unexpected extra mappings from kombinezon category: ${JSON.stringify(other)}`,
-    );
-  }
-
-  const approvedRows = (await q(
+  const trackedSourceIds = [
+    ...APPROVED_PET_SOURCE_IDS,
+    ...PROTECTED_PET_SOURCE_IDS,
+  ];
+  const trackedRows = (await q(
     `SELECT p.id, p.sourceId, p.categoryId, p.isCuratedExternalCatalog, c.hierarchy
      FROM product p
      LEFT JOIN category c ON c.id = p.categoryId
      WHERE p.source = ? AND p.isDeleted = 0
-       AND p.sourceId IN (${placeholders(APPROVED_PET_SOURCE_IDS.length)})`,
-    [PROVIDER, ...APPROVED_PET_SOURCE_IDS],
+       AND p.sourceId IN (${placeholders(trackedSourceIds.length)})`,
+    [PROVIDER, ...trackedSourceIds],
   )) as ApprovedProductRow[];
-  const showcase = summarizeApprovedShowcaseRows(approvedRows);
-
-  for (const sourceId of PROTECTED_PET_SOURCE_IDS) {
-    const rows = await q(
-      `SELECT p.id, p.isCuratedExternalCatalog, c.hierarchy
-       FROM product p
-       JOIN category c ON c.id = p.categoryId
-       WHERE p.source = ? AND p.sourceId = ? AND p.isDeleted = 0`,
-      [PROVIDER, sourceId],
-    );
-    if (rows.length !== 1) {
-      throw new FailClosedError(
-        `protected sourceId=${sourceId}: expected 1 product row, got ${rows.length}`,
-      );
-    }
-    if (!String(rows[0].hierarchy || '').startsWith('Supermarket/Pet Shop Products')) {
-      throw new FailClosedError(
-        `protected sourceId=${sourceId}: not under Pet Shop hierarchy (${rows[0].hierarchy})`,
-      );
-    }
-    if (Number(rows[0].isCuratedExternalCatalog) !== 0) {
-      throw new FailClosedError(
-        `protected sourceId=${sourceId}: must be uncurated before apply (got curated=${rows[0].isCuratedExternalCatalog})`,
-      );
-    }
-  }
-
-  const rejected = await q(
-    `SELECT id, sourceId, isCuratedExternalCatalog FROM product
-     WHERE source = ? AND sourceId = ? AND isDeleted = 0`,
-    [PROVIDER, REJECTED_PET_SOURCE_ID],
+  const approvedRows = trackedRows.filter((row) =>
+    APPROVED_PET_SOURCE_IDS.includes(String(row.sourceId)),
   );
-  if (rejected.length !== 1 || Number(rejected[0].isCuratedExternalCatalog) !== 0) {
-    throw new FailClosedError('rejected product 805481396 missing or curated');
-  }
+  const protectedRows = trackedRows.filter((row) =>
+    PROTECTED_PET_SOURCE_IDS.includes(String(row.sourceId)),
+  );
+  const showcase = summarizeApprovedShowcaseRows(approvedRows);
+  const protectedProducts = summarizeProtectedRows(protectedRows);
+  const rejected = {
+    sourceId: REJECTED_PET_SOURCE_ID,
+    status: protectedProducts.missingSourceIds.includes(REJECTED_PET_SOURCE_ID)
+      ? ('missing' as const)
+      : ('present' as const),
+  };
+  const blockingConditions = [
+    ...mappingBlockers,
+    ...showcase.blockingConditions,
+    ...protectedProducts.blockingConditions,
+  ];
 
   const extras = await q(
     `SELECT p.id, p.sourceId
@@ -655,7 +724,7 @@ async function runPreflight(
     [PROVIDER, PET_HIERARCHY_PREFIX, ...APPROVED_PET_SOURCE_IDS],
   );
   if (extras.length) {
-    throw new FailClosedError(
+    blockingConditions.push(
       `unexpected curated pet products outside approved set: ${extras
         .map((r) => r.sourceId)
         .join(',')}`,
@@ -663,9 +732,12 @@ async function runPreflight(
   }
 
   return {
-    mappingId: Number(maps[0].id),
+    mappingId,
     womenCanonicalId,
     showcase,
+    protectedProducts,
+    rejected,
+    blockingConditions,
   };
 }
 
@@ -707,6 +779,7 @@ async function loadProductSnaps(
 async function capturePreState(
   q: Q,
   approvedSourceIds: readonly string[],
+  protectedSourceIds: readonly string[],
 ): Promise<{
   mappingPre: MappingSnap;
   approvedProductsPre: ProductSnap[];
@@ -743,11 +816,7 @@ async function capturePreState(
       canonicalName: String(m.canonicalName),
     },
     approvedProductsPre: await loadProductSnaps(q, approvedSourceIds, 'approved'),
-    protectedProductsPre: await loadProductSnaps(
-      q,
-      PROTECTED_PET_SOURCE_IDS,
-      'protected',
-    ),
+    protectedProductsPre: await loadProductSnaps(q, protectedSourceIds, 'protected'),
   };
 }
 
@@ -765,7 +834,7 @@ function productExpectation(
   };
 }
 
-function buildPostApplyExpectation(
+export function buildPostApplyExpectation(
   mappingPre: MappingSnap,
   approvedProductsPre: ProductSnap[],
   protectedProductsPre: ProductSnap[],
@@ -786,7 +855,7 @@ function buildPostApplyExpectation(
   };
 }
 
-function buildPreApplyExpectation(snap: Snapshot): PostApplyExpectation {
+export function buildPreApplyExpectation(snap: Snapshot): PostApplyExpectation {
   return {
     mappingId: snap.mappingPre.id,
     mappingSource: snap.mappingPre.source,
@@ -863,6 +932,7 @@ async function readMappingNote(q: Q, mappingId: number): Promise<string | null> 
 async function assertPostconditions(
   q: Q,
   approvedSourceIds: readonly string[],
+  protectedSourceIds: readonly string[],
 ): Promise<void> {
   const map = await q(
     `SELECT m.status
@@ -878,16 +948,14 @@ async function assertPostconditions(
     throw new FailClosedError('postcondition: mapping not inactive');
   }
 
-  const approved = approvedSourceIds.length
-    ? await q(
-        `SELECT COUNT(*) AS n, SUM(p.isCuratedExternalCatalog = 1) AS curated
-         FROM product p
-         JOIN category c ON c.id = p.categoryId
-         WHERE p.source = ? AND p.isDeleted = 0 AND c.hierarchy LIKE ?
-           AND p.sourceId IN (${placeholders(approvedSourceIds.length)})`,
-        [PROVIDER, PET_HIERARCHY_PREFIX, ...approvedSourceIds],
-      )
-    : [{ n: 0, curated: 0 }];
+  const approved = await q(
+    `SELECT COUNT(*) AS n, SUM(p.isCuratedExternalCatalog = 1) AS curated
+     FROM product p
+     JOIN category c ON c.id = p.categoryId
+     WHERE p.source = ? AND p.isDeleted = 0 AND c.hierarchy LIKE ?
+       AND p.sourceId IN (${placeholders(APPROVED_PET_SOURCE_IDS.length)})`,
+    [PROVIDER, PET_HIERARCHY_PREFIX, ...APPROVED_PET_SOURCE_IDS],
+  );
   if (
     Number(approved[0].n) !== approvedSourceIds.length ||
     Number(approved[0].curated) !== approvedSourceIds.length
@@ -905,10 +973,12 @@ async function assertPostconditions(
     [PROVIDER, ...PROTECTED_PET_SOURCE_IDS],
   );
   if (
-    Number(protectedRows[0].n) !== 14 ||
-    Number(protectedRows[0].uncurated) !== 14
+    Number(protectedRows[0].n) !== protectedSourceIds.length ||
+    Number(protectedRows[0].uncurated) !== protectedSourceIds.length
   ) {
-    throw new FailClosedError('postcondition: protected set not fully uncurated');
+    throw new FailClosedError(
+      `postcondition: protected present count expected ${protectedSourceIds.length}/${protectedSourceIds.length} got n=${protectedRows[0].n} uncurated=${protectedRows[0].uncurated}`,
+    );
   }
 
   const extras = await q(
@@ -1852,21 +1922,23 @@ async function main() {
       console.log(
         JSON.stringify(
           {
-            ok: ids.showcase.blockingConditions.length === 0,
+            ok: ids.blockingConditions.length === 0,
             mode,
             database,
             server,
             mappingId: ids.mappingId,
             womenCanonicalId: ids.womenCanonicalId,
             showcase: ids.showcase,
-            blockingConditions: ids.showcase.blockingConditions,
+            protectedProducts: ids.protectedProducts,
+            rejected: ids.rejected,
+            blockingConditions: ids.blockingConditions,
             enforcement: 'OFF_VERIFIED',
           },
           null,
           2,
         ),
       );
-      if (ids.showcase.blockingConditions.length) process.exitCode = 1;
+      if (ids.blockingConditions.length) process.exitCode = 1;
       return;
     }
 
@@ -1877,13 +1949,18 @@ async function main() {
         );
       }
       const preflight = await runPreflight(q, effectiveEnv);
-      requireNoShowcaseBlockers(preflight);
+      requireNoPreflightBlockers(preflight);
       await conn.beginTransaction();
       try {
         const approvedSourceIds = preflight.showcase.eligibleSourceIds;
-        const pre = await capturePreState(q, approvedSourceIds);
+        const protectedSourceIds = preflight.protectedProducts.presentSourceIds;
+        const pre = await capturePreState(
+          q,
+          approvedSourceIds,
+          protectedSourceIds,
+        );
         await applyDesiredState(q, approvedSourceIds);
-        await assertPostconditions(q, approvedSourceIds);
+        await assertPostconditions(q, approvedSourceIds, protectedSourceIds);
         const mappingNoteAfter = await readMappingNote(q, pre.mappingPre.id);
         const postApply = buildPostApplyExpectation(
           pre.mappingPre,
@@ -1952,15 +2029,20 @@ async function main() {
         backupSha256,
       });
       const preflight = await runPreflight(q, effectiveEnv);
-      requireNoShowcaseBlockers(preflight);
+      requireNoPreflightBlockers(preflight);
 
       await conn.beginTransaction();
       let snapFile = '';
       try {
         const approvedSourceIds = preflight.showcase.eligibleSourceIds;
-        const pre = await capturePreState(q, approvedSourceIds);
+        const protectedSourceIds = preflight.protectedProducts.presentSourceIds;
+        const pre = await capturePreState(
+          q,
+          approvedSourceIds,
+          protectedSourceIds,
+        );
         await applyDesiredState(q, approvedSourceIds);
-        await assertPostconditions(q, approvedSourceIds);
+        await assertPostconditions(q, approvedSourceIds, protectedSourceIds);
         const mappingNoteAfter = await readMappingNote(q, pre.mappingPre.id);
         const postApply = buildPostApplyExpectation(
           pre.mappingPre,
