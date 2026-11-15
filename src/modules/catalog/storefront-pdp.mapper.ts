@@ -33,6 +33,7 @@ export type RawPdpProduct = {
   sourceAvailability?: string | null;
   sourceSyncStatus?: string | null;
   availabilityLastConfirmedAt?: Date | string | null;
+  discountDisplayExpiresAt?: Date | string | null;
   isSellable?: boolean | null;
   description?: string | null;
   sourceDescription?: string | null;
@@ -136,8 +137,19 @@ export function mapStorefrontPdpProduct(
     hasRequiredOptions: options.length > 0,
     allOptionsUnavailable,
   });
+  // Confirmed source-gone: never claim in-stock / purchasable on PDP.
+  if (
+    product.sourceAvailability === 'unavailable' ||
+    product.sourceAvailability === 'removed'
+  ) {
+    availability.status = 'out_of_stock';
+    availability.purchasable = false;
+    availability.quantity = 0;
+  }
   const sourceVerificationRequired =
     product.supplyType === 'external_source' &&
+    product.sourceAvailability !== 'unavailable' &&
+    product.sourceAvailability !== 'removed' &&
     !isFreshExternalCommercialData(product);
   if (sourceVerificationRequired) availability.purchasable = false;
 

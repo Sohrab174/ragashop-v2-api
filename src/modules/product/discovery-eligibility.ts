@@ -1,6 +1,13 @@
 import { SelectQueryBuilder } from 'typeorm';
 import { ProductSupplyType } from '../catalog-lifecycle/catalog-lifecycle.types';
-import { SourceCommercialAvailability } from '../source-availability';
+import {
+  SourceCommercialAvailability,
+  SourceSyncStatus,
+} from '../source-availability';
+import {
+  isFreshShowcaseListing,
+  resolveShowcaseListingFreshnessMs,
+} from '../source-availability/customer-freshness';
 import { applyAssortmentDiscoveryFilter } from '../catalog/assortment-policy/assortment-enforcement';
 
 /**
@@ -8,23 +15,55 @@ import { applyAssortmentDiscoveryFilter } from '../catalog/assortment-policy/ass
  *
  * Distinct from:
  * - Product existence / PDP access (non-curated paste-link must stay reachable)
- * - Commerce purchasability (Cart/Checkout)
+ * - Commerce purchasability (Cart/Checkout) — keeps 5-minute freshness
+ * - Discount badges — keep discount freshness via PLP/PDP mappers (default 24h)
  * - Catalog refresh eligibility (A3)
  *
- * External curated discovery requires:
- *   supplyType=external_source
- *   AND isCuratedExternalCatalog=true
- *   AND sourceAvailability NOT IN (unavailable, removed)
+ * When SHOWCASE_VERIFIED_DISCOVERY is enabled (default), ordinary showcase
+ * listing allows curated historical products with a usable cover image and
+ * non-bulky category, excluding confirmed unavailable/removed. It does NOT
+ * require a fresh 48-hour commercial verification for PLP membership.
  *
- * UNKNOWN and SOURCE_ERROR alone never hide a product.
- * Native marketplace / unclassified keep compatible discovery without
- * requiring source-availability confirmation.
+ * Confirmed stock / guaranteed current price are NOT claimed on the card
+ * unless listingCardAvailableFromSourceAvailability / priceIsIndicative
+ * say so. Purchase still requires sourceVerificationRequired + 5-minute
+ * freshness.
+ *
+ * Set SHOWCASE_VERIFIED_DISCOVERY=0 to restore the older permissive gate
+ * (curated + not unavailable/removed only, no cover/bulky extras).
  */
+
+export const SHOWCASE_VERIFIED_DISCOVERY_ENV = 'SHOWCASE_VERIFIED_DISCOVERY';
+
+/** Default bulky / heavy leaf categories excluded from verified showcase. */
+export const DEFAULT_SHOWCASE_BULKY_CATEGORY_IDS: readonly number[] = [
+  352, // فرش
+  389, // فن پرده
+  405, // استور پرده
+  361, // پوشش مبل
+  457, // سازنده داخلی کمد
+  465, // ست مبلمان
+  377, // مبلمان باغی
+  613, // کمد چندمنظوره
+  515, // کمد لباس
+  670, // صندلی یا مبل اتاق کودک
+  676, // ملافه تخت دو نفره
+  467, // سر تخت
+  599, // کمد اسباب‌بازی
+  608, // پرده توری
+  597, // لوازم جانبی پرده
+  470, // پوشش فرش
+  410, // فرش آشپزخانه
+  480, // فرش کودک
+];
 
 export type DiscoveryEligibilityInput = {
   supplyType: ProductSupplyType | string;
   isCuratedExternalCatalog: boolean;
   sourceAvailability: SourceCommercialAvailability | string;
+  sourceSyncStatus?: SourceSyncStatus | string | null;
+  availabilityLastConfirmedAt?: Date | string | null;
+  coverId?: number | null;
   status?: string;
   isDeleted?: boolean;
   categoryId?: number | null;
@@ -32,6 +71,10 @@ export type DiscoveryEligibilityInput = {
   hasStock?: boolean | null;
   isSellable?: boolean | null;
   quantity?: number | null;
+  /** When variants exist: true if at least one PAV has quantity <> 0. */
+  hasPurchasableVariant?: boolean | null;
+  /** When variants exist: true if any non-deleted PAV rows exist. */
+  hasVariants?: boolean | null;
 };
 
 export type DiscoveryExclusionReason =
@@ -43,6 +86,10 @@ export type DiscoveryExclusionReason =
   | 'confirmed_unavailable'
   | 'removed'
   | 'not_purchasable'
+  | 'not_verified'
+  | 'missing_image'
+  | 'bulky_category'
+  | 'no_purchasable_variant'
   | null;
 
 export type DiscoveryEligibilityDecision = {
@@ -52,6 +99,27 @@ export type DiscoveryEligibilityDecision = {
 };
 
 const STUB_CATEGORY_ID = 1;
+
+export function isShowcaseVerifiedDiscoveryEnabled(
+  raw = process.env[SHOWCASE_VERIFIED_DISCOVERY_ENV],
+): boolean {
+  if (raw == null || String(raw).trim() === '') return true;
+  const v = String(raw).trim().toLowerCase();
+  return !(v === '0' || v === 'false' || v === 'off' || v === 'no');
+}
+
+export function resolveShowcaseBulkyCategoryIds(
+  raw = process.env.SHOWCASE_BULKY_CATEGORY_IDS,
+): number[] {
+  if (raw == null || String(raw).trim() === '') {
+    return [...DEFAULT_SHOWCASE_BULKY_CATEGORY_IDS];
+  }
+  const ids = String(raw)
+    .split(/[,\s]+/)
+    .map((p) => Number(p))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  return ids.length ? ids : [...DEFAULT_SHOWCASE_BULKY_CATEGORY_IDS];
+}
 
 /**
  * Discovery stock gate (read-only over existing columns; C1 inventory semantics unchanged).
@@ -108,25 +176,107 @@ export function discoveryStockExclusion(
   return null;
 }
 
+export function discoveryVariantPurchasableSql(alias = 'product'): string {
+  return `(
+    NOT EXISTS (
+      SELECT 1 FROM product_attribute_value __pav_none
+      WHERE __pav_none.productId = ${alias}.id
+        AND __pav_none.isDeleted = 0
+    )
+    OR EXISTS (
+      SELECT 1 FROM product_attribute_value __pav_ok
+      WHERE __pav_ok.productId = ${alias}.id
+        AND __pav_ok.isDeleted = 0
+        AND __pav_ok.quantity <> 0
+    )
+  )`;
+}
+
+export function discoveryCoverRequiredSql(alias = 'product'): string {
+  return `${alias}.coverId IS NOT NULL`;
+}
+
+export function discoveryListingFreshnessSql(
+  alias = 'product',
+  maxAgeMs = resolveShowcaseListingFreshnessMs(),
+): string {
+  const seconds = Math.max(60, Math.floor(maxAgeMs / 1000));
+  return `(
+    ${alias}.availabilityLastConfirmedAt IS NOT NULL
+    AND ${alias}.availabilityLastConfirmedAt > DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${seconds} SECOND)
+  )`;
+}
+
+export function discoveryBulkyCategoryExclusionSql(
+  alias = 'product',
+  bulkyIds = resolveShowcaseBulkyCategoryIds(),
+): string {
+  if (!bulkyIds.length) return '1=1';
+  return `${alias}.categoryId NOT IN (${bulkyIds.join(',')})`;
+}
+
 /**
- * SQL fragment for discovery membership + external availability suppression
- * + stock gate. Safe to AND into listing/search/home/category product queries.
+ * Legacy permissive external curated gate (rollback / flag off).
+ */
+function legacyExternalCuratedSql(alias: string): string {
+  return `(
+    ${alias}.supplyType = '${ProductSupplyType.external_source}'
+    AND ${alias}.isCuratedExternalCatalog = 1
+    AND ${alias}.sourceAvailability NOT IN (
+      '${SourceCommercialAvailability.unavailable}',
+      '${SourceCommercialAvailability.removed}'
+    )
+  )`;
+}
+
+/**
+ * Ordinary showcase external curated gate (flag on).
+ * Historical curated products may list without 48h commercial verification.
+ * Cover + bulky filters keep the rail visually usable and launch-safe.
+ */
+function ordinaryExternalCuratedSql(alias: string): string {
+  return `(
+    ${alias}.supplyType = '${ProductSupplyType.external_source}'
+    AND ${alias}.isCuratedExternalCatalog = 1
+    AND ${alias}.sourceAvailability NOT IN (
+      '${SourceCommercialAvailability.unavailable}',
+      '${SourceCommercialAvailability.removed}'
+    )
+    AND ${discoveryCoverRequiredSql(alias)}
+    AND ${discoveryBulkyCategoryExclusionSql(alias)}
+  )`;
+}
+
+/**
+ * SQL fragment for discovery membership + external availability suppression.
+ * Safe to AND into listing/search/home/category product queries.
+ *
+ * External curated ordinary showcase is NOT stock-gated here — card
+ * `available` / indicative price handle commercial honesty; purchase
+ * enforces 5-minute freshness separately. Native/unclassified still use
+ * the stock gate.
  */
 export function discoveryEligibilitySql(alias = 'product'): string {
-  return `(
-    (
+  if (!isShowcaseVerifiedDiscoveryEnabled()) {
+    return `(
       (
-        ${alias}.supplyType = '${ProductSupplyType.external_source}'
-        AND ${alias}.isCuratedExternalCatalog = 1
-        AND ${alias}.sourceAvailability NOT IN (
-          '${SourceCommercialAvailability.unavailable}',
-          '${SourceCommercialAvailability.removed}'
-        )
+        ${legacyExternalCuratedSql(alias)}
+        OR ${alias}.supplyType = '${ProductSupplyType.native_marketplace}'
+        OR ${alias}.supplyType = '${ProductSupplyType.unclassified}'
       )
-      OR ${alias}.supplyType = '${ProductSupplyType.native_marketplace}'
-      OR ${alias}.supplyType = '${ProductSupplyType.unclassified}'
+      AND ${discoveryPurchasableSql(alias)}
+    )`;
+  }
+
+  return `(
+    ${ordinaryExternalCuratedSql(alias)}
+    OR (
+      (
+        ${alias}.supplyType = '${ProductSupplyType.native_marketplace}'
+        OR ${alias}.supplyType = '${ProductSupplyType.unclassified}'
+      )
+      AND ${discoveryPurchasableSql(alias)}
     )
-    AND ${discoveryPurchasableSql(alias)}
   )`;
 }
 
@@ -144,11 +294,41 @@ export function applyDiscoveryEligibilityFilters<T>(
 }
 
 /**
+ * Ordinary showcase extras for curated external listing membership.
+ * Cover + bulky only — freshness is NOT a listing membership requirement.
+ * Confirmed availability claims stay on listingCardAvailableFromSourceAvailability.
+ */
+function evaluateOrdinaryExternalExtras(
+  product: DiscoveryEligibilityInput,
+): DiscoveryEligibilityDecision | null {
+  if (product.coverId == null) {
+    return {
+      eligible: false,
+      reason: 'missing_image',
+      detail: 'coverId_required',
+    };
+  }
+  const categoryId = product.categoryId != null ? Number(product.categoryId) : null;
+  if (
+    categoryId != null &&
+    resolveShowcaseBulkyCategoryIds().includes(categoryId)
+  ) {
+    return {
+      eligible: false,
+      reason: 'bulky_category',
+      detail: `categoryId_${categoryId}`,
+    };
+  }
+  return null;
+}
+
+/**
  * Pure policy evaluation (tests / diagnostics).
  * Does not replace SQL filtering for listings — use applyDiscoveryEligibilityFilters.
  */
 export function evaluateDiscoveryEligibility(
   product: DiscoveryEligibilityInput,
+  now = Date.now(),
 ): DiscoveryEligibilityDecision {
   if (product.isDeleted === true) {
     return { eligible: false, reason: 'deleted', detail: 'isDeleted' };
@@ -175,7 +355,12 @@ export function evaluateDiscoveryEligibility(
   }
 
   const stockExclusion = discoveryStockExclusion(product);
-  if (stockExclusion) {
+  // Ordinary curated showcase may list without confirmed stock evidence.
+  // Native / unclassified still require the stock gate for discovery.
+  if (
+    stockExclusion &&
+    product.supplyType !== ProductSupplyType.external_source
+  ) {
     return {
       eligible: false,
       reason: 'not_purchasable',
@@ -207,10 +392,18 @@ export function evaluateDiscoveryEligibility(
         detail: 'sourceAvailability_removed',
       };
     }
+
+    if (isShowcaseVerifiedDiscoveryEnabled()) {
+      const extras = evaluateOrdinaryExternalExtras(product);
+      if (extras) return extras;
+    }
+
     return {
       eligible: true,
       reason: null,
-      detail: 'curated_external_discoverable',
+      detail: isShowcaseVerifiedDiscoveryEnabled()
+        ? 'curated_external_ordinary_showcase'
+        : 'curated_external_discoverable',
     };
   }
 
@@ -238,19 +431,39 @@ export function evaluateDiscoveryEligibility(
 }
 
 /**
- * PLP card `available` from normalized commercial state.
- * Confirmed unavailable/removed are suppressed from discovery; defensive false.
- * UNKNOWN must not claim sold-out → true for customer compatibility.
- * sourceSyncStatus is intentionally ignored.
+ * PLP card `available` = confirmed commercially available.
+ * Confirmed unavailable/removed are false.
+ * Under ordinary showcase (flag on), unknown/stale/never_verified must not
+ * claim confirmed available — they may still appear with indicative price.
  */
 export function listingCardAvailableFromSourceAvailability(
   sourceAvailability: SourceCommercialAvailability | string | null | undefined,
+  extras?: {
+    supplyType?: string | null;
+    sourceSyncStatus?: string | null;
+    availabilityLastConfirmedAt?: Date | string | null;
+    now?: number;
+  },
 ): boolean {
   if (
     sourceAvailability === SourceCommercialAvailability.unavailable ||
     sourceAvailability === SourceCommercialAvailability.removed
   ) {
     return false;
+  }
+  if (
+    isShowcaseVerifiedDiscoveryEnabled() &&
+    extras?.supplyType === ProductSupplyType.external_source
+  ) {
+    return isFreshShowcaseListing(
+      {
+        supplyType: extras.supplyType,
+        sourceAvailability,
+        sourceSyncStatus: extras.sourceSyncStatus,
+        availabilityLastConfirmedAt: extras.availabilityLastConfirmedAt,
+      },
+      extras.now ?? Date.now(),
+    );
   }
   return true;
 }

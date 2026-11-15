@@ -83,6 +83,14 @@ export function classifyMarketplaceImportFailure(
 
   if (axiosStatus === 422 || axiosStatus === 400) {
     const code = axiosData?.code || axiosData?.data?.code;
+    // Enrichment listing-gone historically returned `{ isDeleted: true }`
+    // without data.code — map that to SOURCE_UNAVAILABLE, not validation.
+    if (axiosData?.isDeleted === true || code === 'SOURCE_UNAVAILABLE') {
+      return permanent(
+        'SOURCE_UNAVAILABLE',
+        sanitizeMessage(axiosMessage) || 'محصولی یافت نشد!',
+      );
+    }
     if (code === 'IMPORT_IN_PROGRESS') {
       return retryable('IMPORT_IN_PROGRESS', GENERIC_RETRY_MESSAGE);
     }
@@ -119,11 +127,17 @@ export function classifyMarketplaceImportFailure(
     return retryable(`CRAWLER_HTTP_${axiosStatus}`, GENERIC_RETRY_MESSAGE);
   }
 
+  const errorText = String(error);
+  const messageText = String((error as Error | undefined)?.message || '');
   if (
     axiosCode === 'ECONNABORTED' ||
     axiosCode === 'ECONNREFUSED' ||
+    axiosCode === 'ECONNRESET' ||
     axiosCode === 'ETIMEDOUT' ||
-    String(error).includes('timeout')
+    axiosCode === 'EPIPE' ||
+    errorText.includes('timeout') ||
+    messageText.includes('socket hang up') ||
+    messageText.includes('ECONNRESET')
   ) {
     return retryable('CRAWLER_UNAVAILABLE', GENERIC_RETRY_MESSAGE);
   }

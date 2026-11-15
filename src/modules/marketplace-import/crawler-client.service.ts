@@ -7,6 +7,8 @@ export interface CrawlerImportPayload {
   canonicalUrl: string;
   sourceProductId: string;
   sourceUrl: string;
+  /** Discount-engine: never create new category leaves. */
+  strictExistingCategory?: boolean;
 }
 
 export interface CrawlerImportResponse {
@@ -39,11 +41,13 @@ export class CrawlerClientService {
 
   async importProduct(
     identity: CanonicalMarketplaceIdentity,
+    opts?: { strictExistingCategory?: boolean },
   ): Promise<CrawlerImportResponse> {
     const payload: CrawlerImportPayload = {
       canonicalUrl: identity.canonicalUrl,
       sourceProductId: identity.sourceProductId,
       sourceUrl: identity.sourceUrl,
+      strictExistingCategory: opts?.strictExistingCategory === true,
     };
 
     try {

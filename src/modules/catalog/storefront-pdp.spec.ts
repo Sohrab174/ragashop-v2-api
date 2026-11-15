@@ -640,6 +640,20 @@ describe('storefront-pdp.mapper pricing', () => {
     expect(mapped.sourceUrl).toBe('/item/p-123');
   });
 
+  it('confirmed unavailable external product is out of stock and not refresh-gated as purchasable', () => {
+    const mapped = mapStorefrontPdpProduct({
+      ...base, supplyType: 'external_source', sourceUrl: '/item/p-999',
+      sourceAvailability: 'unavailable', sourceSyncStatus: 'fresh',
+      availabilityLastConfirmedAt: new Date(), price: 100, discountedPrice: 70,
+      quantity: -1, isSellable: true,
+    }, 10, []);
+    expect(mapped.availability.status).toBe('out_of_stock');
+    expect(mapped.availability.purchasable).toBe(false);
+    expect(mapped.availability.sourceVerificationRequired).toBe(false);
+    expect(mapped.compareAtPrice).toBeNull();
+    expect(mapped.discount).toBeNull();
+  });
+
   it('ignores equal discountedPrice (non-sale)', () => {
     expect(isRealSale(100, 100)).toBe(false);
     const mapped = mapStorefrontPdpProduct(

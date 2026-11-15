@@ -70,6 +70,7 @@ type RawPlpProduct = DiscoveryStockInput & {
   supplyType?: string | null;
   sourceSyncStatus?: string | null;
   availabilityLastConfirmedAt?: Date | string | null;
+  discountDisplayExpiresAt?: Date | string | null;
   cover?: { pathFile?: string | null } | null;
   brand?: { name?: string | null; sourceName?: string | null } | null;
 };
@@ -81,9 +82,8 @@ function roundMoney(value: number): number {
 /**
  * Map a Product entity row to storefront card fields.
  * Sale semantics match SQL effective-price / discount sort exactly.
- * `available` applies the same policy as discoveryEligibilitySql, so rows
- * reaching discovery are available; false is defensive only. UNKNOWN
- * sourceAvailability is not sold-out.
+ * `available` is confirmed commercial availability only (fresh within listing
+ * TTL). Ordinary showcase may still list stale rows with priceIsIndicative.
  */
 export function mapStorefrontPlpProduct(
   item: RawPlpProduct,
@@ -115,8 +115,11 @@ export function mapStorefrontPlpProduct(
     priceIsIndicative:
       item.supplyType === 'external_source' && !saleAllowed,
     available:
-      listingCardAvailableFromSourceAvailability(item.sourceAvailability) &&
-      discoveryStockExclusion(item) === null,
+      listingCardAvailableFromSourceAvailability(item.sourceAvailability, {
+        supplyType: item.supplyType,
+        sourceSyncStatus: item.sourceSyncStatus,
+        availabilityLastConfirmedAt: item.availabilityLastConfirmedAt,
+      }) && discoveryStockExclusion(item) === null,
   };
 }
 

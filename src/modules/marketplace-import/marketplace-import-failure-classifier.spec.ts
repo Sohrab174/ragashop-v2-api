@@ -22,6 +22,22 @@ describe('MarketplaceImportFailureClassifier', () => {
     expect(result.kind).toBe('retryable');
   });
 
+  it('classifies ECONNRESET / socket hang up as CRAWLER_UNAVAILABLE', () => {
+    const reset = classifyMarketplaceImportFailure({ code: 'ECONNRESET' });
+    expect(reset.kind).toBe('retryable');
+    expect(reset.errorCode).toBe('CRAWLER_UNAVAILABLE');
+
+    const hangup = classifyMarketplaceImportFailure(
+      Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }),
+    );
+    expect(hangup.kind).toBe('retryable');
+    expect(hangup.errorCode).toBe('CRAWLER_UNAVAILABLE');
+
+    const epipe = classifyMarketplaceImportFailure({ code: 'EPIPE' });
+    expect(epipe.kind).toBe('retryable');
+    expect(epipe.errorCode).toBe('CRAWLER_UNAVAILABLE');
+  });
+
   it('classifies crawler SOURCE_UNAVAILABLE as permanent', () => {
     const result = classifyMarketplaceImportFailure({
       response: {
@@ -31,6 +47,18 @@ describe('MarketplaceImportFailureClassifier', () => {
           data: { code: 'SOURCE_UNAVAILABLE' },
         },
       },
+    });
+    expect(result.kind).toBe('permanent');
+    expect(result.errorCode).toBe('SOURCE_UNAVAILABLE');
+  });
+
+  it('classifies enrichment listing-gone body { isDeleted: true } as SOURCE_UNAVAILABLE', () => {
+    const result = classifyMarketplaceImportFailure({
+      response: {
+        status: 400,
+        data: { isDeleted: true },
+      },
+      message: 'Request failed with status code 400',
     });
     expect(result.kind).toBe('permanent');
     expect(result.errorCode).toBe('SOURCE_UNAVAILABLE');

@@ -121,6 +121,7 @@ export class MarketplaceImportJobService {
   async createOrReuseCatalogRefreshJob(
     identity: MarketplaceSourceIdentity,
     priority: number,
+    opts?: { requestCorrelationId?: string | null },
   ): Promise<MarketplaceImportCreateResult | null> {
     const activeJob = await this.findActiveJobByIdentity(identity);
     if (activeJob) {
@@ -142,6 +143,10 @@ export class MarketplaceImportJobService {
         Math.floor(priority),
       ),
     );
+    const correlation =
+      opts?.requestCorrelationId != null
+        ? String(opts.requestCorrelationId).slice(0, 64)
+        : null;
 
     const job = this.jobRepository.create({
       source: identity.source,
@@ -165,7 +170,7 @@ export class MarketplaceImportJobService {
       errorMessage: null,
       requesterIpHash: null,
       publicAccessToken,
-      requestCorrelationId: null,
+      requestCorrelationId: correlation,
       createdAt: now,
       updatedAt: now,
     });

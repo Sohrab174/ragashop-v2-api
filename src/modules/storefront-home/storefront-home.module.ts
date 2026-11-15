@@ -9,6 +9,7 @@ import { StorefrontHomeController } from './storefront-home.controller';
 import { StorefrontHomeService } from './storefront-home.service';
 import { HomeImageAccessService } from './home-image-access.service';
 import { CapabilityModule } from '../auth/capability/capability.module';
+import { DiscountDiscoveryPoolEntity } from '../catalog-lifecycle/entities/discount-discovery-pool.entity';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CapabilityModule } from '../auth/capability/capability.module';
       ProductEntity,
       CategoryEntity,
       CanonicalCategoryEntity,
+      DiscountDiscoveryPoolEntity,
     ]),
     CapabilityModule,
   ],
