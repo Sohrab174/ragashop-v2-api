@@ -73,6 +73,7 @@ export type CartReadProductRow = {
   sourceSyncStatus?: string | null;
   availabilityLastConfirmedAt?: Date | string | null;
   isCuratedExternalCatalog?: boolean | number | null;
+  catalogOrigin?: string | null;
   productAttributeValues?: RawPdpPav[] | null;
 };
 

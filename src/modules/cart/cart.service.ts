@@ -498,6 +498,7 @@ export class CartService {
       sourceSyncStatus: product.sourceSyncStatus,
       availabilityLastConfirmedAt: product.availabilityLastConfirmedAt,
       isCuratedExternalCatalog: product.isCuratedExternalCatalog,
+      catalogOrigin: product.catalogOrigin,
       productAttributeValues: (product.productAttributeValues || []).map(
         (pav) => ({
           id: pav.id,
@@ -570,6 +571,7 @@ export class CartService {
           sourceSyncStatus: product.sourceSyncStatus,
           availabilityLastConfirmedAt: product.availabilityLastConfirmedAt,
           isCuratedExternalCatalog: product.isCuratedExternalCatalog,
+          catalogOrigin: product.catalogOrigin,
           productAttributeValues: (product.productAttributeValues || []).map(
             (pav) => ({
               id: pav.id,

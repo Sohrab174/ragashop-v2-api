@@ -4,6 +4,7 @@ import {
 } from './catalog-refresh-eligibility';
 import {
   MarketplaceImportJobPriorityBand,
+  ProductCatalogOrigin,
   ProductSupplyType,
 } from './catalog-lifecycle.types';
 import {
@@ -91,10 +92,11 @@ describe('catalog-lifecycle A3 Fix #1', () => {
     const after = { ...before, ...patch };
     expect(after.isCuratedExternalCatalog).toBe(true);
     expect(after.supplyType).toBe(ProductSupplyType.external_source);
+    expect(after.catalogOrigin).toBe(ProductCatalogOrigin.external_on_demand);
     expect(patch).not.toHaveProperty('isCuratedExternalCatalog');
   });
 
-  it('new customer paste-link defaults to external + not curated', () => {
+  it('new customer paste-link defaults to external + not curated + on-demand provenance', () => {
     const created = {
       supplyType: ProductSupplyType.unclassified,
       isCuratedExternalCatalog: false,
@@ -102,6 +104,7 @@ describe('catalog-lifecycle A3 Fix #1', () => {
     const after = { ...created, ...membershipPatchForCustomerImportSuccess() };
     expect(after.supplyType).toBe(ProductSupplyType.external_source);
     expect(after.isCuratedExternalCatalog).toBe(false);
+    expect(after.catalogOrigin).toBe(ProductCatalogOrigin.external_on_demand);
   });
 
   it('non-curated external can later become curated', () => {
