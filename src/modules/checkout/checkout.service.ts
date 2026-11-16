@@ -966,6 +966,7 @@ export class CheckoutService {
         sourceSyncStatus: product.sourceSyncStatus,
         availabilityLastConfirmedAt: product.availabilityLastConfirmedAt,
         isCuratedExternalCatalog: product.isCuratedExternalCatalog,
+        catalogOrigin: product.catalogOrigin,
         purchaseCost: product.purchaseCost,
         landedUnitCost: product.landedUnitCost,
         costCurrency: product.costCurrency,

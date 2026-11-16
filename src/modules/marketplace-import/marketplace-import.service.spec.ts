@@ -263,11 +263,11 @@ describe('MarketplaceImportService A6 high-intent refresh', () => {
       supplyType: ProductSupplyType.external_source,
       isCuratedExternalCatalog: true,
     };
-    const after = { ...before, ...membershipPatchForCustomerImportSuccess() };
+    const patch = membershipPatchForCustomerImportSuccess();
+    const after = { ...before, ...patch };
     expect(after.isCuratedExternalCatalog).toBe(true);
-    expect(membershipPatchForCustomerImportSuccess()).not.toHaveProperty(
-      'isCuratedExternalCatalog',
-    );
+    expect(patch.catalogOrigin).toBe('external_on_demand');
+    expect(patch).not.toHaveProperty('isCuratedExternalCatalog');
   });
 
   it('does not recrawl native marketplace products', async () => {

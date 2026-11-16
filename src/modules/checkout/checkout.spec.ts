@@ -278,7 +278,7 @@ describe('resolveCheckoutLines', () => {
     }
   });
 
-  it('blocks uncurated external products even when assortment enforcement is off', () => {
+  it('blocks historical uncurated externals without paste-link provenance', () => {
     const result = resolveCheckoutLines({
       items: [
         {
@@ -304,6 +304,10 @@ describe('resolveCheckoutLines', () => {
             coverPath: null,
             supplyType: 'external_source',
             isCuratedExternalCatalog: false,
+            catalogOrigin: 'external_curated',
+            sourceAvailability: 'available',
+            sourceSyncStatus: 'fresh',
+            availabilityLastConfirmedAt: new Date(),
             productAttributeValues: [],
           },
         ],
@@ -313,6 +317,85 @@ describe('resolveCheckoutLines', () => {
     if (result.ok === false) {
       expect(result.issues[0].code).toBe('unavailable');
       expect(result.issues[0].message).toContain('بررسی');
+    }
+  });
+
+  it('allows customer paste-import products outside curated showcase when fresh', () => {
+    const result = resolveCheckoutLines({
+      items: [
+        {
+          id: 1,
+          productId: 9001,
+          productAttributeValueId: null,
+          quantity: 1,
+        },
+      ],
+      productsById: new Map([
+        [
+          9001,
+          {
+            id: 9001,
+            name: 'Paste import',
+            price: 120,
+            discountedPrice: 0,
+            quantity: -1,
+            isSellable: true,
+            isDeleted: false,
+            status: 'active',
+            categoryId: 17,
+            coverPath: null,
+            supplyType: 'external_source',
+            isCuratedExternalCatalog: false,
+            catalogOrigin: 'external_on_demand',
+            sourceAvailability: 'available',
+            sourceSyncStatus: 'fresh',
+            availabilityLastConfirmedAt: new Date(),
+            productAttributeValues: [],
+          },
+        ],
+      ]),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('still requires five-minute freshness for customer paste-import products', () => {
+    const result = resolveCheckoutLines({
+      items: [
+        {
+          id: 1,
+          productId: 9002,
+          productAttributeValueId: null,
+          quantity: 1,
+        },
+      ],
+      productsById: new Map([
+        [
+          9002,
+          {
+            id: 9002,
+            name: 'Stale paste import',
+            price: 120,
+            discountedPrice: 0,
+            quantity: -1,
+            isSellable: true,
+            isDeleted: false,
+            status: 'active',
+            categoryId: 17,
+            coverPath: null,
+            supplyType: 'external_source',
+            isCuratedExternalCatalog: false,
+            catalogOrigin: 'external_on_demand',
+            sourceAvailability: 'available',
+            sourceSyncStatus: 'fresh',
+            availabilityLastConfirmedAt: new Date(Date.now() - 6 * 60_000),
+            productAttributeValues: [],
+          },
+        ],
+      ]),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.issues[0].code).toBe('unavailable');
     }
   });
 
@@ -348,6 +431,75 @@ describe('resolveCheckoutLines', () => {
     expect(result.ok).toBe(false);
     if (result.ok === false) {
       expect(result.issues[0].code).toBe('insufficient_stock');
+    }
+  });
+
+  it('blocks unavailable selected variant for customer paste-import products', () => {
+    const sizeAttr = { id: 7, name: 'سایز', type: 'other' };
+    const result = resolveCheckoutLines({
+      items: [
+        {
+          id: 1,
+          productId: 9003,
+          productAttributeValueId: 70,
+          quantity: 1,
+        },
+      ],
+      productsById: new Map([
+        [
+          9003,
+          {
+            id: 9003,
+            name: 'Paste sized',
+            price: 100,
+            discountedPrice: null,
+            quantity: -1,
+            isSellable: true,
+            isDeleted: false,
+            status: 'active',
+            categoryId: 17,
+            coverPath: null,
+            supplyType: 'external_source',
+            isCuratedExternalCatalog: false,
+            catalogOrigin: 'external_on_demand',
+            sourceAvailability: 'available',
+            sourceSyncStatus: 'fresh',
+            availabilityLastConfirmedAt: new Date(),
+            productAttributeValues: [
+              {
+                id: 70,
+                quantity: 0,
+                price: 100,
+                discountedPrice: null,
+                attributeValue: {
+                  id: 1,
+                  name: 'M',
+                  extraValue: null,
+                  attributeId: 7,
+                  attribute: sizeAttr,
+                },
+              },
+              {
+                id: 71,
+                quantity: 3,
+                price: 100,
+                discountedPrice: null,
+                attributeValue: {
+                  id: 2,
+                  name: 'L',
+                  extraValue: null,
+                  attributeId: 7,
+                  attribute: sizeAttr,
+                },
+              },
+            ],
+          },
+        ],
+      ]),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok === false) {
+      expect(result.issues[0].code).toBe('unavailable');
     }
   });
 

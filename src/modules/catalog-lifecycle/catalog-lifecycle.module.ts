@@ -7,6 +7,10 @@ import { MarketplaceImportJobEntity } from '../marketplace-import/entities/marke
 import { CatalogLifecycleController } from './catalog-lifecycle.controller';
 import { CatalogRefreshExecutorService } from './catalog-refresh-executor.service';
 import { CatalogRefreshCheckpointEntity } from './entities/catalog-refresh-checkpoint.entity';
+import { ShowcasePilotRefreshService } from './showcase-pilot-refresh.service';
+import { DiscountEngineService } from './discount-engine.service';
+import { DiscountEngineScheduler } from './discount-engine.scheduler';
+import { DiscountDiscoveryPoolEntity } from './entities/discount-discovery-pool.entity';
 
 @Module({
   imports: [
@@ -15,11 +19,22 @@ import { CatalogRefreshCheckpointEntity } from './entities/catalog-refresh-check
       MarketplaceImportJobEntity,
       CartItemEntity,
       CatalogRefreshCheckpointEntity,
+      DiscountDiscoveryPoolEntity,
     ]),
     MarketplaceImportModule,
   ],
   controllers: [CatalogLifecycleController],
-  providers: [CatalogRefreshExecutorService],
-  exports: [CatalogRefreshExecutorService],
+  providers: [
+    CatalogRefreshExecutorService,
+    ShowcasePilotRefreshService,
+    DiscountEngineService,
+    DiscountEngineScheduler,
+  ],
+  exports: [
+    CatalogRefreshExecutorService,
+    ShowcasePilotRefreshService,
+    DiscountEngineService,
+    DiscountEngineScheduler,
+  ],
 })
 export class CatalogLifecycleModule {}

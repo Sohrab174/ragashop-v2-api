@@ -131,10 +131,11 @@ import { SettingService } from '../setting/setting.service';
  * - product.price > 0
  * - product.categoryId != 1
  * - category.status = active (INNER JOIN)
- * - A4 discovery: curated external not unavailable/removed;
- *   non-curated external excluded; native/unclassified compatible
+ * - A4 discovery: curated external verified showcase (available+fresh+listing TTL)
+ *   when SHOWCASE_VERIFIED_DISCOVERY is on; non-curated external excluded;
+ *   native/unclassified compatible
  * - Stock gate (discoveryPurchasableSql): isSellable, quantity <> 0, and
- *   hasStock (native uses quantity); unknown / source_error alone never hides
+ *   hasStock (native uses quantity)
  * PDP does NOT require curated membership (paste-link direct access).
  */
 

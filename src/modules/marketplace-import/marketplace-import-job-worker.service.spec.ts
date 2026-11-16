@@ -209,6 +209,7 @@ describe('MarketplaceImportJobWorkerService paste-link P1', () => {
     );
     const patch = productRepository.update.mock.calls[0][1];
     expect(patch.supplyType).toBe(ProductSupplyType.external_source);
+    expect(patch.catalogOrigin).toBe('external_on_demand');
     expect(patch).not.toHaveProperty('isCuratedExternalCatalog');
   });
 
@@ -229,6 +230,7 @@ describe('MarketplaceImportJobWorkerService paste-link P1', () => {
 
     const patch = productRepository.update.mock.calls[0][1];
     expect(patch.supplyType).toBe(ProductSupplyType.external_source);
+    expect(patch.catalogOrigin).toBe('external_on_demand');
     expect(patch).not.toHaveProperty('isCuratedExternalCatalog');
   });
 

@@ -287,7 +287,12 @@ export class MarketplaceImportJobWorkerService
         return;
       }
       const crawlerIdentity = toCanonicalMarketplaceIdentity(identity);
-      const result = await this.crawlerClient.importProduct(crawlerIdentity);
+      const strictExistingCategory = String(
+        job.requestCorrelationId || '',
+      ).startsWith('discount-engine');
+      const result = await this.crawlerClient.importProduct(crawlerIdentity, {
+        strictExistingCategory,
+      });
 
       if (!result?.id || !result?.name) {
         throw Object.assign(new Error('Invalid crawler response'), {

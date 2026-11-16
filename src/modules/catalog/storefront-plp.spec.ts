@@ -431,11 +431,24 @@ describe('storefront-plp.mapper', () => {
     expect(
       available({
         supplyType: 'external_source',
+        sourceAvailability: 'available',
+        sourceSyncStatus: 'fresh',
+        availabilityLastConfirmedAt: new Date(),
         hasStock: true,
         isSellable: true,
         quantity: -1,
       }),
     ).toBe(true);
+    expect(
+      available({
+        supplyType: 'external_source',
+        sourceAvailability: 'unknown',
+        sourceSyncStatus: 'never_verified',
+        hasStock: true,
+        isSellable: true,
+        quantity: -1,
+      }),
+    ).toBe(false);
     expect(
       available({
         supplyType: 'native_marketplace',
@@ -447,6 +460,9 @@ describe('storefront-plp.mapper', () => {
     expect(
       available({
         supplyType: 'external_source',
+        sourceAvailability: 'available',
+        sourceSyncStatus: 'fresh',
+        availabilityLastConfirmedAt: new Date(),
         hasStock: false,
         isSellable: true,
         quantity: -1,

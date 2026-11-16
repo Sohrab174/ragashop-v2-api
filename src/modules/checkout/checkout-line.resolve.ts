@@ -81,6 +81,7 @@ export type CheckoutProductRow = {
   sourceSyncStatus?: string | null;
   availabilityLastConfirmedAt?: Date | string | null;
   isCuratedExternalCatalog?: boolean | number | null;
+  catalogOrigin?: string | null;
   purchaseCost?: number | null;
   landedUnitCost?: number | null;
   costCurrency?: string | null;

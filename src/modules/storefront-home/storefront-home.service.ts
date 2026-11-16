@@ -66,6 +66,10 @@ import {
 import { HomeImageAccessService } from './home-image-access.service';
 import { collectHomeImagePathsFromValue } from './home-image-retention';
 import { effectiveMobileImagePath } from './effective-home-mobile-image';
+import {
+  DiscountDiscoveryPoolEntity,
+  DiscountPoolEntryStatus,
+} from '../catalog-lifecycle/entities/discount-discovery-pool.entity';
 
 type HomePreviewSession = {
   userId: number;
@@ -110,9 +114,39 @@ export class StorefrontHomeService {
     private readonly config: ConfigurationService,
     private readonly homeImageAccess: HomeImageAccessService,
     @Optional()
+    @InjectRepository(DiscountDiscoveryPoolEntity)
+    private readonly discountPoolRepo?: Repository<DiscountDiscoveryPoolEntity>,
+    @Optional()
     @InjectRepository(StorefrontHomeSectionInstanceEntity)
     private readonly instanceRepo?: Repository<StorefrontHomeSectionInstanceEntity>,
   ) {}
+
+  private async listVerifiedDiscountPoolProductIds(
+    now: Date,
+  ): Promise<number[]> {
+    if (!this.discountPoolRepo) return [];
+    const active = await this.discountPoolRepo.find({
+      where: { status: DiscountPoolEntryStatus.active },
+      order: { verifiedDiscountPct: 'DESC', id: 'ASC' },
+    });
+    const nowMs = now.getTime();
+    const ids: number[] = [];
+    for (const row of active) {
+      if (row.displayExpiresAt != null) {
+        const ends = new Date(row.displayExpiresAt).getTime();
+        if (!Number.isFinite(ends) || nowMs >= ends) continue;
+      }
+      if (
+        row.verifiedDiscountPct == null ||
+        !Number.isFinite(Number(row.verifiedDiscountPct)) ||
+        Number(row.verifiedDiscountPct) <= 0
+      ) {
+        continue;
+      }
+      ids.push(row.productId);
+    }
+    return ids;
+  }
 
   /**
    * GET /storefront/home — presentation-only public contract.
@@ -449,7 +483,9 @@ export class StorefrontHomeService {
     const instanceSectionRows = (publishedInstances ?? []).map((row, index) =>
       this.instanceToSectionRow(row, index),
     );
-    const productIdsNeeded = new Set<number>();
+    const verifiedPoolProductIds =
+      await this.listVerifiedDiscountPoolProductIds(now);
+    const productIdsNeeded = new Set<number>(verifiedPoolProductIds);
     const categoryIdsNeeded = new Set<number>();
     const canonicalCategoryIdsNeeded = new Set<number>();
     for (const row of [...rows, ...instanceSectionRows]) {
@@ -488,12 +524,16 @@ export class StorefrontHomeService {
       }
     }
 
-    const [activeProductIds, activeCategoryIds, activeCanonicalCategoryIds] =
+    const [activeProductIds, activeCategoryIds, activeCanonicalCategoryIds, activePoolProductIds] =
       await Promise.all([
         this.filterActiveProductIds([...productIdsNeeded]),
         this.filterActiveCategoryIds([...categoryIdsNeeded]),
         this.filterActiveCanonicalCategoryIds([...canonicalCategoryIdsNeeded]),
+        this.filterDiscountPoolProductIds(verifiedPoolProductIds, now),
       ]);
+    // Verified daily pool products are homepage-eligible for the discount rail
+    // without requiring ordinary curated discovery membership.
+    for (const id of activePoolProductIds) activeProductIds.add(id);
 
     const sections: PublicHomeSectionDto[] = [];
     for (const row of rows) {
@@ -507,6 +547,7 @@ export class StorefrontHomeService {
         activeCategoryIds,
         activeCanonicalCategoryIds,
         now,
+        verifiedPoolProductIds,
       );
       if (mapped) sections.push(mapped);
     }
@@ -523,6 +564,7 @@ export class StorefrontHomeService {
           activeCategoryIds,
           activeCanonicalCategoryIds,
           now,
+          verifiedPoolProductIds,
         );
         if (!section) return [];
         return [
@@ -949,6 +991,7 @@ export class StorefrontHomeService {
     activeCategoryIds: Set<number>,
     activeCanonicalCategoryIds: Set<number>,
     now: Date,
+    verifiedPoolProductIds: number[] = [],
   ): PublicHomeSectionDto | null {
     const key = row.sectionKey as StorefrontHomeSectionKey;
     const base: PublicHomeSectionDto = {
@@ -1030,15 +1073,25 @@ export class StorefrontHomeService {
         const r = normalizeRailConfig(cfg);
         const source =
           r.source ?? (key === 'discounts' ? 'discount' : 'newest');
-        const productIds = (r.productIds ?? []).filter((id) =>
+        const configuredIds = (r.productIds ?? []).filter((id) =>
           activeProductIds.has(id),
         );
+        // Verified daily pool wins for the discounts rail when present.
+        // Preserves empty-curated intentional blank for newest only.
+        const poolIds =
+          key === 'discounts'
+            ? verifiedPoolProductIds.filter((id) => activeProductIds.has(id))
+            : [];
+        const productIds =
+          key === 'discounts' && poolIds.length > 0 ? poolIds : configuredIds;
         base.rail = {
           source:
-            source === 'curated' && productIds.length === 0
-              ? r.fallbackSource ??
-                (key === 'discounts' ? 'discount' : 'newest')
-              : source,
+            key === 'discounts' && poolIds.length > 0
+              ? 'curated'
+              : source === 'curated' && productIds.length === 0
+                ? r.fallbackSource ??
+                  (key === 'discounts' ? 'discount' : 'newest')
+                : source,
           limit: r.limit ?? 12,
           seeAllLabel: r.seeAllLabel,
           seeAllHref: optionalStorefrontHref(r.seeAllHref),
@@ -1299,6 +1352,32 @@ export class StorefrontHomeService {
       .andWhere('product.isDeleted = 0')
       .andWhere('product.status = :status', { status: ProductStatus.active })
       .andWhere(discoveryEligibilitySql('product'))
+      .getMany();
+    return new Set(rows.map((r) => r.id));
+  }
+
+  /**
+   * Verified discount-pool products for the homepage rail.
+   * Requires active row, genuine sale, and unexpired discountDisplayExpiresAt.
+   * Does not require curated discovery membership.
+   */
+  private async filterDiscountPoolProductIds(
+    ids: number[],
+    now: Date,
+  ): Promise<Set<number>> {
+    if (!ids.length) return new Set();
+    const rows = await this.productRepo
+      .createQueryBuilder('product')
+      .select(['product.id'])
+      .where('product.id IN (:...ids)', { ids })
+      .andWhere('product.isDeleted = 0')
+      .andWhere('product.status = :status', { status: ProductStatus.active })
+      .andWhere('product.price > 0')
+      .andWhere('product.discountedPrice IS NOT NULL')
+      .andWhere('product.discountedPrice > 0')
+      .andWhere('product.discountedPrice < product.price')
+      .andWhere('product.discountDisplayExpiresAt IS NOT NULL')
+      .andWhere('product.discountDisplayExpiresAt > :now', { now })
       .getMany();
     return new Set(rows.map((r) => r.id));
   }

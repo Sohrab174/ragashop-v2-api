@@ -344,6 +344,14 @@ export class ProductEntity extends BaseEntity {
   @Column('datetime', { name: 'availabilityLastConfirmedAt', nullable: true })
   availabilityLastConfirmedAt: Date | null;
 
+  /**
+   * Optional hard deadline for showcase discount badge display
+   * (min of verification TTL and known Flash collection window).
+   * Does not affect 5-minute purchase freshness.
+   */
+  @Column('datetime', { name: 'discountDisplayExpiresAt', nullable: true })
+  discountDisplayExpiresAt: Date | null;
+
   /** Last source refresh attempt (success or failure). */
   @Column('datetime', { name: 'sourceLastAttemptAt', nullable: true })
   sourceLastAttemptAt: Date | null;

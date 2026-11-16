@@ -1,4 +1,7 @@
-import { ProductSupplyType } from './catalog-lifecycle.types';
+import {
+  ProductCatalogOrigin,
+  ProductSupplyType,
+} from './catalog-lifecycle.types';
 
 export type CatalogMembershipSnapshot = {
   supplyType: ProductSupplyType | string;
@@ -7,12 +10,20 @@ export type CatalogMembershipSnapshot = {
 
 /**
  * After customer paste-link success:
- * ensure external supply; NEVER touch curated membership.
+ * ensure external supply + on-demand purchase provenance.
+ * NEVER touch curated membership (showcase stays admin-controlled).
  * New products keep DB default curated=false; existing curated stay curated.
+ *
+ * catalogOrigin=external_on_demand reuses the existing A3 column as paste-link
+ * purchase authorization so cart/checkout can allow buying without discovery.
  */
-export function membershipPatchForCustomerImportSuccess(): Partial<CatalogMembershipSnapshot> {
+export function membershipPatchForCustomerImportSuccess(): {
+  supplyType: ProductSupplyType;
+  catalogOrigin: ProductCatalogOrigin;
+} {
   return {
     supplyType: ProductSupplyType.external_source,
+    catalogOrigin: ProductCatalogOrigin.external_on_demand,
   };
 }
 
